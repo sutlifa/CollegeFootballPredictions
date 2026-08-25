@@ -1,26 +1,17 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * This app is dark-only by design (see the bg-neutral-950/text-neutral-100
+ * classes on <body> in app/layout.tsx) -- no light/dark toggle needed. Do
+ * NOT reintroduce a plain `body { color: ...; background: ...; }` rule here:
+ * in Tailwind v4, unlayered CSS in this file overrides layered utility
+ * classes regardless of specificity, so a rule like that would silently
+ * beat the Tailwind classes on <body> and make any text without its own
+ * explicit color class inherit an invisible near-black color on the dark
+ * background (exactly the bug that motivated this comment).
+ */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
