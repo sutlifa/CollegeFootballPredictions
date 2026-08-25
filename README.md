@@ -25,18 +25,19 @@ only ever worked from a residential connection, never in production.
 3. Get a free API key at https://collegefootballdata.com/key and set
    `CFBD_API_KEY`.
 4. Run the schema: `npm run db:migrate`
-5. Seed the ~136 FBS teams: `npm run seed:teams`
-6. Resolve CFBD team IDs (needed before pulling schedules/results):
-   `npm run seed:cfbd-ids`. If it reports unresolved FBS teams, find their
-   CFBD entry and add an alias to `lib/data/team-name-aliases.json`, then
-   re-run.
-7. Seed the Weeks 1-15 schedule:
+5. Seed teams: `npm run seed:teams`. This pulls the *current* FBS roster,
+   conference alignment, logos, and the real AP preseason poll straight from
+   CFBD -- it's the source of truth, not a static list, so re-run it any
+   time realignment happens or a program moves in/out of FBS (e.g. a team
+   newly joining FBS shows up automatically on the next run).
+6. Seed the Weeks 1-15 schedule:
    `curl -X POST "http://localhost:3000/api/admin/seed-schedule" -H "x-admin-secret: $ADMIN_SECRET"`
    (add `?week=N` to seed a single week)
-8. `npm run dev` and start predicting at `/weeks/1`.
+7. `npm run dev` and start predicting at `/weeks/1`.
 
-Week 16 (conference championships) is never pulled from the API -- it's
-derived automatically from your Weeks 1-15 predicted standings.
+Week 15 is the Army-Navy game and Week 16 is Conference Championship week --
+the latter is never pulled from the API, it's derived automatically from
+your Weeks 1-15 predicted standings.
 
 ## Cron
 

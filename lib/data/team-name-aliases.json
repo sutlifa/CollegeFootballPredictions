@@ -1,4 +1,0 @@
-{
-  "_comment": "Maps a CollegeFootballData.com team name (its `school` field, or one of its `alternateNames`, checked in that order) to our canonical teams.name, for the handful of teams that don't match either directly. scripts/resolve-cfbd-team-ids.ts reports any still-unresolved names on each run -- add them here and re-run rather than fuzzy-matching.",
-  "San José State": "San Jose State"
-}

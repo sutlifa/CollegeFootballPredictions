@@ -121,3 +121,37 @@ export async function fetchAllTeams(year: number): Promise<CfbdTeam[]> {
 export function isFbsGame(game: CfbdGame): boolean {
   return game.homeClassification === "fbs" || game.awayClassification === "fbs";
 }
+
+export type CfbdPollRank = { rank: number; teamId: number; school: string };
+export type CfbdPoll = { poll: string; ranks: CfbdPollRank[] };
+export type CfbdRankingsWeek = {
+  season: number;
+  seasonType: string;
+  week: number;
+  polls: CfbdPoll[];
+};
+
+/**
+ * CFBD tags the first published Top 25 of the season (before any games are
+ * played) as week 1 -- that's the real preseason poll, not something we
+ * compute ourselves.
+ */
+export async function fetchPreseasonRankings(
+  year: number,
+): Promise<CfbdRankingsWeek[]> {
+  const params = new URLSearchParams({
+    year: String(year),
+    week: "1",
+    seasonType: "regular",
+  });
+  const res = await fetch(`${CFBD_BASE}/rankings?${params}`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `CFBD rankings fetch failed: ${res.status} ${res.statusText}`,
+    );
+  }
+  return res.json();
+}
