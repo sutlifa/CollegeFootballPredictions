@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { fetchSeasonGames, type CfbdGame } from "@/lib/cfbd";
+import { VALID_WEEKS } from "@/lib/format";
 
 export const maxDuration = 60;
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
 
   let gamesUpdated = 0;
   let error: string | null = null;
-  const weeksChecked = Array.from({ length: 16 }, (_, i) => i + 1);
+  const weeksChecked = VALID_WEEKS;
 
   try {
     const games = await fetchSeasonGames(SEASON);

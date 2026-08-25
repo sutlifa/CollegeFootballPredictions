@@ -1,5 +1,6 @@
 import { sql } from "./db";
 import { fetchSeasonGames, isFbsGame, type CfbdGame } from "./cfbd";
+import { VALID_WEEKS } from "./format";
 
 const SEASON = 2026;
 
@@ -30,7 +31,7 @@ export type SeedWeekResult = { week: number; gamesUpserted: number };
 
 /** Ingests weeks 1-15 from CFBD in one call (Week 16 is derived, not fetched). */
 export async function seedSeasonFromCfbd(
-  weeks: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  weeks: number[] = VALID_WEEKS.filter((w) => w !== 16),
 ): Promise<SeedWeekResult[]> {
   const allGames = await fetchSeasonGames(SEASON);
   const weekSet = new Set(weeks);

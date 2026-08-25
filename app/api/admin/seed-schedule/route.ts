@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { seedSeasonFromCfbd } from "@/lib/ingest";
+import { VALID_WEEKS } from "@/lib/format";
+
+const SEEDABLE_WEEKS = VALID_WEEKS.filter((w) => w !== 16);
 
 export const maxDuration = 60;
 
@@ -22,13 +25,11 @@ export async function POST(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const weekParam = searchParams.get("week");
-  const weeks = weekParam
-    ? [Number(weekParam)]
-    : Array.from({ length: 15 }, (_, i) => i + 1);
+  const weeks = weekParam ? [Number(weekParam)] : SEEDABLE_WEEKS;
 
-  if (weeks.some((w) => Number.isNaN(w) || w < 1 || w > 15)) {
+  if (weeks.some((w) => !SEEDABLE_WEEKS.includes(w))) {
     return NextResponse.json(
-      { error: "week must be between 1 and 15" },
+      { error: `week must be one of: ${SEEDABLE_WEEKS.join(", ")}` },
       { status: 400 },
     );
   }

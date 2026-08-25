@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getWeekLabel } from "@/lib/format";
+import { VALID_WEEKS, getWeekLabel } from "@/lib/format";
 import { getAllGames } from "@/lib/queries";
 import { isDecided } from "@/lib/types";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const games = await getAllGames();
 
-  const weeks = Array.from({ length: 16 }, (_, i) => i + 1).map((week) => {
+  const weeks = VALID_WEEKS.map((week) => {
     const weekGames = games.filter((g) => g.week === week);
     const decided = weekGames.filter(isDecided).length;
     return { week, total: weekGames.length, decided };

@@ -10,6 +10,13 @@ export function getWeekLabel(week: number): string {
   return `Week ${week}`;
 }
 
+/** Week 14 doesn't exist in the current season's real schedule -- no FBS games are played that week. */
+export const VALID_WEEKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
+
+export function isValidWeek(week: number): boolean {
+  return VALID_WEEKS.includes(week);
+}
+
 const kickoffFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York",
   weekday: "short",

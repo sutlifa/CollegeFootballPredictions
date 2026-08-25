@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { TeamLogo } from "@/components/TeamLogo";
-import { formatKickoff, getWeekLabel } from "@/lib/format";
+import { formatKickoff, getWeekLabel, isValidWeek } from "@/lib/format";
 import { getAllTeams, getGamesForWeek } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName } from "@/lib/types";
@@ -13,7 +13,7 @@ export default async function WeekPage({
 }: PageProps<"/weeks/[week]">) {
   const { week: weekParam } = await params;
   const week = Number(weekParam);
-  if (!Number.isInteger(week) || week < 1 || week > 16) {
+  if (!isValidWeek(week)) {
     notFound();
   }
 
