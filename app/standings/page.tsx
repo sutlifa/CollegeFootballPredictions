@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
+import { Tooltip } from "@/components/Tooltip";
 import { CHAMPIONSHIP_CONFERENCES } from "@/lib/conferences";
 import { getAllGames, getAllTeams } from "@/lib/queries";
 import { computeStandings, groupStandingsByConference } from "@/lib/standings";
@@ -33,7 +34,15 @@ export default async function StandingsPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold text-ink">Standings</h1>
+      <div>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+          Standings
+          <Tooltip text="Grouped by conference and sorted by conference record first, then overall record. Each conference's top two (highlighted) play each other in that conference's Week 16 championship -- the winner becomes conference champion and locks an automatic bid into the Bracket." />
+        </h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          Based on your own predictions for weeks 1-15 -- updates live as you save each one, no submission required.
+        </p>
+      </div>
       {conferences.map((conference) => {
         const rows = grouped.get(conference)!;
         const isChampionshipConf = (
@@ -62,7 +71,12 @@ export default async function StandingsPage() {
                     <th className="px-3 py-2 text-left">Team</th>
                     <th className="px-3 py-2 text-right">W</th>
                     <th className="px-3 py-2 text-right">L</th>
-                    <th className="px-3 py-2 text-right">Conf W</th>
+                    <th className="px-3 py-2 text-right">
+                      <span className="inline-flex items-center gap-1 normal-case">
+                        Conf W
+                        <Tooltip text="Wins/losses against other teams in this same conference only -- the tiebreaker used to seed the conference championship, ranked above overall record." />
+                      </span>
+                    </th>
                     <th className="px-3 py-2 text-right">Conf L</th>
                   </tr>
                 </thead>

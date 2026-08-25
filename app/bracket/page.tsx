@@ -1,5 +1,7 @@
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
+import { Tooltip } from "@/components/Tooltip";
+import { TrophyIcon } from "@/components/TrophyIcon";
 import { computeBracketSeeding, getBracketCandidates } from "@/lib/bracket";
 import { computeComputerRankings } from "@/lib/computerRankings";
 import {
@@ -36,8 +38,14 @@ export default async function BracketPage() {
     const bracket = computeBracketSeeding(selectedTeamIds, rankings);
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-ink">12-Team Playoff Bracket</h1>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <TrophyIcon size={88} />
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+            12-Team Playoff Bracket
+            <Tooltip text="Seeded 1-12 by Computer Ranking among your chosen field. Seeds 1-4 get a first-round bye. Round 1 is the standard 5v12, 6v11, 7v10, 8v9." />
+          </h1>
+        </div>
+        <div className="flex items-center justify-end">
           <form action={resetBracketFieldAction}>
             <button
               type="submit"
@@ -60,10 +68,13 @@ export default async function BracketPage() {
                 {s.team}
               </span>{" "}
               <span className="text-ink-muted">
-                ({s.wins}-{s.losses}, {s.score.toFixed(1)})
+                ({s.wins}-{s.losses}, {s.score.toFixed(1)} rating)
               </span>
               {s.seed <= 4 && (
-                <span className="ml-2 rounded bg-win/20 px-1.5 py-0.5 text-xs font-bold text-win">
+                <span
+                  className="ml-2 rounded bg-win/20 px-1.5 py-0.5 text-xs font-bold text-win"
+                  title="Top 4 seeds skip Round 1 and enter in the quarterfinals"
+                >
                   BYE
                 </span>
               )}
@@ -108,9 +119,13 @@ export default async function BracketPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-ink">Select the 12-Team Field</h1>
-        <p className="mt-1 text-ink-muted">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <TrophyIcon size={88} />
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+          Select the 12-Team Field
+          <Tooltip text="Nothing is auto-selected. Check exactly 12 teams: conference champions are the traditional automatic bids, and the rest are your at-large picks -- use the Rank/Rating columns as a guide, but the final call is yours." />
+        </h1>
+        <p className="max-w-xl text-ink-muted">
           Pick exactly 12 teams for the playoff. Conference champions
           (auto-bid eligible) are marked below; everyone else is ranked by
           Computer Ranking so you can choose your at-large teams. Seeding and
@@ -137,8 +152,18 @@ export default async function BracketPage() {
                 <th className="px-3 py-2 text-left">Conference</th>
                 <th className="px-3 py-2 text-right">W</th>
                 <th className="px-3 py-2 text-right">L</th>
-                <th className="px-3 py-2 text-right">Rating</th>
-                <th className="px-3 py-2 text-left">Champion</th>
+                <th className="px-3 py-2 text-right">
+                  <span className="inline-flex items-center gap-1 normal-case">
+                    Rating
+                    <Tooltip text="Elo-style number, higher is better -- see the Rankings page for the full explanation." />
+                  </span>
+                </th>
+                <th className="px-3 py-2 text-left">
+                  <span className="inline-flex items-center gap-1 normal-case">
+                    Champion
+                    <Tooltip text="Won their conference championship (Week 16) -- the traditional automatic playoff bid." />
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>

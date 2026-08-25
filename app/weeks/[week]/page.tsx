@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
+import { Tooltip } from "@/components/Tooltip";
 import { formatKickoff, getWeekLabel, isValidWeek } from "@/lib/format";
 import { getAllTeams, getGamesForWeek, isWeekSubmitted } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
@@ -40,7 +41,10 @@ export default async function WeekPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink">{getWeekLabel(week)}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+          {getWeekLabel(week)}
+          <Tooltip text="Enter your predicted final score for both teams in every game, then hit Save. Clear removes a prediction. Once every game this week has one, Submit Week Results unlocks -- nothing counts toward Computer Rankings or the Bracket until you submit." />
+        </h1>
         {allDecided && (
           <div className="flex items-center gap-3">
             {submitted && (
@@ -90,7 +94,9 @@ export default async function WeekPage({
               <span>Kickoff (ET)</span>
               <span className="text-right">Home</span>
               <span className="text-center">Score</span>
-              <span />
+              <span className="flex justify-center normal-case">
+                <Tooltip text="Home team on the left, Away on the right. A neutral-site game (bowl, championship, etc.) shows N instead of VS and gets no home-field boost in the rankings math." />
+              </span>
               <span className="text-center">Score</span>
               <span>Away</span>
               <span />
@@ -140,7 +146,9 @@ export default async function WeekPage({
                         N
                       </span>
                     ) : (
-                      <span className="text-xs text-ink-muted">@</span>
+                      <span className="text-[10px] font-bold tracking-wide text-ink-muted">
+                        VS
+                      </span>
                     )}
                   </span>
 

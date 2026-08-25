@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
+import { Tooltip } from "@/components/Tooltip";
 import { computeAccuracySummary } from "@/lib/accuracy";
 import { getAllGames, getAllTeams } from "@/lib/queries";
 import { displayTeamName } from "@/lib/types";
@@ -39,8 +40,9 @@ export default async function ResultsPage() {
               </div>
             </div>
             <div className="rounded-lg border border-line bg-surface p-4">
-              <div className="text-sm text-ink-muted">
+              <div className="flex items-center gap-1 text-sm text-ink-muted">
                 Avg. combined score error
+                <Tooltip text="Per game: |your predicted score - actual score| added up for both teams, then averaged across every completed game. Lower is better; 0 would mean a perfect final-score prediction." />
               </div>
               <div className="text-2xl font-bold text-ink">
                 {(summary.averageAbsoluteError ?? 0).toFixed(1)}

@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
+import { Tooltip } from "@/components/Tooltip";
 import { computeComputerRankings } from "@/lib/computerRankings";
 import { getAllGames, getAllTeams, getSubmittedWeeks } from "@/lib/queries";
 
@@ -48,7 +49,12 @@ export default async function RankingsPage() {
               <th className="px-3 py-2 text-left">Conference</th>
               <th className="px-3 py-2 text-right">W</th>
               <th className="px-3 py-2 text-right">L</th>
-              <th className="px-3 py-2 text-right">Rating</th>
+              <th className="px-3 py-2 text-right">
+                <span className="inline-flex items-center gap-1 normal-case">
+                  Rating
+                  <Tooltip text="An Elo-style number, not a percentage or points total -- higher is better. #1 preseason starts at 1712; a #25 preseason team starts at 1376. Beating a higher-rated team gains a lot; beating a weak one barely moves it." />
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
