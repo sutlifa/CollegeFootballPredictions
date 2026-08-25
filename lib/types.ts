@@ -54,6 +54,7 @@ export type StandingsRow = {
   losses: number;
   confWins: number;
   confLosses: number;
+  preseasonRank: number | null;
 };
 
 export type RankingRow = {

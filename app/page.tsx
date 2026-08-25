@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getWeekLabel } from "@/lib/format";
 import { getAllGames } from "@/lib/queries";
 import { isDecided } from "@/lib/types";
 
@@ -33,7 +34,7 @@ export default async function HomePage() {
               className="group rounded-lg border border-line bg-surface p-4 transition-colors hover:border-accent"
             >
               <div className="text-lg font-semibold text-ink group-hover:text-accent-strong">
-                {week === 16 ? "Championship Week" : `Week ${week}`}
+                {getWeekLabel(week)}
               </div>
               <div className="mt-1 text-sm text-ink-muted">
                 {total === 0

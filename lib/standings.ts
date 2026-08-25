@@ -2,10 +2,18 @@ import type { Game, StandingsRow, Team } from "./types";
 import { isDecided } from "./types";
 
 /**
- * Ports the Apps Script `updateStandings()` exactly: tallies overall and
- * same-conference win/loss records for every FBS team across all decided
- * games, then sorts conference asc -> conf wins desc -> conf losses asc ->
- * overall wins desc -> overall losses asc -> team name asc.
+ * Ports the Apps Script `updateStandings()` win/loss tallying exactly, with
+ * one addition: every FBS team is included from the start (0-0, prefilled),
+ * not just teams that have already played a decided game -- so the page
+ * reads as a real conference standings table from week 1 on, not an empty
+ * table that fills in as scores come in.
+ *
+ * Sort: conference asc -> conf wins desc -> conf losses asc -> overall wins
+ * desc -> overall losses asc -> preseason rank asc -> team name asc. The
+ * preseason-rank tiebreak only matters while records are still equal (most
+ * visibly before any games are decided), so the initial table reads in a
+ * sensible preseason order instead of alphabetically, and real results take
+ * over the ordering as soon as they create a difference.
  */
 export function computeStandings(
   teams: Team[],
@@ -14,19 +22,18 @@ export function computeStandings(
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const rows = new Map<number, StandingsRow>();
 
-  function ensure(team: Team) {
-    if (!rows.has(team.id)) {
-      rows.set(team.id, {
-        teamId: team.id,
-        team: team.name,
-        conference: team.conference,
-        wins: 0,
-        losses: 0,
-        confWins: 0,
-        confLosses: 0,
-      });
-    }
-    return rows.get(team.id)!;
+  for (const team of teams) {
+    if (!team.isFbs) continue;
+    rows.set(team.id, {
+      teamId: team.id,
+      team: team.name,
+      conference: team.conference,
+      wins: 0,
+      losses: 0,
+      confWins: 0,
+      confLosses: 0,
+      preseasonRank: team.preseasonRank,
+    });
   }
 
   for (const game of games) {
@@ -35,8 +42,8 @@ export function computeStandings(
     const team2 = teamById.get(game.team2Id);
     if (!team1 || !team2) continue;
 
-    const team1Row = team1.isFbs ? ensure(team1) : null;
-    const team2Row = team2.isFbs ? ensure(team2) : null;
+    const team1Row = team1.isFbs ? rows.get(team1.id) : undefined;
+    const team2Row = team2.isFbs ? rows.get(team2.id) : undefined;
     const sameConference =
       team1.isFbs && team2.isFbs && team1.conference === team2.conference;
 
@@ -62,6 +69,9 @@ export function computeStandings(
     if (a.confLosses !== b.confLosses) return a.confLosses - b.confLosses;
     if (b.wins !== a.wins) return b.wins - a.wins;
     if (a.losses !== b.losses) return a.losses - b.losses;
+    const aRank = a.preseasonRank ?? Infinity;
+    const bRank = b.preseasonRank ?? Infinity;
+    if (aRank !== bRank) return aRank - bRank;
     return a.team.localeCompare(b.team);
   });
 }

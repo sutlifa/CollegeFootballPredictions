@@ -53,6 +53,7 @@ export default async function StandingsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-surface-2 text-ink-muted">
                   <tr>
+                    <th className="px-3 py-2 text-right">#</th>
                     <th className="px-3 py-2 text-left">Team</th>
                     <th className="px-3 py-2 text-right">W</th>
                     <th className="px-3 py-2 text-right">L</th>
@@ -68,6 +69,9 @@ export default async function StandingsPage() {
                         i < 2 && isChampionshipConf ? "bg-surface-2" : ""
                       }`}
                     >
+                      <td className="px-3 py-2 text-right font-semibold text-accent-strong">
+                        {i + 1}
+                      </td>
                       <td className="px-3 py-2">
                         <span className="flex items-center gap-2">
                           <TeamLogo

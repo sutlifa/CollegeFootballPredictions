@@ -23,7 +23,6 @@ const NAV_LINKS = [
   { href: "/standings", label: "Standings" },
   { href: "/rankings", label: "Rankings" },
   { href: "/bracket", label: "Bracket" },
-  { href: "/teams", label: "Teams" },
   { href: "/results", label: "Results" },
 ];
 
