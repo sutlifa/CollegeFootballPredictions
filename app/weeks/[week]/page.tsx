@@ -1,8 +1,14 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
-import { formatKickoff, getWeekLabel, isValidWeek } from "@/lib/format";
+import {
+  formatKickoff,
+  getWeekLabel,
+  isValidWeek,
+  VALID_WEEKS,
+} from "@/lib/format";
 import { getAllTeams, getGamesForWeek, isWeekSubmitted } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName, isDecided } from "@/lib/types";
@@ -38,8 +44,37 @@ export default async function WeekPage({
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const allDecided = games.length > 0 && games.every(isDecided);
 
+  const weekIndex = VALID_WEEKS.indexOf(week);
+  const prevWeek = weekIndex > 0 ? VALID_WEEKS[weekIndex - 1] : null;
+  const nextWeek =
+    weekIndex >= 0 && weekIndex < VALID_WEEKS.length - 1
+      ? VALID_WEEKS[weekIndex + 1]
+      : null;
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        {prevWeek !== null ? (
+          <Link
+            href={`/weeks/${prevWeek}`}
+            className="flex items-center gap-1 rounded border border-line-strong px-2.5 py-1.5 text-sm text-ink-soft hover:border-accent hover:text-accent-strong"
+          >
+            ← {getWeekLabel(prevWeek)}
+          </Link>
+        ) : (
+          <span />
+        )}
+        {nextWeek !== null ? (
+          <Link
+            href={`/weeks/${nextWeek}`}
+            className="flex items-center gap-1 rounded border border-line-strong px-2.5 py-1.5 text-sm text-ink-soft hover:border-accent hover:text-accent-strong"
+          >
+            {getWeekLabel(nextWeek)} →
+          </Link>
+        ) : (
+          <span />
+        )}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           {getWeekLabel(week)}
@@ -188,6 +223,29 @@ export default async function WeekPage({
           </div>
         </div>
       )}
+
+      <div className="flex items-center justify-between gap-3">
+        {prevWeek !== null ? (
+          <Link
+            href={`/weeks/${prevWeek}`}
+            className="flex items-center gap-1 rounded border border-line-strong px-2.5 py-1.5 text-sm text-ink-soft hover:border-accent hover:text-accent-strong"
+          >
+            ← {getWeekLabel(prevWeek)}
+          </Link>
+        ) : (
+          <span />
+        )}
+        {nextWeek !== null ? (
+          <Link
+            href={`/weeks/${nextWeek}`}
+            className="flex items-center gap-1 rounded border border-line-strong px-2.5 py-1.5 text-sm text-ink-soft hover:border-accent hover:text-accent-strong"
+          >
+            {getWeekLabel(nextWeek)} →
+          </Link>
+        ) : (
+          <span />
+        )}
+      </div>
     </div>
   );
 }
