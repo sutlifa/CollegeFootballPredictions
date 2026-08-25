@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { CHAMPIONSHIP_CONFERENCES } from "@/lib/conferences";
 import { getAllGames, getAllTeams } from "@/lib/queries";
@@ -7,7 +8,11 @@ import { isDecided } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function StandingsPage() {
-  const [teams, games] = await Promise.all([getAllTeams(), getAllGames()]);
+  const session = await auth();
+  const [teams, games] = await Promise.all([
+    getAllTeams(),
+    getAllGames(session!.user.id),
+  ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const standings = computeStandings(teams, games);
   const grouped = groupStandingsByConference(standings);

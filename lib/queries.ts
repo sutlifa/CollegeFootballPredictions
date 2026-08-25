@@ -70,34 +70,58 @@ export async function getAllTeams(): Promise<Team[]> {
   return rows.map(mapTeam);
 }
 
-export async function getAllGames(season = SEASON): Promise<Game[]> {
-  const rows = await sql<
-    GameRow[]
-  >`SELECT * FROM games WHERE season = ${season} ORDER BY week, id`;
+// Every game query below returns shared games (weeks 1-15, user_id IS NULL)
+// plus this user's own Week 16 rows, left-joined against this user's
+// predictions -- another user's predictions or Week 16 pairing never leaks
+// into the result.
+export async function getAllGames(
+  userId: number,
+  season = SEASON,
+): Promise<Game[]> {
+  const rows = await sql<GameRow[]>`
+    SELECT g.*, p.predicted_score_team1, p.predicted_score_team2
+    FROM games g
+    LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
+    WHERE g.season = ${season} AND (g.user_id IS NULL OR g.user_id = ${userId})
+    ORDER BY g.week, g.id
+  `;
   return rows.map(mapGame);
 }
 
 export async function getGamesForWeek(
   week: number,
+  userId: number,
   season = SEASON,
 ): Promise<Game[]> {
   const rows = await sql<GameRow[]>`
-    SELECT * FROM games WHERE season = ${season} AND week = ${week} ORDER BY id
+    SELECT g.*, p.predicted_score_team1, p.predicted_score_team2
+    FROM games g
+    LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
+    WHERE g.season = ${season} AND g.week = ${week}
+      AND (g.user_id IS NULL OR g.user_id = ${userId})
+    ORDER BY g.id
   `;
   return rows.map(mapGame);
 }
 
 export async function getGamesForWeeks(
   weeks: number[],
+  userId: number,
   season = SEASON,
 ): Promise<Game[]> {
   const rows = await sql<GameRow[]>`
-    SELECT * FROM games WHERE season = ${season} AND week = ANY(${weeks}) ORDER BY week, id
+    SELECT g.*, p.predicted_score_team1, p.predicted_score_team2
+    FROM games g
+    LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
+    WHERE g.season = ${season} AND g.week = ANY(${weeks})
+      AND (g.user_id IS NULL OR g.user_id = ${userId})
+    ORDER BY g.week, g.id
   `;
   return rows.map(mapGame);
 }
 
 export async function savePrediction(
+  userId: number,
   gameId: number,
   score1: number,
   score2: number,
@@ -106,75 +130,66 @@ export async function savePrediction(
     throw new Error("Predicted scores cannot be tied");
   }
   await sql`
-    UPDATE games
-    SET predicted_score_team1 = ${score1},
-        predicted_score_team2 = ${score2},
-        updated_at = now()
-    WHERE id = ${gameId}
+    INSERT INTO predictions (user_id, game_id, predicted_score_team1, predicted_score_team2)
+    VALUES (${userId}, ${gameId}, ${score1}, ${score2})
+    ON CONFLICT (user_id, game_id) DO UPDATE SET
+      predicted_score_team1 = EXCLUDED.predicted_score_team1,
+      predicted_score_team2 = EXCLUDED.predicted_score_team2,
+      updated_at = now()
   `;
 }
 
-export async function clearPrediction(gameId: number): Promise<void> {
-  await sql`
-    UPDATE games
-    SET predicted_score_team1 = NULL,
-        predicted_score_team2 = NULL,
-        updated_at = now()
-    WHERE id = ${gameId}
-  `;
+export async function clearPrediction(
+  userId: number,
+  gameId: number,
+): Promise<void> {
+  await sql`DELETE FROM predictions WHERE user_id = ${userId} AND game_id = ${gameId}`;
 }
 
 export async function upsertWeek16Game(
+  userId: number,
   conference: string,
   team1Id: number,
   team2Id: number,
   season = SEASON,
 ): Promise<void> {
   await sql`
-    INSERT INTO games (season, week, team1_id, team2_id, conference, is_conference_championship, is_neutral_site)
-    VALUES (${season}, 16, ${team1Id}, ${team2Id}, ${conference}, TRUE, TRUE)
-    ON CONFLICT (season, week, team1_id, team2_id)
+    INSERT INTO games (season, week, team1_id, team2_id, conference, is_conference_championship, is_neutral_site, user_id)
+    VALUES (${season}, 16, ${team1Id}, ${team2Id}, ${conference}, TRUE, TRUE, ${userId})
+    ON CONFLICT (season, week, team1_id, team2_id, user_id)
     DO UPDATE SET conference = EXCLUDED.conference, is_conference_championship = TRUE, is_neutral_site = TRUE
   `;
 }
 
-export async function clearWeek16GameForConference(
-  conference: string,
-  season = SEASON,
-): Promise<void> {
-  // Reset predictions on the old pairing rather than deleting the row, so a
-  // stale championship-week matchup that no longer matches who's actually in
-  // it doesn't silently keep a prediction that belonged to different teams.
-  await sql`
-    UPDATE games
-    SET predicted_score_team1 = NULL, predicted_score_team2 = NULL
-    WHERE season = ${season} AND week = 16 AND conference = ${conference}
-  `;
-}
-
 export async function deleteStaleWeek16Game(
+  userId: number,
   conference: string,
   keepTeam1Id: number,
   keepTeam2Id: number,
   season = SEASON,
 ): Promise<void> {
+  // Deletes cascade predictions for the stale row too (ON DELETE CASCADE),
+  // so a prediction that belonged to a since-replaced matchup doesn't
+  // silently carry over onto whichever teams take its place.
   await sql`
     DELETE FROM games
-    WHERE season = ${season} AND week = 16 AND conference = ${conference}
+    WHERE season = ${season} AND week = 16 AND user_id = ${userId} AND conference = ${conference}
       AND NOT (team1_id = ${keepTeam1Id} AND team2_id = ${keepTeam2Id})
   `;
 }
 
 export async function getBracketField(
+  userId: number,
   season = SEASON,
 ): Promise<number[] | null> {
   const rows = await sql<
     { team_ids: number[] }[]
-  >`SELECT team_ids FROM bracket_field WHERE season = ${season}`;
+  >`SELECT team_ids FROM bracket_field WHERE season = ${season} AND user_id = ${userId}`;
   return rows[0]?.team_ids ?? null;
 }
 
 export async function setBracketField(
+  userId: number,
   teamIds: number[],
   season = SEASON,
 ): Promise<void> {
@@ -182,12 +197,15 @@ export async function setBracketField(
     throw new Error(`Bracket field must have exactly 12 teams, got ${teamIds.length}`);
   }
   await sql`
-    INSERT INTO bracket_field (season, team_ids, updated_at)
-    VALUES (${season}, ${teamIds}, now())
-    ON CONFLICT (season) DO UPDATE SET team_ids = EXCLUDED.team_ids, updated_at = now()
+    INSERT INTO bracket_field (season, user_id, team_ids, updated_at)
+    VALUES (${season}, ${userId}, ${teamIds}, now())
+    ON CONFLICT (season, user_id) DO UPDATE SET team_ids = EXCLUDED.team_ids, updated_at = now()
   `;
 }
 
-export async function clearBracketField(season = SEASON): Promise<void> {
-  await sql`DELETE FROM bracket_field WHERE season = ${season}`;
+export async function clearBracketField(
+  userId: number,
+  season = SEASON,
+): Promise<void> {
+  await sql`DELETE FROM bracket_field WHERE season = ${season} AND user_id = ${userId}`;
 }

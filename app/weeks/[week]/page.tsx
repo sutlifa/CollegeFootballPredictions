@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { formatKickoff, getWeekLabel, isValidWeek } from "@/lib/format";
 import { getAllTeams, getGamesForWeek } from "@/lib/queries";
@@ -17,13 +18,16 @@ export default async function WeekPage({
     notFound();
   }
 
+  const session = await auth();
+  const userId = session!.user.id; // proxy.ts guarantees a session here
+
   if (week === 16) {
-    await syncWeek16Games();
+    await syncWeek16Games(userId);
   }
 
   const [teams, games] = await Promise.all([
     getAllTeams(),
-    getGamesForWeek(week),
+    getGamesForWeek(week, userId),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
 

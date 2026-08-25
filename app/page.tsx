@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { auth } from "@/auth";
 import { VALID_WEEKS, getWeekLabel } from "@/lib/format";
 import { getAllGames } from "@/lib/queries";
 import { isDecided } from "@/lib/types";
@@ -6,7 +7,8 @@ import { isDecided } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const games = await getAllGames();
+  const session = await auth();
+  const games = await getAllGames(session!.user.id);
 
   const weeks = VALID_WEEKS.map((week) => {
     const weekGames = games.filter((g) => g.week === week);

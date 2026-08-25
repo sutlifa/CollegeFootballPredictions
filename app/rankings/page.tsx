@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { computeComputerRankings } from "@/lib/computerRankings";
 import { getAllGames, getAllTeams } from "@/lib/queries";
@@ -5,7 +6,11 @@ import { getAllGames, getAllTeams } from "@/lib/queries";
 export const dynamic = "force-dynamic";
 
 export default async function RankingsPage() {
-  const [teams, games] = await Promise.all([getAllTeams(), getAllGames()]);
+  const session = await auth();
+  const [teams, games] = await Promise.all([
+    getAllTeams(),
+    getAllGames(session!.user.id),
+  ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const rankings = computeComputerRankings(teams, games);
 

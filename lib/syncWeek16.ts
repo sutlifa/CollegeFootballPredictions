@@ -1,4 +1,5 @@
 import { deriveWeek16Matchups, diffWeek16Matchups } from "./deriveWeek16";
+import { VALID_WEEKS } from "./format";
 import {
   deleteStaleWeek16Game,
   getAllTeams,
@@ -6,30 +7,34 @@ import {
   upsertWeek16Game,
 } from "./queries";
 
+const REGULAR_SEASON_WEEKS = VALID_WEEKS.filter((w) => w !== 16);
+
 /**
- * Called whenever the Week 16 page is visited. Recomputes each conference's
- * championship pairing from weeks 1-15 predictions and writes any changes to
- * the database. If a conference's top two teams changed since the last
- * visit, the stale matchup row is replaced (its old prediction doesn't carry
- * over -- it belonged to different teams).
+ * Called whenever a user visits the Week 16 page. Recomputes that user's
+ * conference championship pairings from their own weeks 1-15 predictions
+ * and writes any changes to the database. Each user gets their own Week 16
+ * rows (games.user_id), since two users' predictions can produce different
+ * conference champions. If a conference's top two teams changed since the
+ * last visit, the stale matchup row is replaced (its old prediction doesn't
+ * carry over -- it belonged to different teams).
  */
-export async function syncWeek16Games(): Promise<void> {
+export async function syncWeek16Games(userId: number): Promise<void> {
   const teams = await getAllTeams();
-  const gamesWeeks1to15 = await getGamesForWeeks([
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-  ]);
-  const existingWeek16 = await getGamesForWeeks([16]);
+  const gamesWeeks1to15 = await getGamesForWeeks(REGULAR_SEASON_WEEKS, userId);
+  const existingWeek16 = await getGamesForWeeks([16], userId);
 
   const derived = deriveWeek16Matchups(teams, gamesWeeks1to15);
   const { toUpsert } = diffWeek16Matchups(derived, existingWeek16);
 
   for (const matchup of toUpsert) {
     await deleteStaleWeek16Game(
+      userId,
       matchup.conference,
       matchup.team1Id,
       matchup.team2Id,
     );
     await upsertWeek16Game(
+      userId,
       matchup.conference,
       matchup.team1Id,
       matchup.team2Id,

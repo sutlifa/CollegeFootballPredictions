@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { clearPrediction, savePrediction } from "@/lib/queries";
 
 function revalidateAllAffected(week: number) {
@@ -11,7 +12,16 @@ function revalidateAllAffected(week: number) {
   revalidatePath("/");
 }
 
+async function requireUserId(): Promise<number> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Not signed in");
+  }
+  return session.user.id;
+}
+
 export async function savePredictionAction(formData: FormData) {
+  const userId = await requireUserId();
   const gameId = Number(formData.get("gameId"));
   const score1 = Number(formData.get("score1"));
   const score2 = Number(formData.get("score2"));
@@ -32,17 +42,18 @@ export async function savePredictionAction(formData: FormData) {
     );
   }
 
-  await savePrediction(gameId, score1, score2);
+  await savePrediction(userId, gameId, score1, score2);
   revalidateAllAffected(week);
 }
 
 export async function clearPredictionAction(formData: FormData) {
+  const userId = await requireUserId();
   const gameId = Number(formData.get("gameId"));
   const week = Number(formData.get("week"));
   if (Number.isNaN(gameId)) {
     throw new Error("Invalid game");
   }
 
-  await clearPrediction(gameId);
+  await clearPrediction(userId, gameId);
   revalidateAllAffected(week);
 }

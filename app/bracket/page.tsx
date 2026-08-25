@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { computeBracketSeeding, getBracketCandidates } from "@/lib/bracket";
 import { computeComputerRankings } from "@/lib/computerRankings";
@@ -7,10 +8,12 @@ import { resetBracketFieldAction, setBracketFieldAction } from "./actions";
 export const dynamic = "force-dynamic";
 
 export default async function BracketPage() {
+  const session = await auth();
+  const userId = session!.user.id;
   const [teams, games, selectedTeamIds] = await Promise.all([
     getAllTeams(),
-    getAllGames(),
-    getBracketField(),
+    getAllGames(userId),
+    getBracketField(userId),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const rankings = computeComputerRankings(teams, games);

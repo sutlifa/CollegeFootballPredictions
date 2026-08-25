@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { computeAccuracySummary } from "@/lib/accuracy";
 import { getAllGames, getAllTeams } from "@/lib/queries";
@@ -6,7 +7,11 @@ import { displayTeamName } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function ResultsPage() {
-  const [teams, games] = await Promise.all([getAllTeams(), getAllGames()]);
+  const session = await auth();
+  const [teams, games] = await Promise.all([
+    getAllTeams(),
+    getAllGames(session!.user.id),
+  ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const summary = computeAccuracySummary(teams, games);
 
