@@ -52,10 +52,10 @@ export default async function WeekPage({
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <div className="grid min-w-[820px] grid-cols-[8.5rem_minmax(0,1fr)_4.5rem_2.75rem_4.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
+          <div className="grid min-w-[860px] grid-cols-[10.5rem_minmax(0,1fr)_4.5rem_2.75rem_4.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
             <div className="col-span-full grid grid-cols-subgrid px-3 pb-1 text-xs font-semibold tracking-wide text-ink-muted uppercase">
               <span>Kickoff (ET)</span>
-              <span>Home</span>
+              <span className="text-right">Home</span>
               <span className="text-center">Score</span>
               <span />
               <span className="text-center">Score</span>
@@ -80,13 +80,13 @@ export default async function WeekPage({
                   <input type="hidden" name="gameId" value={game.id} />
                   <input type="hidden" name="week" value={week} />
 
-                  <span className="text-xs text-ink-muted">
+                  <span className="whitespace-nowrap text-xs text-ink-muted">
                     {formatKickoff(game.kickoffAt)}
                   </span>
 
-                  <span className="flex min-w-0 items-center gap-2 font-medium text-ink">
-                    <TeamLogo logoUrl={team1?.logoUrl} name={team1?.name ?? ""} />
+                  <span className="flex min-w-0 items-center justify-end gap-2 text-right font-medium text-ink">
                     <span className="truncate">{displayTeamName(team1)}</span>
+                    <TeamLogo logoUrl={team1?.logoUrl} name={team1?.name ?? ""} />
                   </span>
 
                   <input
