@@ -1,0 +1,682 @@
+[
+  {
+    "name": "Air Force",
+    "conference": "Mountain West",
+    "preseasonRank": 82
+  },
+  {
+    "name": "Akron",
+    "conference": "MAC",
+    "preseasonRank": 83
+  },
+  {
+    "name": "Alabama",
+    "conference": "SEC",
+    "preseasonRank": 2
+  },
+  {
+    "name": "Appalachian State",
+    "conference": "Sun Belt",
+    "preseasonRank": 67
+  },
+  {
+    "name": "Arizona",
+    "conference": "Big 12",
+    "preseasonRank": 84
+  },
+  {
+    "name": "Arizona State",
+    "conference": "Big 12",
+    "preseasonRank": 16
+  },
+  {
+    "name": "Arkansas",
+    "conference": "SEC",
+    "preseasonRank": 85
+  },
+  {
+    "name": "Arkansas State",
+    "conference": "Sun Belt",
+    "preseasonRank": 64
+  },
+  {
+    "name": "Army",
+    "conference": "American",
+    "preseasonRank": 47
+  },
+  {
+    "name": "Auburn",
+    "conference": "SEC",
+    "preseasonRank": 38
+  },
+  {
+    "name": "Ball State",
+    "conference": "MAC",
+    "preseasonRank": 86
+  },
+  {
+    "name": "Baylor",
+    "conference": "Big 12",
+    "preseasonRank": 28
+  },
+  {
+    "name": "Boise State",
+    "conference": "Mountain West",
+    "preseasonRank": 29
+  },
+  {
+    "name": "Boston College",
+    "conference": "ACC",
+    "preseasonRank": 87
+  },
+  {
+    "name": "Bowling Green",
+    "conference": "MAC",
+    "preseasonRank": 66
+  },
+  {
+    "name": "Buffalo",
+    "conference": "MAC",
+    "preseasonRank": 39
+  },
+  {
+    "name": "BYU",
+    "conference": "Big 12",
+    "preseasonRank": 11
+  },
+  {
+    "name": "California",
+    "conference": "ACC",
+    "preseasonRank": 88
+  },
+  {
+    "name": "Central Michigan",
+    "conference": "MAC",
+    "preseasonRank": 89
+  },
+  {
+    "name": "Charlotte",
+    "conference": "American",
+    "preseasonRank": 90
+  },
+  {
+    "name": "Cincinatti",
+    "conference": "Big 12",
+    "preseasonRank": 91
+  },
+  {
+    "name": "Clemson",
+    "conference": "ACC",
+    "preseasonRank": 5
+  },
+  {
+    "name": "Coastal Carolina",
+    "conference": "Sun Belt",
+    "preseasonRank": 92
+  },
+  {
+    "name": "Colorado",
+    "conference": "Big 12",
+    "preseasonRank": 93
+  },
+  {
+    "name": "Colorado State",
+    "conference": "Mountain West",
+    "preseasonRank": 51
+  },
+  {
+    "name": "Delaware",
+    "conference": "CUSA",
+    "preseasonRank": 94
+  },
+  {
+    "name": "Duke",
+    "conference": "ACC",
+    "preseasonRank": 71
+  },
+  {
+    "name": "Eastern Michigan",
+    "conference": "MAC",
+    "preseasonRank": 95
+  },
+  {
+    "name": "East Carolina",
+    "conference": "American",
+    "preseasonRank": 96
+  },
+  {
+    "name": "Florida",
+    "conference": "SEC",
+    "preseasonRank": 26
+  },
+  {
+    "name": "Florida Atlantic",
+    "conference": "American",
+    "preseasonRank": 55
+  },
+  {
+    "name": "Florida International",
+    "conference": "CUSA",
+    "preseasonRank": 59
+  },
+  {
+    "name": "Florida State",
+    "conference": "ACC",
+    "preseasonRank": 97
+  },
+  {
+    "name": "Fresno State",
+    "conference": "Mountain West",
+    "preseasonRank": 53
+  },
+  {
+    "name": "Georgia",
+    "conference": "SEC",
+    "preseasonRank": 4
+  },
+  {
+    "name": "Georgia Southern",
+    "conference": "Sun Belt",
+    "preseasonRank": 98
+  },
+  {
+    "name": "Georgia State",
+    "conference": "Sun Belt",
+    "preseasonRank": 72
+  },
+  {
+    "name": "Georgia Tech",
+    "conference": "ACC",
+    "preseasonRank": 75
+  },
+  {
+    "name": "Hawai'i",
+    "conference": "Mountain West",
+    "preseasonRank": 56
+  },
+  {
+    "name": "Houston",
+    "conference": "Big 12",
+    "preseasonRank": 99
+  },
+  {
+    "name": "Illinois",
+    "conference": "Big Ten",
+    "preseasonRank": 14
+  },
+  {
+    "name": "Indiana",
+    "conference": "Big Ten",
+    "preseasonRank": 42
+  },
+  {
+    "name": "Iowa",
+    "conference": "Big Ten",
+    "preseasonRank": 100
+  },
+  {
+    "name": "Iowa State",
+    "conference": "Big 12",
+    "preseasonRank": 31
+  },
+  {
+    "name": "Jacksonville State",
+    "conference": "CUSA",
+    "preseasonRank": 101
+  },
+  {
+    "name": "James Madison",
+    "conference": "Sun Belt",
+    "preseasonRank": 20
+  },
+  {
+    "name": "Kansas",
+    "conference": "Big 12",
+    "preseasonRank": 32
+  },
+  {
+    "name": "Kansas State",
+    "conference": "Big 12",
+    "preseasonRank": 18
+  },
+  {
+    "name": "Kennesaw State",
+    "conference": "CUSA",
+    "preseasonRank": 102
+  },
+  {
+    "name": "Kent State",
+    "conference": "MAC",
+    "preseasonRank": 103
+  },
+  {
+    "name": "Kentucky",
+    "conference": "SEC",
+    "preseasonRank": 104
+  },
+  {
+    "name": "Liberty",
+    "conference": "CUSA",
+    "preseasonRank": 21
+  },
+  {
+    "name": "Louisiana",
+    "conference": "Sun Belt",
+    "preseasonRank": 73
+  },
+  {
+    "name": "Louisiana Tech",
+    "conference": "CUSA",
+    "preseasonRank": 80
+  },
+  {
+    "name": "Louisville",
+    "conference": "ACC",
+    "preseasonRank": 36
+  },
+  {
+    "name": "LSU",
+    "conference": "SEC",
+    "preseasonRank": 8
+  },
+  {
+    "name": "Marshall",
+    "conference": "Sun Belt",
+    "preseasonRank": 22
+  },
+  {
+    "name": "Maryland",
+    "conference": "Big Ten",
+    "preseasonRank": 105
+  },
+  {
+    "name": "Memphis",
+    "conference": "American",
+    "preseasonRank": 30
+  },
+  {
+    "name": "Miami",
+    "conference": "ACC",
+    "preseasonRank": 13
+  },
+  {
+    "name": "Miami OH",
+    "conference": "MAC",
+    "preseasonRank": 37
+  },
+  {
+    "name": "Michigan",
+    "conference": "Big Ten",
+    "preseasonRank": 10
+  },
+  {
+    "name": "Michigan State",
+    "conference": "Big Ten",
+    "preseasonRank": 50
+  },
+  {
+    "name": "Middle Tennessee",
+    "conference": "CUSA",
+    "preseasonRank": 106
+  },
+  {
+    "name": "Minnesota",
+    "conference": "Big Ten",
+    "preseasonRank": 107
+  },
+  {
+    "name": "Mississippi State",
+    "conference": "SEC",
+    "preseasonRank": 108
+  },
+  {
+    "name": "Missouri",
+    "conference": "SEC",
+    "preseasonRank": 74
+  },
+  {
+    "name": "Missouri State",
+    "conference": "CUSA",
+    "preseasonRank": 109
+  },
+  {
+    "name": "Navy",
+    "conference": "American",
+    "preseasonRank": 40
+  },
+  {
+    "name": "NC State",
+    "conference": "ACC",
+    "preseasonRank": 34
+  },
+  {
+    "name": "Nebraska",
+    "conference": "Big Ten",
+    "preseasonRank": 15
+  },
+  {
+    "name": "Nevada",
+    "conference": "Mountain West",
+    "preseasonRank": 110
+  },
+  {
+    "name": "New Mexico",
+    "conference": "Mountain West",
+    "preseasonRank": 111
+  },
+  {
+    "name": "New Mexico State",
+    "conference": "CUSA",
+    "preseasonRank": 70
+  },
+  {
+    "name": "North Carolina",
+    "conference": "ACC",
+    "preseasonRank": 45
+  },
+  {
+    "name": "North Texas",
+    "conference": "American",
+    "preseasonRank": 68
+  },
+  {
+    "name": "Northern Illinois",
+    "conference": "MAC",
+    "preseasonRank": 35
+  },
+  {
+    "name": "Northwestern",
+    "conference": "Big Ten",
+    "preseasonRank": 112
+  },
+  {
+    "name": "Notre Dame",
+    "conference": "Independent",
+    "preseasonRank": 7
+  },
+  {
+    "name": "Ohio",
+    "conference": "MAC",
+    "preseasonRank": 113
+  },
+  {
+    "name": "Ohio State",
+    "conference": "Big Ten",
+    "preseasonRank": 1
+  },
+  {
+    "name": "Oklahoma",
+    "conference": "SEC",
+    "preseasonRank": 48
+  },
+  {
+    "name": "Oklahoma State",
+    "conference": "Big 12",
+    "preseasonRank": 114
+  },
+  {
+    "name": "Old Dominion",
+    "conference": "Sun Belt",
+    "preseasonRank": 81
+  },
+  {
+    "name": "Ole Miss",
+    "conference": "SEC",
+    "preseasonRank": 54
+  },
+  {
+    "name": "Oregon",
+    "conference": "Big Ten",
+    "preseasonRank": 9
+  },
+  {
+    "name": "Oregon State",
+    "conference": "Pac 12",
+    "preseasonRank": 44
+  },
+  {
+    "name": "Penn State",
+    "conference": "Big Ten",
+    "preseasonRank": 3
+  },
+  {
+    "name": "Pittsburgh",
+    "conference": "ACC",
+    "preseasonRank": 115
+  },
+  {
+    "name": "Purdue",
+    "conference": "Big Ten",
+    "preseasonRank": 116
+  },
+  {
+    "name": "Rice",
+    "conference": "American",
+    "preseasonRank": 117
+  },
+  {
+    "name": "Rutgers",
+    "conference": "Big Ten",
+    "preseasonRank": 118
+  },
+  {
+    "name": "Sam Houston",
+    "conference": "CUSA",
+    "preseasonRank": 119
+  },
+  {
+    "name": "San Diego State",
+    "conference": "Mountain West",
+    "preseasonRank": 79
+  },
+  {
+    "name": "San Jose State",
+    "conference": "Mountain West",
+    "preseasonRank": 19
+  },
+  {
+    "name": "SMU",
+    "conference": "ACC",
+    "preseasonRank": 17
+  },
+  {
+    "name": "South Alabama",
+    "conference": "Sun Belt",
+    "preseasonRank": 57
+  },
+  {
+    "name": "South Carolina",
+    "conference": "SEC",
+    "preseasonRank": 120
+  },
+  {
+    "name": "Stanford",
+    "conference": "ACC",
+    "preseasonRank": 121
+  },
+  {
+    "name": "Southern Miss",
+    "conference": "Sun Belt",
+    "preseasonRank": 122
+  },
+  {
+    "name": "Syracuse",
+    "conference": "ACC",
+    "preseasonRank": 69
+  },
+  {
+    "name": "TCU",
+    "conference": "Big 12",
+    "preseasonRank": 52
+  },
+  {
+    "name": "Temple",
+    "conference": "American",
+    "preseasonRank": 123
+  },
+  {
+    "name": "Tennessee",
+    "conference": "SEC",
+    "preseasonRank": 33
+  },
+  {
+    "name": "Texas",
+    "conference": "SEC",
+    "preseasonRank": 6
+  },
+  {
+    "name": "Texas A&M",
+    "conference": "SEC",
+    "preseasonRank": 12
+  },
+  {
+    "name": "Texas State",
+    "conference": "Sun Belt",
+    "preseasonRank": 46
+  },
+  {
+    "name": "Texas Tech",
+    "conference": "Big 12",
+    "preseasonRank": 27
+  },
+  {
+    "name": "Toledo",
+    "conference": "MAC",
+    "preseasonRank": 43
+  },
+  {
+    "name": "Troy",
+    "conference": "Sun Belt",
+    "preseasonRank": 62
+  },
+  {
+    "name": "Tulane",
+    "conference": "American",
+    "preseasonRank": 25
+  },
+  {
+    "name": "Tulsa",
+    "conference": "American",
+    "preseasonRank": 63
+  },
+  {
+    "name": "UAB",
+    "conference": "American",
+    "preseasonRank": 124
+  },
+  {
+    "name": "UCF",
+    "conference": "Big 12",
+    "preseasonRank": 125
+  },
+  {
+    "name": "UCLA",
+    "conference": "Big Ten",
+    "preseasonRank": 126
+  },
+  {
+    "name": "UConn",
+    "conference": "Independent",
+    "preseasonRank": 127
+  },
+  {
+    "name": "UL Monroe",
+    "conference": "Sun Belt",
+    "preseasonRank": 128
+  },
+  {
+    "name": "UMass",
+    "conference": "MAC",
+    "preseasonRank": 129
+  },
+  {
+    "name": "UNLV",
+    "conference": "Mountain West",
+    "preseasonRank": 76
+  },
+  {
+    "name": "USC",
+    "conference": "Big Ten",
+    "preseasonRank": 24
+  },
+  {
+    "name": "South Florida",
+    "conference": "American",
+    "preseasonRank": 41
+  },
+  {
+    "name": "Utah",
+    "conference": "Big 12",
+    "preseasonRank": 49
+  },
+  {
+    "name": "Utah State",
+    "conference": "Mountain West",
+    "preseasonRank": 130
+  },
+  {
+    "name": "UTEP",
+    "conference": "CUSA",
+    "preseasonRank": 58
+  },
+  {
+    "name": "UTSA",
+    "conference": "American",
+    "preseasonRank": 131
+  },
+  {
+    "name": "Vanderbilt",
+    "conference": "SEC",
+    "preseasonRank": 132
+  },
+  {
+    "name": "Virginia",
+    "conference": "ACC",
+    "preseasonRank": 65
+  },
+  {
+    "name": "Virginia Tech",
+    "conference": "ACC",
+    "preseasonRank": 133
+  },
+  {
+    "name": "Western Kentucky",
+    "conference": "CUSA",
+    "preseasonRank": 78
+  },
+  {
+    "name": "Western Michigan",
+    "conference": "MAC",
+    "preseasonRank": 77
+  },
+  {
+    "name": "Wake Forest",
+    "conference": "ACC",
+    "preseasonRank": 134
+  },
+  {
+    "name": "Washington",
+    "conference": "Big Ten",
+    "preseasonRank": 23
+  },
+  {
+    "name": "Washington State",
+    "conference": "Pac 12",
+    "preseasonRank": 61
+  },
+  {
+    "name": "West Virginia",
+    "conference": "Big 12",
+    "preseasonRank": 135
+  },
+  {
+    "name": "Wisconsin",
+    "conference": "Big Ten",
+    "preseasonRank": 60
+  },
+  {
+    "name": "Wyoming",
+    "conference": "Mountain West",
+    "preseasonRank": 136
+  }
+]

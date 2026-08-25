@@ -1,0 +1,7 @@
+{
+  "_comment": "Maps an ESPN name (its location, shortDisplayName, or displayName field -- checked in that order) to our canonical teams.name, for the handful of teams that don't match any of those fields directly. scripts/resolve-espn-team-ids.ts reports any still-unresolved names on each run -- add them here and re-run rather than fuzzy-matching.",
+  "App State": "Appalachian State",
+  "Cincinnati": "Cincinatti",
+  "San José State": "San Jose State",
+  "San José St": "San Jose State"
+}
