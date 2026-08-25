@@ -98,7 +98,7 @@ export async function getGamesForWeek(
     FROM games g
     LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
     WHERE g.season = ${season} AND g.week = ${week}
-      AND (g.user_id IS NULL OR g.user_id = ${userId})
+      AND (g.user_id = ${userId} OR (g.user_id IS NULL AND g.week <> 16))
     ORDER BY g.id
   `;
   return rows.map(mapGame);
@@ -114,7 +114,7 @@ export async function getGamesForWeeks(
     FROM games g
     LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
     WHERE g.season = ${season} AND g.week = ANY(${weeks})
-      AND (g.user_id IS NULL OR g.user_id = ${userId})
+      AND (g.user_id = ${userId} OR (g.user_id IS NULL AND g.week <> 16))
     ORDER BY g.week, g.id
   `;
   return rows.map(mapGame);
@@ -153,10 +153,15 @@ export async function upsertWeek16Game(
   team2Id: number,
   season = SEASON,
 ): Promise<void> {
+  // The conflict target must repeat the partial index's WHERE clause
+  // (games_peruser_unique) -- Postgres won't use a partial unique index as
+  // an ON CONFLICT arbiter unless the predicate matches exactly, otherwise
+  // it fails with "no unique or exclusion constraint matching the ON
+  // CONFLICT specification" even when there's no actual conflicting row.
   await sql`
     INSERT INTO games (season, week, team1_id, team2_id, conference, is_conference_championship, is_neutral_site, user_id)
     VALUES (${season}, 16, ${team1Id}, ${team2Id}, ${conference}, TRUE, TRUE, ${userId})
-    ON CONFLICT (season, week, team1_id, team2_id, user_id)
+    ON CONFLICT (season, week, team1_id, team2_id, user_id) WHERE user_id IS NOT NULL
     DO UPDATE SET conference = EXCLUDED.conference, is_conference_championship = TRUE, is_neutral_site = TRUE
   `;
 }
