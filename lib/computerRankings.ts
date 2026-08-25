@@ -24,20 +24,27 @@ import { isDecided } from "./types";
  * from the final win/loss tally alone.
  */
 
+// The #25 team's rating from the formula below (1712 - 24*14 = 1376) --
+// every unranked-team baseline is anchored below this so an unranked team
+// (e.g. Michigan State, not in the AP preseason poll) can never start
+// rated above an actually-ranked team (e.g. Michigan at #16), no matter
+// how strong its conference's baseline tier is.
+const RANK_FLOOR = 1712 - 24 * 14;
+
 const CONFERENCE_BASELINE: Record<string, number> = {
-  ACC: 1500,
-  "Big Ten": 1520,
-  "Big 12": 1500,
-  SEC: 1520,
-  American: 1420,
-  "Mountain West": 1400,
-  "Pac 12": 1420,
-  "Sun Belt": 1380,
-  MAC: 1360,
-  CUSA: 1360,
-  Independent: 1450,
+  "Big Ten": RANK_FLOOR - 10,
+  SEC: RANK_FLOOR - 10,
+  ACC: RANK_FLOOR - 30,
+  "Big 12": RANK_FLOOR - 30,
+  Independent: RANK_FLOOR - 30,
+  American: RANK_FLOOR - 70,
+  "Pac 12": RANK_FLOOR - 70,
+  "Mountain West": RANK_FLOOR - 80,
+  "Sun Belt": RANK_FLOOR - 100,
+  MAC: RANK_FLOOR - 110,
+  CUSA: RANK_FLOOR - 110,
 };
-const DEFAULT_BASELINE = 1400;
+const DEFAULT_BASELINE = RANK_FLOOR - 90;
 const FCS_BASELINE = 1100;
 
 // Rating-points edge given to the home team's expected-score calculation
