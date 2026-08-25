@@ -2,10 +2,14 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { formatKickoff, getWeekLabel, isValidWeek } from "@/lib/format";
-import { getAllTeams, getGamesForWeek } from "@/lib/queries";
+import { getAllTeams, getGamesForWeek, isWeekSubmitted } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
-import { displayTeamName } from "@/lib/types";
-import { clearPredictionAction, savePredictionAction } from "./actions";
+import { displayTeamName, isDecided } from "@/lib/types";
+import {
+  clearPredictionAction,
+  savePredictionAction,
+  submitWeekAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,15 +29,44 @@ export default async function WeekPage({
     await syncWeek16Games(userId);
   }
 
-  const [teams, games] = await Promise.all([
+  const [teams, games, submitted] = await Promise.all([
     getAllTeams(),
     getGamesForWeek(week, userId),
+    isWeekSubmitted(userId, week),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
+  const allDecided = games.length > 0 && games.every(isDecided);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-ink">{getWeekLabel(week)}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-ink">{getWeekLabel(week)}</h1>
+        {allDecided && (
+          <div className="flex items-center gap-3">
+            {submitted && (
+              <span className="text-sm font-medium text-win">
+                ✓ Submitted -- counted in Computer Rankings
+              </span>
+            )}
+            <form action={submitWeekAction}>
+              <input type="hidden" name="week" value={week} />
+              <button
+                type="submit"
+                className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
+              >
+                {submitted ? "Re-submit Week Results" : "Submit Week Results"}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+      {!allDecided && (
+        <p className="text-sm text-ink-muted">
+          Predict every game this week to unlock{" "}
+          <span className="font-semibold text-ink">Submit Week Results</span>{" "}
+          -- nothing counts toward Computer Rankings until you submit.
+        </p>
+      )}
 
       {week === 16 && (
         <p className="text-sm text-ink-muted">

@@ -1,30 +1,43 @@
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { computeComputerRankings } from "@/lib/computerRankings";
-import { getAllGames, getAllTeams } from "@/lib/queries";
+import { getAllGames, getAllTeams, getSubmittedWeeks } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function RankingsPage() {
   const session = await auth();
-  const [teams, games] = await Promise.all([
+  const userId = session!.user.id;
+  const [teams, allGames, submittedWeeks] = await Promise.all([
     getAllTeams(),
-    getAllGames(session!.user.id),
+    getAllGames(userId),
+    getSubmittedWeeks(userId),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
-  const rankings = computeComputerRankings(teams, games);
+
+  const submitted = new Set(submittedWeeks);
+  const countedGames = allGames.filter((g) => submitted.has(g.week));
+  const rankings = computeComputerRankings(teams, countedGames);
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-ink">Computer Rankings</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Rated with the Colley Matrix -- one of the six computer polls the
-          real BCS used. It only counts wins and losses (no margin of
-          victory, matching the BCS&apos;s own rule) and automatically
-          factors in strength of schedule, so an untested team rates
-          exactly .500 and a win over a good team counts for more.
+          An Elo-style rating seeded from each team&apos;s real 2026 preseason
+          rank, updated one submitted week at a time. Beating a team rated
+          well above you swings your rating a lot; beating an FCS team or an
+          unranked patsy barely moves it. Losing to a team rated well above
+          you barely hurts; an upset loss to a weaker team costs a lot.
+          Nothing from a week counts here until you hit{" "}
+          <span className="font-semibold text-ink">Submit Week Results</span>{" "}
+          on that week&apos;s page.
         </p>
+        {submittedWeeks.length === 0 && (
+          <p className="mt-2 text-sm text-ink-muted">
+            No weeks submitted yet -- this is pure preseason order.
+          </p>
+        )}
       </div>
       <div className="overflow-x-auto rounded-lg border border-line">
         <table className="w-full text-sm">
@@ -35,7 +48,7 @@ export default async function RankingsPage() {
               <th className="px-3 py-2 text-left">Conference</th>
               <th className="px-3 py-2 text-right">W</th>
               <th className="px-3 py-2 text-right">L</th>
-              <th className="px-3 py-2 text-right">Score</th>
+              <th className="px-3 py-2 text-right">Rating</th>
             </tr>
           </thead>
           <tbody>
@@ -60,19 +73,13 @@ export default async function RankingsPage() {
                 <td className="px-3 py-2 text-right">{row.wins}</td>
                 <td className="px-3 py-2 text-right">{row.losses}</td>
                 <td className="px-3 py-2 text-right font-mono">
-                  {row.score.toFixed(2)}
+                  {row.score.toFixed(1)}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {rankings.length === 0 && (
-        <p className="text-ink-muted">
-          No predictions entered yet -- rankings will appear as you fill in
-          weekly matchups.
-        </p>
-      )}
     </div>
   );
 }

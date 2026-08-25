@@ -2,7 +2,12 @@ import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { computeBracketSeeding, getBracketCandidates } from "@/lib/bracket";
 import { computeComputerRankings } from "@/lib/computerRankings";
-import { getAllGames, getAllTeams, getBracketField } from "@/lib/queries";
+import {
+  getAllGames,
+  getAllTeams,
+  getBracketField,
+  getSubmittedWeeks,
+} from "@/lib/queries";
 import { resetBracketFieldAction, setBracketFieldAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -10,13 +15,21 @@ export const dynamic = "force-dynamic";
 export default async function BracketPage() {
   const session = await auth();
   const userId = session!.user.id;
-  const [teams, games, selectedTeamIds] = await Promise.all([
+  const [teams, games, selectedTeamIds, submittedWeeks] = await Promise.all([
     getAllTeams(),
     getAllGames(userId),
     getBracketField(userId),
+    getSubmittedWeeks(userId),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
-  const rankings = computeComputerRankings(teams, games);
+  // Conference champions come from the real (predicted) Week 16 results
+  // regardless of submission status -- only the Computer Ranking score
+  // itself is gated behind "Submit Week Results".
+  const submitted = new Set(submittedWeeks);
+  const rankings = computeComputerRankings(
+    teams,
+    games.filter((g) => submitted.has(g.week)),
+  );
   const candidates = getBracketCandidates(games, rankings);
 
   if (selectedTeamIds) {
@@ -47,7 +60,7 @@ export default async function BracketPage() {
                 {s.team}
               </span>{" "}
               <span className="text-ink-muted">
-                ({s.wins}-{s.losses}, {s.score.toFixed(2)})
+                ({s.wins}-{s.losses}, {s.score.toFixed(1)})
               </span>
               {s.seed <= 4 && (
                 <span className="ml-2 rounded bg-win/20 px-1.5 py-0.5 text-xs font-bold text-win">
@@ -124,7 +137,7 @@ export default async function BracketPage() {
                 <th className="px-3 py-2 text-left">Conference</th>
                 <th className="px-3 py-2 text-right">W</th>
                 <th className="px-3 py-2 text-right">L</th>
-                <th className="px-3 py-2 text-right">Score</th>
+                <th className="px-3 py-2 text-right">Rating</th>
                 <th className="px-3 py-2 text-left">Champion</th>
               </tr>
             </thead>
@@ -156,7 +169,7 @@ export default async function BracketPage() {
                   <td className="px-3 py-2 text-right text-ink">{row.wins}</td>
                   <td className="px-3 py-2 text-right text-ink">{row.losses}</td>
                   <td className="px-3 py-2 text-right font-mono text-ink">
-                    {row.score.toFixed(2)}
+                    {row.score.toFixed(1)}
                   </td>
                   <td className="px-3 py-2 text-xs font-semibold text-win">
                     {row.isChampion ? "Champion" : ""}

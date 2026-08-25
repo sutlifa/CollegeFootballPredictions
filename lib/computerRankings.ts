@@ -1,43 +1,119 @@
-import { computeColleyRatings } from "./colleyMatrix";
 import type { Game, RankingRow, Team } from "./types";
 import { isDecided } from "./types";
 
 /**
- * "Computer Rankings" = the Colley Matrix rating (see colleyMatrix.ts) --
- * one of the six official BCS computer polls, modeling the BCS's own
- * approach rather than the original spreadsheet's bespoke conference-tier
- * formula. Wins/losses shown alongside the score are each team's full
- * record (FCS opponents included); the rating itself only considers
- * FBS-vs-FBS games, matching how the real Colley/BCS system worked.
+ * "Computer Rankings" = an Elo-style rating, seeded from each team's real
+ * 2026 preseason rank (or a conference-tier baseline for unranked FBS teams,
+ * or a flat low baseline for FCS/non-FBS opponents), then updated one
+ * submitted week at a time.
+ *
+ * This is the "human factor" layered on top of a computer model: Elo's
+ * expected-outcome math already does most of the work --
+ *  - beating a team rated far above you swings your rating a lot; beating
+ *    a team rated far below you (an FCS team, most of all) barely moves it
+ *  - losing to a team rated far above you barely hurts; losing to a team
+ *    rated far below you (an upset) hurts a lot
+ *  - a team's rating reflects its conference indirectly (Power-4 baselines
+ *    start higher than Group-of-5, which start higher than FCS), so
+ *    "tougher conference" opponents are automatically worth more without a
+ *    hardcoded table of exceptions
+ *
+ * Games are processed in week order (only weeks the caller has already
+ * filtered down to "submitted" ones are included), so the rating path
+ * mirrors how a real season actually unfolds rather than being computed
+ * from the final win/loss tally alone.
  */
+
+const CONFERENCE_BASELINE: Record<string, number> = {
+  ACC: 1500,
+  "Big Ten": 1520,
+  "Big 12": 1500,
+  SEC: 1520,
+  American: 1420,
+  "Mountain West": 1400,
+  "Pac 12": 1420,
+  "Sun Belt": 1380,
+  MAC: 1360,
+  CUSA: 1360,
+  Independent: 1450,
+};
+const DEFAULT_BASELINE = 1400;
+const FCS_BASELINE = 1100;
+
+// Rating-points edge given to the home team's expected-score calculation
+// only (not a flat bonus after the fact) -- a standard Elo-for-football
+// adjustment, roughly matching commonly published home-field values.
+const HOME_FIELD_ADVANTAGE = 65;
+
+// Bigger than chess's usual 32: a ~13-game college season needs each result
+// to move the needle more than a many-hundred-game chess rating pool would.
+const K_FACTOR = 40;
+
+function initialRating(team: Team): number {
+  if (!team.isFbs) return FCS_BASELINE;
+  if (team.preseasonRank) {
+    // #1 ~= 1712, #25 ~= 1376, roughly a 14-point step per rank.
+    return 1712 - (team.preseasonRank - 1) * 14;
+  }
+  return CONFERENCE_BASELINE[team.conference] ?? DEFAULT_BASELINE;
+}
+
+function expectedScore(ratingA: number, ratingB: number): number {
+  return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+}
+
 export function computeComputerRankings(
   teams: Team[],
   games: Game[],
 ): RankingRow[] {
-  const ratings = computeColleyRatings(teams, games);
-
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const ratings = new Map<number, number>();
   const wins = new Map<number, number>();
   const losses = new Map<number, number>();
-  for (const game of games) {
-    if (!isDecided(game)) continue;
-    if (game.predictedScoreTeam1 === game.predictedScoreTeam2) continue;
-    const winnerId =
-      game.predictedScoreTeam1 > game.predictedScoreTeam2
-        ? game.team1Id
-        : game.team2Id;
-    const loserId =
-      game.predictedScoreTeam1 > game.predictedScoreTeam2
-        ? game.team2Id
-        : game.team1Id;
-    wins.set(winnerId, (wins.get(winnerId) ?? 0) + 1);
-    losses.set(loserId, (losses.get(loserId) ?? 0) + 1);
+
+  for (const team of teams) {
+    ratings.set(team.id, initialRating(team));
+    wins.set(team.id, 0);
+    losses.set(team.id, 0);
+  }
+
+  const decided = games
+    .filter(isDecided)
+    .filter((g) => g.predictedScoreTeam1 !== g.predictedScoreTeam2)
+    .sort((a, b) => a.week - b.week || a.id - b.id);
+
+  for (const game of decided) {
+    const team1 = teamById.get(game.team1Id);
+    const team2 = teamById.get(game.team2Id);
+    if (!team1 || !team2) continue;
+
+    const team1Won = game.predictedScoreTeam1 > game.predictedScoreTeam2;
+    const winner = team1Won ? team1 : team2;
+    const loser = team1Won ? team2 : team1;
+    wins.set(winner.id, (wins.get(winner.id) ?? 0) + 1);
+    losses.set(loser.id, (losses.get(loser.id) ?? 0) + 1);
+
+    let team1Effective = ratings.get(team1.id)!;
+    let team2Effective = ratings.get(team2.id)!;
+    if (!game.isNeutralSite) {
+      if (game.team1IsHome === true) team1Effective += HOME_FIELD_ADVANTAGE;
+      else if (game.team1IsHome === false) team2Effective += HOME_FIELD_ADVANTAGE;
+    }
+    const winnerEffective = team1Won ? team1Effective : team2Effective;
+    const loserEffective = team1Won ? team2Effective : team1Effective;
+
+    const expectedWinner = expectedScore(winnerEffective, loserEffective);
+    const delta = K_FACTOR * (1 - expectedWinner);
+
+    ratings.set(winner.id, ratings.get(winner.id)! + delta);
+    ratings.set(loser.id, Math.max(0, ratings.get(loser.id)! - delta));
   }
 
   const sorted = teams
     .filter((t) => t.isFbs)
     .map((team) => ({
       team,
-      score: ratings.get(team.id) ?? 0.5,
+      score: ratings.get(team.id)!,
       wins: wins.get(team.id) ?? 0,
       losses: losses.get(team.id) ?? 0,
     }))
@@ -53,6 +129,6 @@ export function computeComputerRankings(
     conference: row.team.conference,
     wins: row.wins,
     losses: row.losses,
-    score: Math.round(row.score * 1000) / 1000,
+    score: Math.round(row.score * 10) / 10,
   }));
 }

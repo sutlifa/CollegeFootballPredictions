@@ -83,3 +83,15 @@ CREATE TABLE IF NOT EXISTS bracket_field (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (season, user_id)
 );
+
+-- A week only counts toward Computer Rankings once the user explicitly
+-- submits it (all of that week's games must have a prediction first).
+-- Editing a prediction in an already-submitted week deletes its row here,
+-- so the change doesn't silently leak into the rankings until resubmitted.
+CREATE TABLE IF NOT EXISTS week_submissions (
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  season        INTEGER NOT NULL,
+  week          INTEGER NOT NULL,
+  submitted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, season, week)
+);

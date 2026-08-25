@@ -120,6 +120,17 @@ export async function getGamesForWeeks(
   return rows.map(mapGame);
 }
 
+async function unsubmitWeekForGame(userId: number, gameId: number): Promise<void> {
+  // If this game's week was already submitted, editing its prediction
+  // un-submits that week -- Computer Rankings must not silently pick up a
+  // changed score until the user explicitly re-submits.
+  await sql`
+    DELETE FROM week_submissions
+    WHERE user_id = ${userId}
+      AND (season, week) IN (SELECT season, week FROM games WHERE id = ${gameId})
+  `;
+}
+
 export async function savePrediction(
   userId: number,
   gameId: number,
@@ -137,6 +148,7 @@ export async function savePrediction(
       predicted_score_team2 = EXCLUDED.predicted_score_team2,
       updated_at = now()
   `;
+  await unsubmitWeekForGame(userId, gameId);
 }
 
 export async function clearPrediction(
@@ -144,6 +156,41 @@ export async function clearPrediction(
   gameId: number,
 ): Promise<void> {
   await sql`DELETE FROM predictions WHERE user_id = ${userId} AND game_id = ${gameId}`;
+  await unsubmitWeekForGame(userId, gameId);
+}
+
+export async function isWeekSubmitted(
+  userId: number,
+  week: number,
+  season = SEASON,
+): Promise<boolean> {
+  const rows = await sql`
+    SELECT 1 FROM week_submissions WHERE user_id = ${userId} AND season = ${season} AND week = ${week}
+  `;
+  return rows.length > 0;
+}
+
+export async function submitWeek(
+  userId: number,
+  week: number,
+  season = SEASON,
+): Promise<void> {
+  await sql`
+    INSERT INTO week_submissions (user_id, season, week)
+    VALUES (${userId}, ${season}, ${week})
+    ON CONFLICT (user_id, season, week) DO UPDATE SET submitted_at = now()
+  `;
+}
+
+/** Weeks this user has submitted -- only these count toward Computer Rankings. */
+export async function getSubmittedWeeks(
+  userId: number,
+  season = SEASON,
+): Promise<number[]> {
+  const rows = await sql<{ week: number }[]>`
+    SELECT week FROM week_submissions WHERE user_id = ${userId} AND season = ${season}
+  `;
+  return rows.map((r) => r.week);
 }
 
 export async function upsertWeek16Game(

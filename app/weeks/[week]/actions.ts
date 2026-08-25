@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { clearPrediction, savePrediction } from "@/lib/queries";
+import { clearPrediction, savePrediction, submitWeek } from "@/lib/queries";
 
 function revalidateAllAffected(week: number) {
   revalidatePath(`/weeks/${week}`);
@@ -55,5 +55,16 @@ export async function clearPredictionAction(formData: FormData) {
   }
 
   await clearPrediction(userId, gameId);
+  revalidateAllAffected(week);
+}
+
+export async function submitWeekAction(formData: FormData) {
+  const userId = await requireUserId();
+  const week = Number(formData.get("week"));
+  if (Number.isNaN(week)) {
+    throw new Error("Invalid week");
+  }
+
+  await submitWeek(userId, week);
   revalidateAllAffected(week);
 }
