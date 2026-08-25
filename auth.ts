@@ -3,7 +3,18 @@ import Google from "next-auth/providers/google";
 import { upsertUser } from "./lib/users";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  providers: [Google],
+  providers: [
+    Google({
+      // Without this, Google silently re-authenticates anyone whose browser
+      // still has an active Google session and who's already approved this
+      // app once -- no prompt, no account picker, it just signs them back
+      // in instantly. That's expected Google SSO behavior, but it makes our
+      // own sign-out feel broken ("I signed out and it just logged me back
+      // in"). Forcing the account picker every time makes re-auth a
+      // deliberate action instead of an invisible one.
+      authorization: { params: { prompt: "select_account" } },
+    }),
+  ],
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, profile }) {
