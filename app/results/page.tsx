@@ -13,45 +13,45 @@ export default async function ResultsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Prediction Accuracy</h1>
-        <p className="mt-1 text-neutral-400">
+        <h1 className="text-2xl font-bold text-ink">Prediction Accuracy</h1>
+        <p className="mt-1 text-ink-muted">
           Compares your predicted scores against real results, synced daily
           once games are actually played.
         </p>
       </div>
 
       {summary.gamesComparable === 0 ? (
-        <p className="text-neutral-400">
+        <p className="text-ink-muted">
           No completed games yet -- check back once the season is underway.
         </p>
       ) : (
         <>
           <div className="flex gap-6">
-            <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-              <div className="text-sm text-neutral-400">Correct winner</div>
-              <div className="text-2xl font-semibold">
+            <div className="rounded-lg border border-line bg-surface p-4">
+              <div className="text-sm text-ink-muted">Correct winner</div>
+              <div className="text-2xl font-bold text-accent-strong">
                 {((summary.correctWinnerRate ?? 0) * 100).toFixed(0)}%
               </div>
             </div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-              <div className="text-sm text-neutral-400">
+            <div className="rounded-lg border border-line bg-surface p-4">
+              <div className="text-sm text-ink-muted">
                 Avg. combined score error
               </div>
-              <div className="text-2xl font-semibold">
+              <div className="text-2xl font-bold text-ink">
                 {(summary.averageAbsoluteError ?? 0).toFixed(1)}
               </div>
             </div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-              <div className="text-sm text-neutral-400">Games compared</div>
-              <div className="text-2xl font-semibold">
+            <div className="rounded-lg border border-line bg-surface p-4">
+              <div className="text-sm text-ink-muted">Games compared</div>
+              <div className="text-2xl font-bold text-ink">
                 {summary.gamesComparable}
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-neutral-800">
+          <div className="overflow-x-auto rounded-lg border border-line">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-900 text-neutral-400">
+              <thead className="bg-surface-2 text-ink-muted">
                 <tr>
                   <th className="px-3 py-2 text-right">Wk</th>
                   <th className="px-3 py-2 text-left">Matchup</th>
@@ -62,7 +62,7 @@ export default async function ResultsPage() {
               </thead>
               <tbody>
                 {summary.rows.map((row) => (
-                  <tr key={row.gameId}>
+                  <tr key={row.gameId} className="border-t border-line bg-surface text-ink">
                     <td className="px-3 py-2 text-right">{row.week}</td>
                     <td className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
@@ -83,9 +83,9 @@ export default async function ResultsPage() {
                     </td>
                     <td className="px-3 py-2">
                       {row.correctWinner ? (
-                        <span className="text-emerald-400">Correct</span>
+                        <span className="font-medium text-win">Correct</span>
                       ) : (
-                        <span className="text-red-400">Missed</span>
+                        <span className="font-medium text-loss">Missed</span>
                       )}
                     </td>
                   </tr>

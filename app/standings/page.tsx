@@ -28,7 +28,7 @@ export default async function StandingsPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Standings</h1>
+      <h1 className="text-2xl font-bold text-ink">Standings</h1>
       {conferences.map((conference) => {
         const rows = grouped.get(conference)!;
         const isChampionshipConf = (
@@ -38,20 +38,20 @@ export default async function StandingsPage() {
         return (
           <section key={conference}>
             <div className="mb-2 flex items-baseline gap-3">
-              <h2 className="text-lg font-medium">{conference}</h2>
+              <h2 className="text-lg font-semibold text-ink">{conference}</h2>
               {champion ? (
-                <span className="text-sm text-emerald-400">
+                <span className="text-sm font-medium text-win">
                   Champion: {champion}
                 </span>
               ) : isChampionshipConf && rows.length >= 2 ? (
-                <span className="text-sm text-neutral-500">
+                <span className="text-sm text-ink-muted">
                   Championship: {rows[0].team} vs {rows[1].team}
                 </span>
               ) : null}
             </div>
-            <div className="overflow-x-auto rounded-lg border border-neutral-800">
+            <div className="overflow-x-auto rounded-lg border border-line">
               <table className="w-full text-sm">
-                <thead className="bg-neutral-900 text-neutral-400">
+                <thead className="bg-surface-2 text-ink-muted">
                   <tr>
                     <th className="px-3 py-2 text-left">Team</th>
                     <th className="px-3 py-2 text-right">W</th>
@@ -64,11 +64,9 @@ export default async function StandingsPage() {
                   {rows.map((row, i) => (
                     <tr
                       key={row.teamId}
-                      className={
-                        i < 2 && isChampionshipConf
-                          ? "bg-neutral-900/50"
-                          : undefined
-                      }
+                      className={`border-t border-line bg-surface ${
+                        i < 2 && isChampionshipConf ? "bg-surface-2" : ""
+                      }`}
                     >
                       <td className="px-3 py-2">
                         <span className="flex items-center gap-2">

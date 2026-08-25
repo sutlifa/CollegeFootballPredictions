@@ -18,18 +18,18 @@ export default async function TeamsPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Teams</h1>
+      <h1 className="text-2xl font-bold text-ink">Teams</h1>
       {Array.from(grouped.entries()).map(([conference, list]) => (
         <section key={conference}>
-          <h2 className="mb-2 text-lg font-medium">{conference}</h2>
+          <h2 className="mb-2 text-lg font-semibold text-accent-strong">{conference}</h2>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3 md:grid-cols-4">
             {list.map((team) => (
-              <div key={team.id} className="flex items-center gap-2 text-sm text-neutral-300">
+              <div key={team.id} className="flex items-center gap-2 text-sm text-ink-soft">
                 <TeamLogo logoUrl={team.logoUrl} name={team.name} size={20} />
                 <span>
                   {team.name}
                   {team.preseasonRank && (
-                    <span className="ml-1 text-neutral-500">
+                    <span className="ml-1 text-ink-muted">
                       #{team.preseasonRank}
                     </span>
                   )}

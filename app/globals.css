@@ -1,17 +1,51 @@
 @import "tailwindcss";
 
 /*
- * This app is dark-only by design (see the bg-neutral-950/text-neutral-100
- * classes on <body> in app/layout.tsx) -- no light/dark toggle needed. Do
- * NOT reintroduce a plain `body { color: ...; background: ...; }` rule here:
- * in Tailwind v4, unlayered CSS in this file overrides layered utility
- * classes regardless of specificity, so a rule like that would silently
- * beat the Tailwind classes on <body> and make any text without its own
- * explicit color class inherit an invisible near-black color on the dark
- * background (exactly the bug that motivated this comment).
+ * This app is dark-only by design (see the classes on <body> in
+ * app/layout.tsx) -- no light/dark toggle needed. Do NOT reintroduce a
+ * plain `body { color: ...; background: ...; }` rule here: in Tailwind v4,
+ * unlayered CSS in this file overrides layered utility classes regardless
+ * of specificity, so a rule like that would silently beat the Tailwind
+ * classes on <body> and make any text without its own explicit color class
+ * inherit an invisible color on the dark background (exactly the bug that
+ * motivated this comment).
+ *
+ * Football-themed palette: dark turf green (not neutral black/gray), gold
+ * accent (championship trophy / CFP branding), chalk-white text, and
+ * explicit win/loss/neutral-site colors used across the app. Defined here
+ * as Tailwind v4 theme tokens so every page can use bg-surface,
+ * text-ink-muted, etc. instead of the generic neutral-* scale.
  */
-
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-field: #0b1f14;
+  --color-surface: #12291b;
+  --color-surface-2: #1a3524;
+  --color-surface-3: #23472f;
+  --color-line: #2c4a35;
+  --color-line-strong: #3c6144;
+
+  --color-ink: #f4f1e6;
+  --color-ink-soft: #d7e2d9;
+  --color-ink-muted: #8fac97;
+
+  --color-accent: #d8a53d;
+  --color-accent-strong: #eec25f;
+  --color-accent-ink: #241a04;
+
+  --color-win: #4fae6f;
+  --color-loss: #d1573f;
+  --color-neutral-site: #4f8fd1;
+}
+
+body {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-line) 35%, transparent) 0px,
+    color-mix(in srgb, var(--color-line) 35%, transparent) 2px,
+    transparent 2px,
+    transparent 64px
+  );
 }

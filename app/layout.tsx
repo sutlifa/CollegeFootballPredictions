@@ -33,16 +33,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100">
-        <header className="border-b border-neutral-800 bg-neutral-900">
-          <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-4 px-4 py-3 text-sm">
-            <span className="font-semibold text-neutral-50">CFB Predictions</span>
-            <div className="flex flex-wrap gap-3">
+      <body className="min-h-full flex flex-col bg-field text-ink">
+        <header className="border-b-2 border-accent/70 bg-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
+          <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-5 px-4 py-3 text-sm">
+            <span className="flex items-center gap-2 text-base font-bold tracking-wide text-accent-strong">
+              <span aria-hidden>🏈</span> CFB Predictions
+            </span>
+            <div className="flex flex-wrap gap-1">
               {NAV_LINKS.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-neutral-300 hover:text-white"
+                  className="rounded px-2.5 py-1.5 font-medium text-ink-soft transition-colors hover:bg-surface-2 hover:text-accent-strong"
                 >
                   {link.label}
                 </Link>
@@ -53,6 +55,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
           {children}
         </main>
+        <footer className="border-t border-line px-4 py-3 text-center text-xs text-ink-muted">
+          2026 Season
+        </footer>
       </body>
     </html>
   );

@@ -21,11 +21,11 @@ export default async function BracketPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">12-Team Playoff Bracket</h1>
+          <h1 className="text-2xl font-bold text-ink">12-Team Playoff Bracket</h1>
           <form action={resetBracketFieldAction}>
             <button
               type="submit"
-              className="rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500"
+              className="rounded border border-line-strong px-3 py-1.5 text-sm text-ink-soft hover:border-accent hover:text-accent-strong"
             >
               Edit selection
             </button>
@@ -36,25 +36,27 @@ export default async function BracketPage() {
           {bracket.seeds.map((s) => (
             <li
               key={s.teamId}
-              className="rounded-lg border border-neutral-800 bg-neutral-900 p-3"
+              className="rounded-lg border border-line bg-surface p-3 text-ink"
             >
-              <span className="font-semibold">#{s.seed}</span>{" "}
+              <span className="font-bold text-accent-strong">#{s.seed}</span>{" "}
               <span className="inline-flex items-center gap-2">
                 <TeamLogo logoUrl={teamById.get(s.teamId)?.logoUrl} name={s.team} size={20} />
                 {s.team}
               </span>{" "}
-              <span className="text-neutral-500">
+              <span className="text-ink-muted">
                 ({s.wins}-{s.losses}, {s.score.toFixed(2)})
               </span>
               {s.seed <= 4 && (
-                <span className="ml-2 text-xs text-emerald-400">BYE</span>
+                <span className="ml-2 rounded bg-win/20 px-1.5 py-0.5 text-xs font-bold text-win">
+                  BYE
+                </span>
               )}
             </li>
           ))}
         </ol>
 
         <div>
-          <h2 className="mb-2 text-lg font-medium">Round 1</h2>
+          <h2 className="mb-2 text-lg font-semibold text-ink">Round 1</h2>
           <div className="space-y-2">
             {bracket.round1
               .filter((g) => g.lowerSeed !== null)
@@ -64,14 +66,14 @@ export default async function BracketPage() {
                 return (
                   <div
                     key={g.higherSeed}
-                    className="rounded-lg border border-neutral-800 bg-neutral-900 p-3"
+                    className="rounded-lg border border-line bg-surface p-3 text-ink"
                   >
                     <span className="inline-flex items-center gap-2">
                       #{g.higherSeed}
                       <TeamLogo logoUrl={teamById.get(higher?.teamId ?? -1)?.logoUrl} name={higher?.team ?? ""} size={20} />
                       {higher?.team}
                     </span>{" "}
-                    vs{" "}
+                    <span className="text-ink-muted">vs</span>{" "}
                     <span className="inline-flex items-center gap-2">
                       #{g.lowerSeed}
                       <TeamLogo logoUrl={teamById.get(lower?.teamId ?? -1)?.logoUrl} name={lower?.team ?? ""} size={20} />
@@ -91,8 +93,8 @@ export default async function BracketPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Select the 12-Team Field</h1>
-        <p className="mt-1 text-neutral-400">
+        <h1 className="text-2xl font-bold text-ink">Select the 12-Team Field</h1>
+        <p className="mt-1 text-ink-muted">
           Pick exactly 12 teams for the playoff. Conference champions
           (auto-bid eligible) are marked below; everyone else is ranked by
           Computer Ranking so you can choose your at-large teams. Seeding and
@@ -101,7 +103,7 @@ export default async function BracketPage() {
       </div>
 
       {candidates.champions.length < 5 && (
-        <p className="rounded border border-amber-800 bg-amber-950/40 px-3 py-2 text-sm text-amber-300">
+        <p className="rounded border border-accent/50 bg-accent/10 px-3 py-2 text-sm text-accent-strong">
           Only {candidates.champions.length} of 9 conference championships are
           decided so far. You can still select a field, but you may want to
           finish predicting Championship Week first.
@@ -109,9 +111,9 @@ export default async function BracketPage() {
       )}
 
       <form action={setBracketFieldAction} className="space-y-4">
-        <div className="overflow-x-auto rounded-lg border border-neutral-800">
+        <div className="overflow-x-auto rounded-lg border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-900 text-neutral-400">
+            <thead className="bg-surface-2 text-ink-muted">
               <tr>
                 <th className="px-3 py-2"></th>
                 <th className="px-3 py-2 text-right">Rank</th>
@@ -127,16 +129,16 @@ export default async function BracketPage() {
               {candidates.rankings.map((row) => (
                 <tr
                   key={row.teamId}
-                  className={
-                    championIds.has(row.teamId) ? "bg-emerald-950/20" : undefined
-                  }
+                  className={`border-t border-line ${
+                    championIds.has(row.teamId) ? "bg-win/10" : "bg-surface"
+                  }`}
                 >
                   <td className="px-3 py-2">
                     <input type="checkbox" name="teamIds" value={row.teamId} />
                   </td>
-                  <td className="px-3 py-2 text-right">{row.rank}</td>
+                  <td className="px-3 py-2 text-right text-ink">{row.rank}</td>
                   <td className="px-3 py-2">
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-2 text-ink">
                       <TeamLogo
                         logoUrl={teamById.get(row.teamId)?.logoUrl}
                         name={row.team}
@@ -145,15 +147,15 @@ export default async function BracketPage() {
                       {row.team}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-neutral-400">
+                  <td className="px-3 py-2 text-ink-muted">
                     {row.conference}
                   </td>
-                  <td className="px-3 py-2 text-right">{row.wins}</td>
-                  <td className="px-3 py-2 text-right">{row.losses}</td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right text-ink">{row.wins}</td>
+                  <td className="px-3 py-2 text-right text-ink">{row.losses}</td>
+                  <td className="px-3 py-2 text-right font-mono text-ink">
                     {row.score.toFixed(2)}
                   </td>
-                  <td className="px-3 py-2 text-xs text-emerald-400">
+                  <td className="px-3 py-2 text-xs font-semibold text-win">
                     {row.isChampion ? "Champion" : ""}
                   </td>
                 </tr>
@@ -163,7 +165,7 @@ export default async function BracketPage() {
         </div>
         <button
           type="submit"
-          className="rounded bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white"
+          className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
         >
           Confirm 12-Team Field
         </button>

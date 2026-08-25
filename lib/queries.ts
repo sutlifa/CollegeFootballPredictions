@@ -131,10 +131,10 @@ export async function upsertWeek16Game(
   season = SEASON,
 ): Promise<void> {
   await sql`
-    INSERT INTO games (season, week, team1_id, team2_id, conference, is_conference_championship)
-    VALUES (${season}, 16, ${team1Id}, ${team2Id}, ${conference}, TRUE)
+    INSERT INTO games (season, week, team1_id, team2_id, conference, is_conference_championship, is_neutral_site)
+    VALUES (${season}, 16, ${team1Id}, ${team2Id}, ${conference}, TRUE, TRUE)
     ON CONFLICT (season, week, team1_id, team2_id)
-    DO UPDATE SET conference = EXCLUDED.conference, is_conference_championship = TRUE
+    DO UPDATE SET conference = EXCLUDED.conference, is_conference_championship = TRUE, is_neutral_site = TRUE
   `;
 }
 

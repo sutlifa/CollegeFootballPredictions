@@ -13,7 +13,7 @@ export function TeamLogo({ logoUrl, name, size = 24 }: TeamLogoProps) {
     return (
       <span
         aria-hidden
-        className="inline-block shrink-0 rounded-full bg-neutral-800"
+        className="inline-block shrink-0 rounded-full bg-surface-3"
         style={{ width: size, height: size }}
       />
     );
