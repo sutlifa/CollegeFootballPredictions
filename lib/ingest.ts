@@ -29,7 +29,27 @@ async function resolveTeamId(cfbdTeamId: number, name: string): Promise<number> 
 
 export type SeedWeekResult = { week: number; gamesUpserted: number };
 
-/** Ingests weeks 1-15 from CFBD in one call (Week 16 is derived, not fetched). */
+// CFBD's 2026 calendar lumps the season-opening Aug 29 slate into the same
+// "week 1" bucket as the following weekend's games (an 11-day window instead
+// of the usual ~7), so a handful of teams play twice inside CFBD's week 1.
+// Split anything before this date out into our own "week 0".
+const WEEK_ZERO_CUTOFF_ET = "2026-09-01";
+const etDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function resolveWeek(game: CfbdGame): number {
+  if (game.week === 1) {
+    const etDate = etDateFormatter.format(new Date(game.startDate));
+    if (etDate < WEEK_ZERO_CUTOFF_ET) return 0;
+  }
+  return game.week;
+}
+
+/** Ingests weeks 0-15 from CFBD in one call (Week 16 is derived, not fetched). */
 export async function seedSeasonFromCfbd(
   weeks: number[] = VALID_WEEKS.filter((w) => w !== 16),
 ): Promise<SeedWeekResult[]> {
@@ -38,15 +58,17 @@ export async function seedSeasonFromCfbd(
   const results = new Map<number, number>(weeks.map((w) => [w, 0]));
 
   for (const game of allGames) {
-    if (!weekSet.has(game.week) || !isFbsGame(game)) continue;
-    await upsertGame(game);
-    results.set(game.week, (results.get(game.week) ?? 0) + 1);
+    if (!isFbsGame(game)) continue;
+    const week = resolveWeek(game);
+    if (!weekSet.has(week)) continue;
+    await upsertGame(game, week);
+    results.set(week, (results.get(week) ?? 0) + 1);
   }
 
   return weeks.map((week) => ({ week, gamesUpserted: results.get(week) ?? 0 }));
 }
 
-async function upsertGame(game: CfbdGame): Promise<void> {
+async function upsertGame(game: CfbdGame, week: number): Promise<void> {
   const homeTeamId = await resolveTeamId(game.homeId, game.homeTeam);
   const awayTeamId = await resolveTeamId(game.awayId, game.awayTeam);
   const status = game.completed ? "final" : "scheduled";
@@ -58,10 +80,11 @@ async function upsertGame(game: CfbdGame): Promise<void> {
       team1_is_home, is_neutral_site, kickoff_at, status
     )
     VALUES (
-      ${String(game.id)}, ${game.season}, ${game.week}, ${homeTeamId}, ${awayTeamId},
+      ${String(game.id)}, ${game.season}, ${week}, ${homeTeamId}, ${awayTeamId},
       TRUE, ${game.neutralSite}, ${game.startDate}, ${status}
     )
     ON CONFLICT (cfbd_game_id) DO UPDATE SET
+      week = EXCLUDED.week,
       kickoff_at = EXCLUDED.kickoff_at,
       status = EXCLUDED.status
   `;

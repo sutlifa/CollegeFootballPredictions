@@ -10,8 +10,14 @@ export function getWeekLabel(week: number): string {
   return `Week ${week}`;
 }
 
-/** Week 14 doesn't exist in the current season's real schedule -- no FBS games are played that week. */
-export const VALID_WEEKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
+/**
+ * Week 14 doesn't exist in the current season's real schedule -- no FBS
+ * games are played that week. Week 0 is the season-opening Aug 29 slate,
+ * which CFBD lumps into the same "week 1" bucket as the following weekend's
+ * games (see lib/ingest.ts resolveWeek) -- split out here so a team playing
+ * both isn't double-counted as one calendar week.
+ */
+export const VALID_WEEKS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
 
 export function isValidWeek(week: number): boolean {
   return VALID_WEEKS.includes(week);
