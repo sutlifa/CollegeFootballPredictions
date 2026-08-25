@@ -2,7 +2,11 @@ import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
 import { TrophyIcon } from "@/components/TrophyIcon";
-import { computeBracketSeeding, getBracketCandidates } from "@/lib/bracket";
+import {
+  computeBracketSeeding,
+  getBracketCandidates,
+  POWER_CONFERENCES,
+} from "@/lib/bracket";
 import { computeComputerRankings } from "@/lib/computerRankings";
 import {
   getAllGames,
@@ -115,7 +119,9 @@ export default async function BracketPage() {
     );
   }
 
-  const championIds = new Set(candidates.champions.map((c) => c.teamId));
+  const decidedPowerConferences = new Set(
+    candidates.powerChampions.map((c) => c.conference),
+  );
 
   return (
     <div className="space-y-6">
@@ -123,21 +129,33 @@ export default async function BracketPage() {
         <TrophyIcon size={88} />
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           Select the 12-Team Field
-          <Tooltip text="Nothing is auto-selected. Check exactly 12 teams: conference champions are the traditional automatic bids, and the rest are your at-large picks -- use the Rank/Rating columns as a guide, but the final call is yours." />
+          <Tooltip text="Nothing is auto-selected. Under the real 2026-27 CFP rules: the ACC, Big 12, Big Ten, and SEC champions each get an automatic bid no matter how they're ranked; the Group of Six (American, CUSA, MAC, Mountain West, Pac 12, Sun Belt) gets exactly one automatic bid, given to whichever G6 team is rated highest -- champion or not. Notre Dame and other independents have no automatic path; they're at-large candidates like anyone else. The remaining spots are open at-large picks -- the final call on all 12 is yours." />
         </h1>
         <p className="max-w-xl text-ink-muted">
-          Pick exactly 12 teams for the playoff. Conference champions
-          (auto-bid eligible) are marked below; everyone else is ranked by
-          Computer Ranking so you can choose your at-large teams. Seeding and
-          Round 1 pairings are generated automatically once you confirm.
+          Pick exactly 12 teams. Automatic-bid-eligible teams are marked
+          below; everyone else (including Notre Dame) is an at-large
+          candidate, ranked by Computer Ranking. Seeding and Round 1 pairings
+          are generated automatically once you confirm.
         </p>
       </div>
 
-      {candidates.champions.length < 5 && (
+      {decidedPowerConferences.size < POWER_CONFERENCES.length && (
         <p className="rounded border border-accent/50 bg-accent/10 px-3 py-2 text-sm text-accent-strong">
-          Only {candidates.champions.length} of 9 conference championships are
-          decided so far. You can still select a field, but you may want to
-          finish predicting Championship Week first.
+          Only {decidedPowerConferences.size} of {POWER_CONFERENCES.length}{" "}
+          guaranteed-bid conference championships (ACC, Big 12, Big Ten, SEC)
+          are decided so far. You can still select a field, but you may want
+          to finish predicting Championship Week first.
+        </p>
+      )}
+      {candidates.groupOfSixAutoBid && (
+        <p className="text-sm text-ink-muted">
+          Current Group of Six auto bid:{" "}
+          <span className="font-semibold text-ink">
+            {candidates.groupOfSixAutoBid.team}
+          </span>{" "}
+          ({candidates.groupOfSixAutoBid.conference}) -- the highest-ranked
+          Group of Six team so far, champion or not. This can change as more
+          weeks are submitted.
         </p>
       )}
 
@@ -153,7 +171,7 @@ export default async function BracketPage() {
                 <th className="px-3 py-2 text-right">W</th>
                 <th className="px-3 py-2 text-right">L</th>
                 <th className="px-3 py-2 text-right">Rating</th>
-                <th className="px-3 py-2 text-left">Champion</th>
+                <th className="px-3 py-2 text-left">Auto bid</th>
               </tr>
             </thead>
             <tbody>
@@ -161,7 +179,7 @@ export default async function BracketPage() {
                 <tr
                   key={row.teamId}
                   className={`border-t border-line ${
-                    championIds.has(row.teamId) ? "bg-win/10" : "bg-surface"
+                    row.autoBidReason ? "bg-win/10" : "bg-surface"
                   }`}
                 >
                   <td className="px-3 py-2">
@@ -187,7 +205,11 @@ export default async function BracketPage() {
                     {row.score.toFixed(1)}
                   </td>
                   <td className="px-3 py-2 text-xs font-semibold text-win">
-                    {row.isChampion ? "Champion" : ""}
+                    {row.autoBidReason === "power-champion"
+                      ? "Conference champion"
+                      : row.autoBidReason === "group-of-six"
+                        ? "Group of Six"
+                        : ""}
                   </td>
                 </tr>
               ))}

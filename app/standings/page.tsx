@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
+import { POWER_CONFERENCES } from "@/lib/bracket";
 import { CHAMPIONSHIP_CONFERENCES } from "@/lib/conferences";
 import { getAllGames, getAllTeams } from "@/lib/queries";
 import { computeStandings, groupStandingsByConference } from "@/lib/standings";
@@ -37,7 +38,7 @@ export default async function StandingsPage() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           Standings
-          <Tooltip text="Grouped by conference and sorted by Conf W/L (record against other teams in the same conference only) first, then overall record. Each conference's top two (highlighted) play each other in that conference's Week 16 championship -- the winner becomes conference champion and locks an automatic bid into the Bracket." />
+          <Tooltip text="Grouped by conference and sorted by Conf W/L (record against other teams in the same conference only) first, then overall record. Each conference's top two (highlighted) play each other in that conference's Week 16 championship. For the ACC, Big 12, Big Ten, and SEC, winning locks an automatic playoff bid no matter how the team is ranked. For every other conference, winning the title does NOT by itself guarantee a bid -- only one Group of Six team gets an automatic bid (the highest-ranked one, champion or not). See the Bracket page for the full breakdown." />
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
           Based on your own predictions for weeks 1-15 -- updates live as you save each one, no submission required.
@@ -48,6 +49,9 @@ export default async function StandingsPage() {
         const isChampionshipConf = (
           CHAMPIONSHIP_CONFERENCES as readonly string[]
         ).includes(conference);
+        const isPowerConf = (POWER_CONFERENCES as readonly string[]).includes(
+          conference,
+        );
         const champion = championByConference.get(conference);
         return (
           <section key={conference}>
@@ -56,6 +60,15 @@ export default async function StandingsPage() {
               {champion ? (
                 <span className="text-sm font-medium text-win">
                   Champion: {champion}
+                  {isPowerConf ? (
+                    <span className="ml-1 font-normal text-ink-muted">
+                      (automatic bid)
+                    </span>
+                  ) : (
+                    <span className="ml-1 font-normal text-ink-muted">
+                      (not an automatic bid by itself -- see Bracket)
+                    </span>
+                  )}
                 </span>
               ) : isChampionshipConf && rows.length >= 2 ? (
                 <span className="text-sm text-ink-muted">
