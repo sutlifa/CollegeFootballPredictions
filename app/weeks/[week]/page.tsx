@@ -43,7 +43,7 @@ export default async function WeekPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           {getWeekLabel(week)}
-          <Tooltip text="Enter your predicted final score for both teams in every game, then hit Save. Clear removes a prediction. Once every game this week has one, Submit Week Results unlocks -- nothing counts toward Computer Rankings or the Bracket until you submit." />
+          <Tooltip text="Home team is on the left, Away on the right; a neutral-site game shows N instead of VS and gets no home-field boost. Enter your predicted final score for both teams, then hit Save (Clear removes a prediction). Once every game this week has one, Submit Week Results unlocks -- nothing counts toward Computer Rankings or the Bracket until you submit." />
         </h1>
         {allDecided && (
           <div className="flex items-center gap-3">
@@ -94,9 +94,7 @@ export default async function WeekPage({
               <span>Kickoff (ET)</span>
               <span className="text-right">Home</span>
               <span className="text-center">Score</span>
-              <span className="flex justify-center normal-case">
-                <Tooltip text="Home team on the left, Away on the right. A neutral-site game (bowl, championship, etc.) shows N instead of VS and gets no home-field boost in the rankings math." />
-              </span>
+              <span />
               <span className="text-center">Score</span>
               <span>Away</span>
               <span />

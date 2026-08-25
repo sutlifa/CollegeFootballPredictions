@@ -152,18 +152,8 @@ export default async function BracketPage() {
                 <th className="px-3 py-2 text-left">Conference</th>
                 <th className="px-3 py-2 text-right">W</th>
                 <th className="px-3 py-2 text-right">L</th>
-                <th className="px-3 py-2 text-right">
-                  <span className="inline-flex items-center gap-1 normal-case">
-                    Rating
-                    <Tooltip text="Elo-style number, higher is better -- see the Rankings page for the full explanation." />
-                  </span>
-                </th>
-                <th className="px-3 py-2 text-left">
-                  <span className="inline-flex items-center gap-1 normal-case">
-                    Champion
-                    <Tooltip text="Won their conference championship (Week 16) -- the traditional automatic playoff bid." />
-                  </span>
-                </th>
+                <th className="px-3 py-2 text-right">Rating</th>
+                <th className="px-3 py-2 text-left">Champion</th>
               </tr>
             </thead>
             <tbody>
