@@ -8,6 +8,12 @@ export type Team = {
   isFbs: boolean;
 };
 
+/** "Idaho State (FCS)" for non-FBS opponents, matching the original spreadsheet's convention -- otherwise just the name. */
+export function displayTeamName(team: Pick<Team, "name" | "isFbs"> | undefined): string {
+  if (!team) return "Unknown";
+  return team.isFbs ? team.name : `${team.name} (FCS)`;
+}
+
 export type GameStatus = "scheduled" | "in_progress" | "final";
 
 export type Game = {

@@ -97,6 +97,26 @@ export async function fetchFbsTeams(year: number): Promise<CfbdTeam[]> {
   return res.json();
 }
 
+/**
+ * Unlike /teams/fbs, this returns every division (FBS/FCS/II/III) in one
+ * call -- used to backfill logos for the ~100 non-FBS opponents that show
+ * up as an away team on the schedule but aren't part of our curated FBS
+ * roster.
+ */
+export async function fetchAllTeams(year: number): Promise<CfbdTeam[]> {
+  const params = new URLSearchParams({ year: String(year) });
+  const res = await fetch(`${CFBD_BASE}/teams?${params}`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `CFBD teams fetch failed: ${res.status} ${res.statusText}`,
+    );
+  }
+  return res.json();
+}
+
 /** Any game touching an FBS team (matches what the WeekN sheets covered -- FBS vs FCS included). */
 export function isFbsGame(game: CfbdGame): boolean {
   return game.homeClassification === "fbs" || game.awayClassification === "fbs";

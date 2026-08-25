@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { TeamLogo } from "@/components/TeamLogo";
 import { getAllTeams, getGamesForWeek } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
+import { displayTeamName } from "@/lib/types";
 import { clearPredictionAction, savePredictionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export default async function WeekPage({
                 <div className="flex flex-1 items-center justify-between gap-4 min-w-[280px]">
                   <span className="flex items-center gap-2 font-medium">
                     <TeamLogo logoUrl={team1?.logoUrl} name={team1?.name ?? ""} />
-                    {team1?.name ?? "Unknown"}
+                    {displayTeamName(team1)}
                     {game.isNeutralSite ? "" : game.team1IsHome ? "" : " (away)"}
                   </span>
                   <input
@@ -81,7 +82,7 @@ export default async function WeekPage({
                 <div className="flex flex-1 items-center justify-between gap-4 min-w-[280px]">
                   <span className="flex items-center gap-2 font-medium">
                     <TeamLogo logoUrl={team2?.logoUrl} name={team2?.name ?? ""} />
-                    {team2?.name ?? "Unknown"}
+                    {displayTeamName(team2)}
                     {game.isNeutralSite ? "" : game.team1IsHome === false ? "" : " (away)"}
                   </span>
                   <input

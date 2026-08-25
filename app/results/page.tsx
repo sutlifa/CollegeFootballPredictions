@@ -1,6 +1,7 @@
 import { TeamLogo } from "@/components/TeamLogo";
 import { computeAccuracySummary } from "@/lib/accuracy";
 import { getAllGames, getAllTeams } from "@/lib/queries";
+import { displayTeamName } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -66,12 +67,12 @@ export default async function ResultsPage() {
                     <td className="px-3 py-2">
                       <span className="inline-flex items-center gap-1">
                         <TeamLogo logoUrl={teamById.get(row.team1Id)?.logoUrl} name={row.team1} size={18} />
-                        {row.team1}
+                        {displayTeamName(teamById.get(row.team1Id))}
                       </span>{" "}
                       vs{" "}
                       <span className="inline-flex items-center gap-1">
                         <TeamLogo logoUrl={teamById.get(row.team2Id)?.logoUrl} name={row.team2} size={18} />
-                        {row.team2}
+                        {displayTeamName(teamById.get(row.team2Id))}
                       </span>
                     </td>
                     <td className="px-3 py-2">
