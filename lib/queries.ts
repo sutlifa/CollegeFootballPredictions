@@ -9,6 +9,7 @@ type TeamRow = {
   name: string;
   conference: string;
   preseason_rank: number | null;
+  logo_url: string | null;
   is_fbs: boolean;
 };
 
@@ -19,6 +20,7 @@ function mapTeam(row: TeamRow): Team {
     name: row.name,
     conference: row.conference,
     preseasonRank: row.preseason_rank,
+    logoUrl: row.logo_url,
     isFbs: row.is_fbs,
   };
 }
@@ -107,6 +109,16 @@ export async function savePrediction(
     UPDATE games
     SET predicted_score_team1 = ${score1},
         predicted_score_team2 = ${score2},
+        updated_at = now()
+    WHERE id = ${gameId}
+  `;
+}
+
+export async function clearPrediction(gameId: number): Promise<void> {
+  await sql`
+    UPDATE games
+    SET predicted_score_team1 = NULL,
+        predicted_score_team2 = NULL,
         updated_at = now()
     WHERE id = ${gameId}
   `;

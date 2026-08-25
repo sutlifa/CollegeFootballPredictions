@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
+import { TeamLogo } from "@/components/TeamLogo";
 import { getAllTeams, getGamesForWeek } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
-import { savePredictionAction } from "./actions";
+import { clearPredictionAction, savePredictionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,9 @@ export default async function WeekPage({
           {games.map((game) => {
             const team1 = teamById.get(game.team1Id);
             const team2 = teamById.get(game.team2Id);
+            const hasPrediction =
+              game.predictedScoreTeam1 !== null &&
+              game.predictedScoreTeam2 !== null;
             return (
               <form
                 key={game.id}
@@ -59,7 +63,8 @@ export default async function WeekPage({
                 <input type="hidden" name="gameId" value={game.id} />
                 <input type="hidden" name="week" value={week} />
                 <div className="flex flex-1 items-center justify-between gap-4 min-w-[280px]">
-                  <span className="font-medium">
+                  <span className="flex items-center gap-2 font-medium">
+                    <TeamLogo logoUrl={team1?.logoUrl} name={team1?.name ?? ""} />
                     {team1?.name ?? "Unknown"}
                     {game.isNeutralSite ? "" : game.team1IsHome ? "" : " (away)"}
                   </span>
@@ -74,7 +79,8 @@ export default async function WeekPage({
                 </div>
                 <span className="text-neutral-500">vs</span>
                 <div className="flex flex-1 items-center justify-between gap-4 min-w-[280px]">
-                  <span className="font-medium">
+                  <span className="flex items-center gap-2 font-medium">
+                    <TeamLogo logoUrl={team2?.logoUrl} name={team2?.name ?? ""} />
                     {team2?.name ?? "Unknown"}
                     {game.isNeutralSite ? "" : game.team1IsHome === false ? "" : " (away)"}
                   </span>
@@ -93,6 +99,16 @@ export default async function WeekPage({
                 >
                   Save
                 </button>
+                {hasPrediction && (
+                  <button
+                    type="submit"
+                    formAction={clearPredictionAction}
+                    formNoValidate
+                    className="rounded border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500"
+                  >
+                    Clear
+                  </button>
+                )}
               </form>
             );
           })}

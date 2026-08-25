@@ -5,7 +5,7 @@
 // fuzzy-matches -- unresolved names are printed so a human can add an alias
 // and re-run.
 import { sql } from "../lib/db";
-import { fetchFbsTeams, type CfbdTeam } from "../lib/cfbd";
+import { fetchFbsTeams, pickLogoUrl, type CfbdTeam } from "../lib/cfbd";
 import aliasesJson from "../lib/data/team-name-aliases.json";
 
 const aliases: Record<string, string> = Object.fromEntries(
@@ -39,7 +39,8 @@ async function main() {
       continue;
     }
     await sql`
-      UPDATE teams SET cfbd_team_id = ${cfbdTeam.id} WHERE id = ${ourTeam.id}
+      UPDATE teams SET cfbd_team_id = ${cfbdTeam.id}, logo_url = ${pickLogoUrl(cfbdTeam.logos)}
+      WHERE id = ${ourTeam.id}
     `;
     matched++;
   }

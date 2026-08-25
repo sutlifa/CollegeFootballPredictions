@@ -1,3 +1,4 @@
+import { TeamLogo } from "@/components/TeamLogo";
 import { computeComputerRankings } from "@/lib/computerRankings";
 import { getAllGames, getAllTeams } from "@/lib/queries";
 
@@ -5,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RankingsPage() {
   const [teams, games] = await Promise.all([getAllTeams(), getAllGames()]);
+  const teamById = new Map(teams.map((t) => [t.id, t]));
   const rankings = computeComputerRankings(teams, games);
 
   return (
@@ -26,7 +28,16 @@ export default async function RankingsPage() {
             {rankings.map((row) => (
               <tr key={row.teamId}>
                 <td className="px-3 py-2 text-right">{row.rank}</td>
-                <td className="px-3 py-2">{row.team}</td>
+                <td className="px-3 py-2">
+                  <span className="flex items-center gap-2">
+                    <TeamLogo
+                      logoUrl={teamById.get(row.teamId)?.logoUrl}
+                      name={row.team}
+                      size={20}
+                    />
+                    {row.team}
+                  </span>
+                </td>
                 <td className="px-3 py-2 text-neutral-400">
                   {row.conference}
                 </td>

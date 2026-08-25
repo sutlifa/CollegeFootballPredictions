@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS teams (
   name            TEXT NOT NULL UNIQUE,
   conference      TEXT NOT NULL,       -- includes 'FCS' for non-FBS opponents
   preseason_rank  INTEGER,
+  logo_url        TEXT,
   is_fbs          BOOLEAN NOT NULL DEFAULT TRUE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );

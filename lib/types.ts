@@ -4,6 +4,7 @@ export type Team = {
   name: string;
   conference: string;
   preseasonRank: number | null;
+  logoUrl: string | null;
   isFbs: boolean;
 };
 

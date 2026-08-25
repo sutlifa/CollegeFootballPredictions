@@ -1,3 +1,4 @@
+import { TeamLogo } from "@/components/TeamLogo";
 import { CHAMPIONSHIP_CONFERENCES } from "@/lib/conferences";
 import { getAllGames, getAllTeams } from "@/lib/queries";
 import { computeStandings, groupStandingsByConference } from "@/lib/standings";
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function StandingsPage() {
   const [teams, games] = await Promise.all([getAllTeams(), getAllGames()]);
+  const teamById = new Map(teams.map((t) => [t.id, t]));
   const standings = computeStandings(teams, games);
   const grouped = groupStandingsByConference(standings);
 
@@ -68,7 +70,16 @@ export default async function StandingsPage() {
                           : undefined
                       }
                     >
-                      <td className="px-3 py-2">{row.team}</td>
+                      <td className="px-3 py-2">
+                        <span className="flex items-center gap-2">
+                          <TeamLogo
+                            logoUrl={teamById.get(row.teamId)?.logoUrl}
+                            name={row.team}
+                            size={20}
+                          />
+                          {row.team}
+                        </span>
+                      </td>
                       <td className="px-3 py-2 text-right">{row.wins}</td>
                       <td className="px-3 py-2 text-right">{row.losses}</td>
                       <td className="px-3 py-2 text-right">{row.confWins}</td>

@@ -3,7 +3,9 @@ import type { Game, Team } from "./types";
 export type AccuracyRow = {
   gameId: number;
   week: number;
+  team1Id: number;
   team1: string;
+  team2Id: number;
   team2: string;
   predictedScoreTeam1: number;
   predictedScoreTeam2: number;
@@ -47,7 +49,9 @@ export function computeAccuracySummary(
     rows.push({
       gameId: game.id,
       week: game.week,
+      team1Id: team1.id,
       team1: team1.name,
+      team2Id: team2.id,
       team2: team2.name,
       predictedScoreTeam1: game.predictedScoreTeam1,
       predictedScoreTeam2: game.predictedScoreTeam2,

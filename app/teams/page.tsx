@@ -1,3 +1,4 @@
+import { TeamLogo } from "@/components/TeamLogo";
 import { getAllTeams } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -23,13 +24,16 @@ export default async function TeamsPage() {
           <h2 className="mb-2 text-lg font-medium">{conference}</h2>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3 md:grid-cols-4">
             {list.map((team) => (
-              <div key={team.id} className="text-sm text-neutral-300">
-                {team.name}
-                {team.preseasonRank && (
-                  <span className="ml-1 text-neutral-500">
-                    #{team.preseasonRank}
-                  </span>
-                )}
+              <div key={team.id} className="flex items-center gap-2 text-sm text-neutral-300">
+                <TeamLogo logoUrl={team.logoUrl} name={team.name} size={20} />
+                <span>
+                  {team.name}
+                  {team.preseasonRank && (
+                    <span className="ml-1 text-neutral-500">
+                      #{team.preseasonRank}
+                    </span>
+                  )}
+                </span>
               </div>
             ))}
           </div>

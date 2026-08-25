@@ -62,7 +62,26 @@ export type CfbdTeam = {
   alternateNames: string[];
   conference: string | null;
   classification: string | null;
+  logos: string[] | null;
 };
+
+/**
+ * CFBD returns each team's logos as a flat array cycling through sizes
+ * (500, 256, 128, 96, 64, 48, 32, 16), each size appearing twice -- a
+ * standard mark, then a "logos-dark" variant meant to read on a dark
+ * background. Picks a dark-friendly, list-icon-sized one for this app's
+ * dark theme, falling back progressively if that exact combination isn't
+ * present.
+ */
+export function pickLogoUrl(logos: string[] | null | undefined): string | null {
+  if (!logos || logos.length === 0) return null;
+  return (
+    logos.find((l) => l.includes("logos-dark") && l.includes("/128/")) ??
+    logos.find((l) => l.includes("logos-dark")) ??
+    logos[0] ??
+    null
+  );
+}
 
 export async function fetchFbsTeams(year: number): Promise<CfbdTeam[]> {
   const params = new URLSearchParams({ year: String(year) });

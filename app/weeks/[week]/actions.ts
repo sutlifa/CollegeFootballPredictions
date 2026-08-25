@@ -1,7 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { savePrediction } from "@/lib/queries";
+import { clearPrediction, savePrediction } from "@/lib/queries";
+
+function revalidateAllAffected(week: number) {
+  revalidatePath(`/weeks/${week}`);
+  revalidatePath("/standings");
+  revalidatePath("/rankings");
+  revalidatePath("/bracket");
+  revalidatePath("/");
+}
 
 export async function savePredictionAction(formData: FormData) {
   const gameId = Number(formData.get("gameId"));
@@ -19,13 +27,22 @@ export async function savePredictionAction(formData: FormData) {
     throw new Error("Invalid prediction");
   }
   if (score1 === score2) {
-    throw new Error("Predicted scores cannot be tied");
+    throw new Error(
+      "Predicted scores can't be tied -- college football games don't end in a tie. Use Clear if you want to remove this prediction.",
+    );
   }
 
   await savePrediction(gameId, score1, score2);
-  revalidatePath(`/weeks/${week}`);
-  revalidatePath("/standings");
-  revalidatePath("/rankings");
-  revalidatePath("/bracket");
-  revalidatePath("/");
+  revalidateAllAffected(week);
+}
+
+export async function clearPredictionAction(formData: FormData) {
+  const gameId = Number(formData.get("gameId"));
+  const week = Number(formData.get("week"));
+  if (Number.isNaN(gameId)) {
+    throw new Error("Invalid game");
+  }
+
+  await clearPrediction(gameId);
+  revalidateAllAffected(week);
 }

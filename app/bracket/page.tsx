@@ -1,3 +1,4 @@
+import { TeamLogo } from "@/components/TeamLogo";
 import { computeBracketSeeding, getBracketCandidates } from "@/lib/bracket";
 import { computeComputerRankings } from "@/lib/computerRankings";
 import { getAllGames, getAllTeams, getBracketField } from "@/lib/queries";
@@ -11,6 +12,7 @@ export default async function BracketPage() {
     getAllGames(),
     getBracketField(),
   ]);
+  const teamById = new Map(teams.map((t) => [t.id, t]));
   const rankings = computeComputerRankings(teams, games);
   const candidates = getBracketCandidates(games, rankings);
 
@@ -36,7 +38,11 @@ export default async function BracketPage() {
               key={s.teamId}
               className="rounded-lg border border-neutral-800 bg-neutral-900 p-3"
             >
-              <span className="font-semibold">#{s.seed}</span> {s.team}{" "}
+              <span className="font-semibold">#{s.seed}</span>{" "}
+              <span className="inline-flex items-center gap-2">
+                <TeamLogo logoUrl={teamById.get(s.teamId)?.logoUrl} name={s.team} size={20} />
+                {s.team}
+              </span>{" "}
               <span className="text-neutral-500">
                 ({s.wins}-{s.losses}, {s.score.toFixed(2)})
               </span>
@@ -60,7 +66,17 @@ export default async function BracketPage() {
                     key={g.higherSeed}
                     className="rounded-lg border border-neutral-800 bg-neutral-900 p-3"
                   >
-                    #{g.higherSeed} {higher?.team} vs #{g.lowerSeed} {lower?.team}
+                    <span className="inline-flex items-center gap-2">
+                      #{g.higherSeed}
+                      <TeamLogo logoUrl={teamById.get(higher?.teamId ?? -1)?.logoUrl} name={higher?.team ?? ""} size={20} />
+                      {higher?.team}
+                    </span>{" "}
+                    vs{" "}
+                    <span className="inline-flex items-center gap-2">
+                      #{g.lowerSeed}
+                      <TeamLogo logoUrl={teamById.get(lower?.teamId ?? -1)?.logoUrl} name={lower?.team ?? ""} size={20} />
+                      {lower?.team}
+                    </span>
                   </div>
                 );
               })}
@@ -119,7 +135,16 @@ export default async function BracketPage() {
                     <input type="checkbox" name="teamIds" value={row.teamId} />
                   </td>
                   <td className="px-3 py-2 text-right">{row.rank}</td>
-                  <td className="px-3 py-2">{row.team}</td>
+                  <td className="px-3 py-2">
+                    <span className="flex items-center gap-2">
+                      <TeamLogo
+                        logoUrl={teamById.get(row.teamId)?.logoUrl}
+                        name={row.team}
+                        size={20}
+                      />
+                      {row.team}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-neutral-400">
                     {row.conference}
                   </td>

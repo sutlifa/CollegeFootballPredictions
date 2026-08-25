@@ -1,3 +1,4 @@
+import { TeamLogo } from "@/components/TeamLogo";
 import { computeAccuracySummary } from "@/lib/accuracy";
 import { getAllGames, getAllTeams } from "@/lib/queries";
 
@@ -5,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ResultsPage() {
   const [teams, games] = await Promise.all([getAllTeams(), getAllGames()]);
+  const teamById = new Map(teams.map((t) => [t.id, t]));
   const summary = computeAccuracySummary(teams, games);
 
   return (
@@ -62,7 +64,15 @@ export default async function ResultsPage() {
                   <tr key={row.gameId}>
                     <td className="px-3 py-2 text-right">{row.week}</td>
                     <td className="px-3 py-2">
-                      {row.team1} vs {row.team2}
+                      <span className="inline-flex items-center gap-1">
+                        <TeamLogo logoUrl={teamById.get(row.team1Id)?.logoUrl} name={row.team1} size={18} />
+                        {row.team1}
+                      </span>{" "}
+                      vs{" "}
+                      <span className="inline-flex items-center gap-1">
+                        <TeamLogo logoUrl={teamById.get(row.team2Id)?.logoUrl} name={row.team2} size={18} />
+                        {row.team2}
+                      </span>
                     </td>
                     <td className="px-3 py-2">
                       {row.predictedScoreTeam1}-{row.predictedScoreTeam2}
