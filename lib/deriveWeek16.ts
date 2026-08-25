@@ -9,7 +9,7 @@ export type Week16Matchup = {
 };
 
 /**
- * Week 16 (conference championships) is never pulled from ESPN in advance --
+ * Week 16 (conference championships) is never pulled from CFBD in advance --
  * it's derived from each conference's top two teams by the same tiebreak
  * chain as Standings, using weeks 1-15 predictions only. Deterministic: no
  * ties possible since team name is the final tiebreaker.

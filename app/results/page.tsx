@@ -13,7 +13,7 @@ export default async function ResultsPage() {
         <h1 className="text-2xl font-semibold">Prediction Accuracy</h1>
         <p className="mt-1 text-neutral-400">
           Compares your predicted scores against real results, synced daily
-          from ESPN once games are actually played.
+          once games are actually played.
         </p>
       </div>
 

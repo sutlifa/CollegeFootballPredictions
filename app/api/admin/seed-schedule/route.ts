@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { seedWeekFromEspn } from "@/lib/ingest";
+import { seedSeasonFromCfbd } from "@/lib/ingest";
 
 export const maxDuration = 60;
 
-async function runSeed(weeks: number[], dates?: string) {
-  for (const week of weeks) {
-    try {
-      const result = await seedWeekFromEspn(week, { dates });
-      console.log(`[seed-schedule] week ${week}: ${result.gamesUpserted} games`);
-    } catch (err) {
-      console.error(`[seed-schedule] week ${week} failed`, err);
+async function runSeed(weeks: number[]) {
+  try {
+    const results = await seedSeasonFromCfbd(weeks);
+    for (const r of results) {
+      console.log(`[seed-schedule] week ${r.week}: ${r.gamesUpserted} games`);
     }
+  } catch (err) {
+    console.error("[seed-schedule] failed", err);
   }
 }
 
@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const weekParam = searchParams.get("week");
-  const datesParam = searchParams.get("dates") ?? undefined;
   const weeks = weekParam
     ? [Number(weekParam)]
     : Array.from({ length: 15 }, (_, i) => i + 1);
@@ -35,9 +34,9 @@ export async function POST(request: NextRequest) {
   }
 
   // Human is waiting on this request -- respond immediately and keep
-  // ingesting in the background rather than making them wait on 15 sequential
-  // ESPN fetches.
-  after(() => runSeed(weeks, datesParam));
+  // ingesting in the background (CFBD returns the whole season in one call,
+  // so this is fast, but still no reason to block the response on it).
+  after(() => runSeed(weeks));
 
   return NextResponse.json({ accepted: true, weeks }, { status: 202 });
 }

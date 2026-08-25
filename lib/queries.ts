@@ -5,7 +5,7 @@ const SEASON = 2026;
 
 type TeamRow = {
   id: number;
-  espn_team_id: number | null;
+  cfbd_team_id: number | null;
   name: string;
   conference: string;
   preseason_rank: number | null;
@@ -15,7 +15,7 @@ type TeamRow = {
 function mapTeam(row: TeamRow): Team {
   return {
     id: row.id,
-    espnTeamId: row.espn_team_id,
+    cfbdTeamId: row.cfbd_team_id,
     name: row.name,
     conference: row.conference,
     preseasonRank: row.preseason_rank,
@@ -25,7 +25,7 @@ function mapTeam(row: TeamRow): Team {
 
 type GameRow = {
   id: number;
-  espn_event_id: string | null;
+  cfbd_game_id: string | null;
   season: number;
   week: number;
   team1_id: number;
@@ -45,7 +45,7 @@ type GameRow = {
 function mapGame(row: GameRow): Game {
   return {
     id: row.id,
-    espnEventId: row.espn_event_id,
+    cfbdGameId: row.cfbd_game_id,
     season: row.season,
     week: row.week,
     team1Id: row.team1_id,

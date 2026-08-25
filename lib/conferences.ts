@@ -46,3 +46,20 @@ export const ROAD_WIN_BONUS = 0.3;
 export function isPower4(conference: string): boolean {
   return (POWER4 as readonly string[]).includes(conference);
 }
+
+// CollegeFootballData.com labels conferences differently than our canonical
+// names (which match the original spreadsheet's Teams tab). Applied once at
+// team-seeding time (scripts/resolve-cfbd-team-ids.ts) so the rest of the
+// app only ever sees our canonical labels.
+export const CFBD_CONFERENCE_ALIASES: Record<string, string> = {
+  "American Athletic": "American",
+  "Conference USA": "CUSA",
+  "FBS Independents": "Independent",
+  "Mid-American": "MAC",
+  "Pac-12": "Pac 12",
+};
+
+export function normalizeCfbdConference(conference: string | null): string {
+  if (!conference) return "Independent";
+  return CFBD_CONFERENCE_ALIASES[conference] ?? conference;
+}

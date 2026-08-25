@@ -18,7 +18,7 @@ type TeamRecord = {
 
 /**
  * Ports the Apps Script `updateComputerRankings()` exactly, with one
- * deliberate deviation: the road-win bonus keys off ESPN's real
+ * deliberate deviation: the road-win bonus keys off CFBD's real
  * team1IsHome/isNeutralSite flags instead of the sheet's "Team 2 is always
  * the road team" row-position convention.
  */

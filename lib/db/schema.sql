@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS teams (
   id              SERIAL PRIMARY KEY,
-  espn_team_id    INTEGER UNIQUE,
+  cfbd_team_id    INTEGER UNIQUE,
   name            TEXT NOT NULL UNIQUE,
   conference      TEXT NOT NULL,       -- includes 'FCS' for non-FBS opponents
   preseason_rank  INTEGER,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS teams (
 
 CREATE TABLE IF NOT EXISTS games (
   id                          SERIAL PRIMARY KEY,
-  espn_event_id               TEXT UNIQUE,
+  cfbd_game_id                TEXT UNIQUE,
   season                      INTEGER NOT NULL DEFAULT 2026,
   week                        INTEGER NOT NULL CHECK (week BETWEEN 1 AND 16),
   team1_id                    INTEGER NOT NULL REFERENCES teams(id),

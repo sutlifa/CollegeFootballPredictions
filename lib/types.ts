@@ -1,6 +1,6 @@
 export type Team = {
   id: number;
-  espnTeamId: number | null;
+  cfbdTeamId: number | null;
   name: string;
   conference: string;
   preseasonRank: number | null;
@@ -11,7 +11,7 @@ export type GameStatus = "scheduled" | "in_progress" | "final";
 
 export type Game = {
   id: number;
-  espnEventId: string | null;
+  cfbdGameId: string | null;
   season: number;
   week: number;
   team1Id: number;

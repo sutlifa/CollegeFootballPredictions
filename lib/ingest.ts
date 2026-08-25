@@ -1,73 +1,67 @@
 import { sql } from "./db";
-import { fetchWeekScoreboard, getCompetitors, isGameFinal } from "./espn";
+import { fetchSeasonGames, isFbsGame, type CfbdGame } from "./cfbd";
 
 const SEASON = 2026;
 
-type TeamLookupRow = { id: number; espn_team_id: number | null };
+type TeamLookupRow = { id: number; cfbd_team_id: number | null };
 
-async function resolveTeamId(espnTeamId: number, espnDisplayName: string): Promise<number> {
+async function resolveTeamId(cfbdTeamId: number, name: string): Promise<number> {
   const existing = await sql<TeamLookupRow[]>`
-    SELECT id, espn_team_id FROM teams WHERE espn_team_id = ${espnTeamId}
+    SELECT id, cfbd_team_id FROM teams WHERE cfbd_team_id = ${cfbdTeamId}
   `;
   if (existing[0]) return existing[0].id;
 
-  // Unknown to us -- almost certainly an FCS opponent, since all ~136 FBS
-  // teams should already be seeded and ID-resolved. Auto-create it.
+  // Unknown to us -- almost certainly a non-FBS opponent, since all ~136 FBS
+  // teams should already be seeded and ID-resolved. Auto-create it in the
+  // generic 'FCS' bucket regardless of its real (FCS/D2/etc.) conference --
+  // computeComputerRankings keys its opponent-strength logic on the literal
+  // string "FCS", matching the original spreadsheet's "(FCS)" name-suffix
+  // convention, not real conference names.
   const inserted = await sql<{ id: number }[]>`
-    INSERT INTO teams (espn_team_id, name, conference, is_fbs)
-    VALUES (${espnTeamId}, ${espnDisplayName}, 'FCS', FALSE)
-    ON CONFLICT (name) DO UPDATE SET espn_team_id = EXCLUDED.espn_team_id
+    INSERT INTO teams (cfbd_team_id, name, conference, is_fbs)
+    VALUES (${cfbdTeamId}, ${name}, 'FCS', FALSE)
+    ON CONFLICT (name) DO UPDATE SET cfbd_team_id = EXCLUDED.cfbd_team_id
     RETURNING id
   `;
   return inserted[0].id;
 }
 
-function shortName(team: { location: string; displayName: string }): string {
-  // ESPN's `location` (e.g. "Idaho State") reads far closer to our naming
-  // convention than `displayName` (e.g. "Idaho State Bengals").
-  return team.location || team.displayName;
-}
-
 export type SeedWeekResult = { week: number; gamesUpserted: number };
 
-/** Ingests one week's ESPN schedule (weeks 1-15 only -- Week 16 is derived, not fetched). */
-export async function seedWeekFromEspn(
-  week: number,
-  opts: { dates?: string } = {},
-): Promise<SeedWeekResult> {
-  if (week < 1 || week > 15) {
-    throw new Error("Only weeks 1-15 are seeded from ESPN; week 16 is derived from standings");
+/** Ingests weeks 1-15 from CFBD in one call (Week 16 is derived, not fetched). */
+export async function seedSeasonFromCfbd(
+  weeks: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+): Promise<SeedWeekResult[]> {
+  const allGames = await fetchSeasonGames(SEASON);
+  const weekSet = new Set(weeks);
+  const results = new Map<number, number>(weeks.map((w) => [w, 0]));
+
+  for (const game of allGames) {
+    if (!weekSet.has(game.week) || !isFbsGame(game)) continue;
+    await upsertGame(game);
+    results.set(game.week, (results.get(game.week) ?? 0) + 1);
   }
 
-  const { events } = await fetchWeekScoreboard(week, opts);
-  let gamesUpserted = 0;
+  return weeks.map((week) => ({ week, gamesUpserted: results.get(week) ?? 0 }));
+}
 
-  for (const event of events) {
-    const { home, away } = getCompetitors(event);
-    if (!home || !away) continue;
+async function upsertGame(game: CfbdGame): Promise<void> {
+  const homeTeamId = await resolveTeamId(game.homeId, game.homeTeam);
+  const awayTeamId = await resolveTeamId(game.awayId, game.awayTeam);
+  const status = game.completed ? "final" : "scheduled";
 
-    const homeTeamId = await resolveTeamId(Number(home.team.id), shortName(home.team));
-    const awayTeamId = await resolveTeamId(Number(away.team.id), shortName(away.team));
-    const neutral = event.competitions[0]?.neutralSite ?? false;
-    const status = isGameFinal(event) ? "final" : "scheduled";
-
-    // team1 = home, team2 = away by convention (unless neutral site, where
-    // ESPN still labels one competitor "home" for scheduling purposes only).
-    await sql`
-      INSERT INTO games (
-        espn_event_id, season, week, team1_id, team2_id,
-        team1_is_home, is_neutral_site, kickoff_at, status
-      )
-      VALUES (
-        ${event.id}, ${SEASON}, ${week}, ${homeTeamId}, ${awayTeamId},
-        TRUE, ${neutral}, ${event.date}, ${status}
-      )
-      ON CONFLICT (espn_event_id) DO UPDATE SET
-        kickoff_at = EXCLUDED.kickoff_at,
-        status = EXCLUDED.status
-    `;
-    gamesUpserted++;
-  }
-
-  return { week, gamesUpserted };
+  // team1 = home, team2 = away by convention.
+  await sql`
+    INSERT INTO games (
+      cfbd_game_id, season, week, team1_id, team2_id,
+      team1_is_home, is_neutral_site, kickoff_at, status
+    )
+    VALUES (
+      ${String(game.id)}, ${game.season}, ${game.week}, ${homeTeamId}, ${awayTeamId},
+      TRUE, ${game.neutralSite}, ${game.startDate}, ${status}
+    )
+    ON CONFLICT (cfbd_game_id) DO UPDATE SET
+      kickoff_at = EXCLUDED.kickoff_at,
+      status = EXCLUDED.status
+  `;
 }

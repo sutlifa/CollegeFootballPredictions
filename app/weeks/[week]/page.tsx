@@ -33,7 +33,7 @@ export default async function WeekPage({
       {week === 16 && (
         <p className="text-sm text-neutral-400">
           Matchups here are derived from your Weeks 1-15 predicted standings
-          (each conference&apos;s top two teams), not pulled from ESPN. If an
+          (each conference&apos;s top two teams), not pulled from an API. If an
           earlier prediction changes who&apos;s in it, a matchup&apos;s score
           resets.
         </p>
@@ -42,7 +42,7 @@ export default async function WeekPage({
       {games.length === 0 ? (
         <p className="text-neutral-400">
           {week <= 15
-            ? "No games seeded yet for this week. Run the ESPN schedule sync first."
+            ? "No games seeded yet for this week. Run the schedule sync first."
             : "No conference has a decided top two yet -- predict more of weeks 1-15."}
         </p>
       ) : (
