@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:migrate": "psql \"$DATABASE_URL\" -f lib/db/schema.sql",
-    "seed:teams": "tsx scripts/seed-teams.ts",
-    "seed:espn-ids": "tsx scripts/resolve-espn-team-ids.ts"
+    "db:migrate": "node --env-file=.env.local --import tsx scripts/migrate.ts",
+    "seed:teams": "node --env-file=.env.local --import tsx scripts/seed-teams.ts",
+    "seed:espn-ids": "node --env-file=.env.local --import tsx scripts/resolve-espn-team-ids.ts"
   },
   "dependencies": {
     "next": "16.3.2",

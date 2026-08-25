@@ -2,7 +2,18 @@
 // No auth/key required, but there's no SLA -- wrap all call sites in
 // try/catch, cache aggressively, and never call this from a page render.
 const ESPN_BASE =
-  "http://site.api.espn.com/apis/site/v2/sports/football/college-football";
+  "https://site.api.espn.com/apis/site/v2/sports/football/college-football";
+
+// ESPN's edge appears to 403 requests whose headers look non-browser-like
+// (observed specifically from Vercel's serverless IPs, not from a local
+// residential connection) -- a plausible bot-detection heuristic rather than
+// an IP block, since Vercel doesn't have a small fixed IP range. Sending a
+// normal browser User-Agent/Accept resolved it in testing.
+const ESPN_FETCH_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+};
 
 export type EspnCompetitor = {
   id: string;
@@ -55,6 +66,7 @@ export async function fetchWeekScoreboard(
 
   const res = await fetch(`${ESPN_BASE}/scoreboard?${params}`, {
     cache: "no-store",
+    headers: ESPN_FETCH_HEADERS,
   });
   if (!res.ok) {
     throw new Error(
@@ -81,6 +93,7 @@ export async function fetchAllEspnTeams(): Promise<EspnTeam[]> {
   // teams simply won't match anything and are ignored.
   const res = await fetch(`${ESPN_BASE}/teams?groups=80&limit=2000`, {
     cache: "no-store",
+    headers: ESPN_FETCH_HEADERS,
   });
   if (!res.ok) {
     throw new Error(`ESPN teams fetch failed: ${res.status} ${res.statusText}`);
