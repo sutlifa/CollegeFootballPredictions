@@ -77,10 +77,11 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 );
 
 CREATE TABLE IF NOT EXISTS bracket_field (
-  season      INTEGER NOT NULL,
-  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  team_ids    INTEGER[] NOT NULL,
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  season                 INTEGER NOT NULL,
+  user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_ids               INTEGER[] NOT NULL,
+  champion_pick_team_id  INTEGER REFERENCES teams(id),
+  updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (season, user_id)
 );
 
@@ -94,4 +95,35 @@ CREATE TABLE IF NOT EXISTS week_submissions (
   week          INTEGER NOT NULL,
   submitted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, season, week)
+);
+
+-- Real-world postseason ground truth, entered by the site admin as results
+-- become known -- there's no API for an actual human selection committee's
+-- decisions, so this can't be auto-ingested the way weeks 1-15 are. Used
+-- only for the Leaderboard's end-of-season bonus scoring; never shown as a
+-- game users predict against.
+CREATE TABLE IF NOT EXISTS real_conference_results (
+  season             INTEGER NOT NULL,
+  conference         TEXT NOT NULL,
+  champion_team_id   INTEGER NOT NULL REFERENCES teams(id),
+  runner_up_team_id  INTEGER NOT NULL REFERENCES teams(id),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (season, conference)
+);
+
+-- team_ids per checkpoint: 'field' = the real 12-team playoff field,
+-- 'quarterfinal'/'semifinal'/'championship' = whoever advanced INTO that
+-- round (8, 4, 2 teams respectively).
+CREATE TABLE IF NOT EXISTS real_playoff_rounds (
+  season      INTEGER NOT NULL,
+  round       TEXT NOT NULL CHECK (round IN ('field', 'quarterfinal', 'semifinal', 'championship')),
+  team_ids    INTEGER[] NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (season, round)
+);
+
+CREATE TABLE IF NOT EXISTS real_national_champion (
+  season      INTEGER PRIMARY KEY,
+  team_id     INTEGER NOT NULL REFERENCES teams(id),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

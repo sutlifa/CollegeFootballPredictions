@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { clearBracketField, setBracketField } from "@/lib/queries";
+import {
+  clearBracketField,
+  setBracketField,
+  setChampionPick,
+} from "@/lib/queries";
 
 async function requireUserId(): Promise<number> {
   const session = await auth();
@@ -32,5 +36,15 @@ export async function setBracketFieldAction(formData: FormData) {
 export async function resetBracketFieldAction() {
   const userId = await requireUserId();
   await clearBracketField(userId);
+  revalidatePath("/bracket");
+}
+
+export async function setChampionPickAction(formData: FormData) {
+  const userId = await requireUserId();
+  const teamId = Number(formData.get("championPickTeamId"));
+  if (Number.isNaN(teamId)) {
+    throw new Error("Invalid team");
+  }
+  await setChampionPick(userId, teamId);
   revalidatePath("/bracket");
 }

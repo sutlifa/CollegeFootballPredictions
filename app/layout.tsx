@@ -24,7 +24,7 @@ const NAV_LINKS = [
   { href: "/standings", label: "Standings" },
   { href: "/rankings", label: "Rankings" },
   { href: "/bracket", label: "Bracket" },
-  { href: "/results", label: "Results" },
+  { href: "/leaderboard", label: "Leaderboard" },
 ];
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

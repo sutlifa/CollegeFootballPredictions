@@ -12,9 +12,14 @@ import {
   getAllGames,
   getAllTeams,
   getBracketField,
+  getChampionPick,
   getSubmittedWeeks,
 } from "@/lib/queries";
-import { resetBracketFieldAction, setBracketFieldAction } from "./actions";
+import {
+  resetBracketFieldAction,
+  setBracketFieldAction,
+  setChampionPickAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,15 +45,51 @@ export default async function BracketPage() {
 
   if (selectedTeamIds) {
     const bracket = computeBracketSeeding(selectedTeamIds, rankings);
+    const championPickTeamId = await getChampionPick(userId);
     return (
       <div className="space-y-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <TrophyIcon size={88} />
           <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
             12-Team Playoff Bracket
-            <Tooltip text="Seeded 1-12 by Computer Ranking among your chosen field. Seeds 1-4 get a first-round bye. Round 1 is the standard 5v12, 6v11, 7v10, 8v9." />
+            <Tooltip text="Seeded 1-12 by Computer Ranking among your chosen field. Seeds 1-4 get a first-round bye. Round 1 is the standard 5v12, 6v11, 7v10, 8v9. Pick who you think wins it all below -- at the end of the season the Leaderboard awards bonus points for correctly-picked playoff teams (more for surviving each round) and a big bonus for the correct national champion." />
           </h1>
         </div>
+
+        <form
+          action={setChampionPickAction}
+          className="flex flex-wrap items-center justify-center gap-2 text-sm"
+        >
+          <label htmlFor="championPickTeamId" className="text-ink-muted">
+            Who wins it all?
+          </label>
+          <select
+            id="championPickTeamId"
+            name="championPickTeamId"
+            defaultValue={championPickTeamId ?? ""}
+            className="rounded border border-line-strong bg-field px-2 py-1 text-ink"
+          >
+            <option value="" disabled>
+              Pick your national champion
+            </option>
+            {bracket.seeds.map((s) => (
+              <option key={s.teamId} value={s.teamId}>
+                #{s.seed} {s.team}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="rounded bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
+          >
+            Save pick
+          </button>
+          {championPickTeamId !== null && (
+            <span className="text-win">
+              Currently: {teamById.get(championPickTeamId)?.name ?? "?"}
+            </span>
+          )}
+        </form>
         <div className="flex items-center justify-end">
           <form action={resetBracketFieldAction}>
             <button
@@ -135,7 +176,10 @@ export default async function BracketPage() {
           Pick exactly 12 teams. Automatic-bid-eligible teams are marked
           below; everyone else (including Notre Dame) is an at-large
           candidate, ranked by Computer Ranking. Seeding and Round 1 pairings
-          are generated automatically once you confirm.
+          are generated automatically once you confirm -- you'll also get to
+          pick a national champion, since the Leaderboard's end-of-season
+          bonus rewards correctly-picked playoff teams and a big bonus for
+          the correct champion.
         </p>
       </div>
 
