@@ -42,6 +42,12 @@ import { isDecided } from "./types";
  *    ahead anyway); no real committee would rank B above a team that just
  *    beat them while sitting this close.
  *
+ * Conference Championship games are a special case: a single game
+ * shouldn't reshuffle a whole season's picture, and it never touches any
+ * team that didn't play that week. A win there is only a small flat
+ * bonus; a loss barely costs anything unless it was a real blowout
+ * (15+ points).
+ *
  * FCS/non-FBS opponents get a fixed, clearly-inferior anchor rating (not
  * ranked themselves, just a reference point) so beating one barely moves
  * the needle.
@@ -94,9 +100,25 @@ const K_FACTOR = 90;
 const ROAD_WIN_BONUS = 10;
 
 // Losing costs MORE than the mirror image of what the winner gained -- even
-// a loss to a good team that "was supposed to happen" should sting more
-// than a plain zero-sum swap credits it for.
-const LOSS_PENALTY_MULTIPLIER = 1.5;
+// a loss to a good team that "was supposed to happen" should sting a lot,
+// enough that an extra loss reliably drops a team below same-conference
+// peers with a better record.
+const LOSS_PENALTY_MULTIPLIER = 2.3;
+
+/**
+ * How much losing to this particular opponent's conference tier softens
+ * (or hardens) the base loss penalty -- deliberately a NARROW range, not a
+ * straight division by tier. Losing to an elite Power team is only
+ * slightly more forgivable than losing to an average one; losing to a
+ * clearly weaker conference costs noticeably more. A wide swing here (the
+ * previous version divided the penalty by the winner's tier outright) let
+ * losses to fellow Power opponents -- the single most common kind of loss
+ * for a Power team -- nearly cancel the whole penalty, which is exactly
+ * why multiple losses weren't dropping a team far enough.
+ */
+function lossToughness(winnerTier: number): number {
+  return 1.3 - 0.3 * winnerTier;
+}
 
 // A 14-point margin between two evenly-matched teams is treated as the
 // baseline "decisive win" -- exactly at that margin the multiplier is 1
@@ -121,6 +143,17 @@ function marginMultiplier(margin: number, winnerRating: number, loserRating: num
 function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
 }
+
+// Conference Championship week is one game deciding a conference title --
+// it shouldn't reshuffle a team's whole-season picture the way a regular
+// game does, and it should never touch a team that didn't play that week.
+// A win is worth a small flat bonus; a loss barely costs anything unless
+// it was a real blowout, which costs more (but still far less than a
+// typical regular-season upset would).
+const CONFERENCE_CHAMPIONSHIP_WIN_BONUS = 8;
+const CONFERENCE_CHAMPIONSHIP_CLOSE_LOSS_PENALTY = 3;
+const CONFERENCE_CHAMPIONSHIP_BLOWOUT_LOSS_PENALTY = 20;
+const BLOWOUT_MARGIN = 15;
 
 // If two teams are within this many rating points of each other, a head-
 // to-head result between them settles the order -- roughly one game's
@@ -210,28 +243,44 @@ export function computeComputerRankings(
 
     const winnerRating = ratings.get(winner.id)!;
     const loserRating = ratings.get(loser.id)!;
-
-    const expectedWinner = expectedScore(winnerRating, loserRating);
     const margin = Math.abs(
       game.predictedScoreTeam1 - game.predictedScoreTeam2,
     );
-    const mov = marginMultiplier(margin, winnerRating, loserRating);
-    const baseDelta = K_FACTOR * (1 - expectedWinner) * mov;
 
-    const winnerWonOnRoad =
-      !game.isNeutralSite &&
-      (team1Won ? game.team1IsHome === false : game.team1IsHome === true);
+    let winnerDelta: number;
+    let loserDelta: number;
 
-    // Beating a Power conference team: full (or amplified) credit. Beating
-    // a Group of Six team: scaled down, no matter how gaudy the win total
-    // -- unless the margin was big enough to earn its own credit above.
-    const winnerDelta =
-      (baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0)) *
-      conferenceTier(loser);
-    // Losing to a weak-conference team costs more (a "bad loss"); losing
-    // to a strong-conference team costs a bit less (more forgivable).
-    const loserDelta =
-      (baseDelta * LOSS_PENALTY_MULTIPLIER) / conferenceTier(winner);
+    if (game.isConferenceChampionship) {
+      // One game shouldn't reshuffle a whole season's picture -- a slight
+      // boost for winning, and a loss barely matters unless it was a real
+      // blowout (15+ points), in which case it costs more.
+      winnerDelta = CONFERENCE_CHAMPIONSHIP_WIN_BONUS;
+      loserDelta =
+        margin >= BLOWOUT_MARGIN
+          ? CONFERENCE_CHAMPIONSHIP_BLOWOUT_LOSS_PENALTY
+          : CONFERENCE_CHAMPIONSHIP_CLOSE_LOSS_PENALTY;
+    } else {
+      const expectedWinner = expectedScore(winnerRating, loserRating);
+      const mov = marginMultiplier(margin, winnerRating, loserRating);
+      const baseDelta = K_FACTOR * (1 - expectedWinner) * mov;
+
+      const winnerWonOnRoad =
+        !game.isNeutralSite &&
+        (team1Won ? game.team1IsHome === false : game.team1IsHome === true);
+
+      // Beating a Power conference team: full (or amplified) credit.
+      // Beating a Group of Six team: scaled down, no matter how gaudy the
+      // win total -- unless the margin was big enough to earn its own
+      // credit above.
+      winnerDelta =
+        (baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0)) *
+        conferenceTier(loser);
+      // Losing costs a lot regardless of who beat you -- only slightly
+      // less against an elite opponent, only slightly more against a weak
+      // one (see lossToughness).
+      loserDelta =
+        baseDelta * LOSS_PENALTY_MULTIPLIER * lossToughness(conferenceTier(winner));
+    }
 
     ratings.set(winner.id, winnerRating + winnerDelta);
     ratings.set(loser.id, loserRating - loserDelta);
