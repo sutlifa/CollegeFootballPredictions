@@ -4,9 +4,9 @@ import { isDecided } from "./types";
 /**
  * "Computer Rankings" -- pure Elo, starting every FBS team at a neutral 0.
  * Nothing about preseason polls is baked into the starting point -- ratings
- * are earned entirely from this season's results. Five things move a
- * team's rating (the first four feed the rating itself; the fifth only
- * adjusts final ordering):
+ * are earned entirely from this season's results. Six things move a team's
+ * rating or its final position (the first four feed the rating itself; the
+ * last two only adjust final ordering):
  *  - Wins and losses (the core Elo update).
  *  - Strength of the specific opponent -- their own current rating feeds
  *    the expected-score calc, so beating a good team is worth more than
@@ -34,13 +34,21 @@ import { isDecided } from "./types";
  *    the game was *expected* to be, so running up the score against an
  *    obviously overmatched opponent doesn't inflate a rating the way
  *    walloping a genuinely comparable team does.
+ *  - Record, before rating -- fewer losses ranks a team higher, full stop,
+ *    UNLESS the team with more losses has earned a rating edge bigger than
+ *    a set amount per extra loss (see RATING_GAP_PER_EXTRA_LOSS). This is
+ *    a hard rule, not a hope that the per-game math above happens to land
+ *    that way on its own: a team can't simply out-blowout its way past a
+ *    meaningfully better record without a real, sizable gap to back it
+ *    up, but an exceptional one-loss team can still edge out a
+ *    merely-good undefeated one if the gap is big enough.
  *  - Head-to-head, as a final tiebreak -- when two teams end up close in
- *    rating, the actual result between them (if they played) settles who
- *    ranks above whom, even if the raw numbers alone would have landed a
- *    hair on the other side. Elo alone can produce an intransitive result
- *    (Team A beats Team B, but B's other games happen to edge it slightly
- *    ahead anyway); no real committee would rank B above a team that just
- *    beat them while sitting this close.
+ *    rating (with a record close enough that the rule above doesn't
+ *    already settle it), the actual result between them (if they played)
+ *    settles who ranks above whom. Elo alone can produce an intransitive
+ *    result (Team A beats Team B, but B's other games happen to edge it
+ *    slightly ahead anyway); no real committee would rank B above a team
+ *    that just beat them while sitting this close.
  *
  * Conference Championship games are a special case: a single game
  * shouldn't reshuffle a whole season's picture, and it never touches any
@@ -144,6 +152,42 @@ function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
 }
 
+// How much better a team's raw rating has to be, PER extra loss, before an
+// extra loss stops deciding the order outright. A team with one more loss
+// needs a genuinely large rating edge (not just "a bit better") to still
+// rank above a team with a better record -- this is what actually
+// guarantees "losses matter a lot" instead of hoping the per-game formula
+// happens to produce that ordering on its own. Tuned so an exceptional,
+// dominant one-loss team (blowout wins, a close loss to an elite
+// opponent) can still edge out a merely-good undefeated team, but a
+// routine extra loss (even one with otherwise-decent wins) does not.
+const RATING_GAP_PER_EXTRA_LOSS = 120;
+
+/**
+ * Record comes first: fewer losses ranks higher, full stop -- UNLESS the
+ * team with more losses has earned a rating edge bigger than
+ * RATING_GAP_PER_EXTRA_LOSS times how many more losses it has. This is
+ * deliberately a hard rule rather than a per-game formula tweak: no matter
+ * how the Elo math above shakes out, a team can't simply out-blowout its
+ * way past a team with a meaningfully better record without a real,
+ * sizable rating gap to back it up.
+ */
+function compareByRecordThenRating<
+  T extends { team: Team; score: number; losses: number },
+>(a: T, b: T): number {
+  if (a.losses !== b.losses) {
+    const extraLosses = Math.abs(a.losses - b.losses);
+    const requiredGap = extraLosses * RATING_GAP_PER_EXTRA_LOSS;
+    const fewerLosses = a.losses < b.losses ? a : b;
+    const moreLosses = a.losses < b.losses ? b : a;
+    const overrides = moreLosses.score - fewerLosses.score > requiredGap;
+    const winner = overrides ? moreLosses : fewerLosses;
+    return winner === a ? -1 : 1;
+  }
+  if (b.score !== a.score) return b.score - a.score;
+  return a.team.name.localeCompare(b.team.name);
+}
+
 // Conference Championship week is one game deciding a conference title --
 // it shouldn't reshuffle a team's whole-season picture the way a regular
 // game does, and it should never touch a team that didn't play that week.
@@ -166,10 +210,16 @@ const HEAD_TO_HEAD_THRESHOLD = 40;
  * season, but Oklahoma's *other* games happen to leave it a few points
  * ahead of Texas anyway. A real committee would never rank Oklahoma above
  * a Texas team that just beat them while sitting close in the standings --
- * so when two adjacent teams are within HEAD_TO_HEAD_THRESHOLD of each
- * other, the actual head-to-head winner (their most recent meeting, if
- * they played more than once) is placed above, overriding the raw rating
- * order for that pair specifically.
+ * so when two teams within HEAD_TO_HEAD_THRESHOLD of each other played,
+ * the actual head-to-head winner (their most recent meeting, if they
+ * played more than once) is placed above, overriding the raw rating order
+ * for that pair specifically.
+ *
+ * Checks every pair within range, not just adjacent ones -- a third team
+ * sitting between two otherwise-close rivals (e.g. Texas A&M landing
+ * almost exactly between Oklahoma and the Texas team that beat it) would
+ * otherwise hide the violation from an adjacent-only scan entirely, since
+ * Oklahoma and Texas would never actually be compared to each other.
  *
  * Guarded against real 3-way cycles (A beat B, B beat C, C beat A -- these
  * happen in real seasons and have no consistent resolution): the promoted
@@ -186,26 +236,33 @@ function applyHeadToHeadTiebreak<
   const pairKey = (aId: number, bId: number) =>
     aId < bId ? `${aId}_${bId}` : `${bId}_${aId}`;
 
-  for (let pass = 0; pass < 3; pass++) {
-    let swapped = false;
-    for (let i = 0; i < result.length - 1; i++) {
+  for (let pass = 0; pass < 5; pass++) {
+    let changed = false;
+    outer: for (let i = 0; i < result.length; i++) {
       const higher = result[i];
-      const lower = result[i + 1];
-      if (higher.score - lower.score > HEAD_TO_HEAD_THRESHOLD) continue;
-      if (lower.losses > higher.losses) continue;
-      const winnerId = headToHead.get(pairKey(higher.team.id, lower.team.id));
-      if (winnerId === lower.team.id) {
-        // `lower` actually beat `higher` head-to-head, has an equal-or-
-        // better record, and they're close -- move it above, nudging its
-        // displayed score just past `higher`'s so the numbers shown don't
-        // visually contradict the new order.
-        const promoted = { ...lower, score: Math.max(lower.score, higher.score + 0.1) } as T;
-        result[i] = promoted;
-        result[i + 1] = higher;
-        swapped = true;
+      for (let j = i + 1; j < result.length; j++) {
+        const lower = result[j];
+        if (higher.score - lower.score > HEAD_TO_HEAD_THRESHOLD) continue;
+        if (lower.losses > higher.losses) continue;
+        const winnerId = headToHead.get(pairKey(higher.team.id, lower.team.id));
+        if (winnerId === lower.team.id) {
+          // `lower` actually beat `higher` head-to-head, has an equal-or-
+          // better record, and they're close (even with other teams
+          // between them) -- pull it up to sit directly above `higher`,
+          // nudging its displayed score just past `higher`'s so the
+          // numbers shown don't visually contradict the new order.
+          const [promotedRaw] = result.splice(j, 1);
+          const promoted = {
+            ...promotedRaw,
+            score: Math.max(promotedRaw.score, higher.score + 0.1),
+          } as T;
+          result.splice(i, 0, promoted);
+          changed = true;
+          break outer; // indices shifted -- restart the scan from the top
+        }
       }
     }
-    if (!swapped) break;
+    if (!changed) break;
   }
   return result;
 }
@@ -303,10 +360,7 @@ export function computeComputerRankings(
       wins: wins.get(team.id) ?? 0,
       losses: losses.get(team.id) ?? 0,
     }))
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.team.name.localeCompare(b.team.name);
-    });
+    .sort(compareByRecordThenRating);
 
   const sorted = applyHeadToHeadTiebreak(byScore, headToHead);
 
