@@ -4,7 +4,7 @@ import { isDecided } from "./types";
 /**
  * "Computer Rankings" -- pure Elo, starting every FBS team at a neutral 0.
  * Nothing about preseason polls is baked into the starting point -- ratings
- * are earned entirely from this season's results. Three things move a
+ * are earned entirely from this season's results. Four things move a
  * team's rating:
  *  - Wins and losses (the core Elo update).
  *  - Strength of the specific opponent -- their own current rating feeds
@@ -13,17 +13,26 @@ import { isDecided } from "./types";
  *    rating already reflects who THEY'VE played).
  *  - Strength of their conference as a whole -- a real, fixed tier
  *    multiplier (see CONFERENCE_TIER) scales how much a win or loss is
- *    worth based on the OPPONENT's conference. This intentionally isn't
- *    derived from each conference's own evolving average rating: a
- *    conference that plays mostly itself is a closed loop (its average
- *    rating stays near where it started even as one team inside it wins
- *    out over its own peers), so a team can still rack up a gaudy record
- *    and an inflated individual rating purely from beating a string of
- *    weaker in-conference opponents without that conference's average ever
- *    reflecting how much weaker it really is. A fixed, real-world-informed
- *    tier avoids that -- it isn't a preseason-style head start (nothing
- *    about starting position changes), it only scales the credit actually
- *    earned from an actual result.
+ *    worth based on the OPPONENT's conference. The Power Four (ACC, Big
+ *    Ten, Big 12, SEC) are deliberately weighted well above everyone else:
+ *    their schedules are genuinely harder top to bottom, so a Power team
+ *    with a couple of losses should still usually outrank a Group of Six
+ *    team with a better record, UNLESS that Group of Six team has actually
+ *    proven itself -- by beating a Power team, by running the table, or by
+ *    blowing teams out (see margin of victory below). This is a fixed,
+ *    real-world-informed tier, not a preseason-style head start -- nothing
+ *    about starting position changes, it only scales credit actually
+ *    earned from a real result. It's fixed rather than derived from each
+ *    conference's own evolving average specifically because a conference
+ *    that plays mostly itself is a closed loop: its average rating stays
+ *    near where it started even as one team inside it wins out over its
+ *    own (equally inflated) peers, so that average never actually reflects
+ *    how much weaker the conference really is.
+ *  - Margin of victory -- beating a good team badly counts for more than
+ *    barely getting past them, but the bonus shrinks the more one-sided
+ *    the game was *expected* to be, so running up the score against an
+ *    obviously overmatched opponent doesn't inflate a rating the way
+ *    walloping a genuinely comparable team does.
  *
  * FCS/non-FBS opponents get a fixed, clearly-inferior anchor rating (not
  * ranked themselves, just a reference point) so beating one barely moves
@@ -38,24 +47,28 @@ import { isDecided } from "./types";
 const FCS_BASELINE = -500;
 
 // Real-world relative conference strength, used to scale how much credit a
-// win/loss is worth based on the OPPONENT's conference -- beating a Power
-// conference team earns full (or better) credit; beating a Group of Six
-// team earns less, no matter how gaudy the win total. Centered on 1.0.
+// win/loss is worth based on the OPPONENT's conference. Ranked weakest to
+// strongest (1 = strongest): 10 MAC, 9 CUSA, 8 Sun Belt, 7 Mountain West,
+// 6 American, 5 Pac 12, 4 ACC, 3 Big 12, 1 (tied) SEC/Big Ten -- with a
+// deliberate gap between the Power Four (SEC/Big Ten/Big 12/ACC) and
+// everyone else, since a Power team's schedule is genuinely harder top to
+// bottom. Independent isn't part of that explicit ranking; kept at a
+// neutral 1.0 between the Power Four and the Group of Six tier.
 const CONFERENCE_TIER: Record<string, number> = {
-  "Big Ten": 1.15,
-  SEC: 1.15,
-  ACC: 1.05,
-  "Big 12": 1.05,
+  "Big Ten": 1.35,
+  SEC: 1.35,
+  "Big 12": 1.2,
+  ACC: 1.1,
   Independent: 1.0,
-  American: 0.85,
-  "Pac 12": 0.8,
-  "Mountain West": 0.8,
-  "Sun Belt": 0.75,
-  MAC: 0.7,
-  CUSA: 0.7,
+  "Pac 12": 0.75,
+  American: 0.7,
+  "Mountain West": 0.62,
+  "Sun Belt": 0.55,
+  CUSA: 0.5,
+  MAC: 0.45,
 };
-const DEFAULT_TIER = 0.85;
-const FCS_TIER = 0.4;
+const DEFAULT_TIER = 0.6;
+const FCS_TIER = 0.3;
 
 function conferenceTier(team: Team): number {
   if (!team.isFbs) return FCS_TIER;
@@ -74,11 +87,28 @@ const ROAD_WIN_BONUS = 10;
 
 // Losing costs MORE than the mirror image of what the winner gained -- even
 // a loss to a good team that "was supposed to happen" should sting more
-// than a plain zero-sum swap credits it for. Without this, a team that
-// goes 2-3 against a brutal schedule can end up barely dented, because
-// each individual loss to a favored opponent only produced a small
-// symmetric delta.
+// than a plain zero-sum swap credits it for.
 const LOSS_PENALTY_MULTIPLIER = 1.5;
+
+// A 14-point margin between two evenly-matched teams is treated as the
+// baseline "decisive win" -- exactly at that margin the multiplier is 1
+// (no adjustment). Bigger blowouts push it above 1; narrow escapes pull it
+// below 1. ln(15) normalizes that baseline.
+const BASELINE_MARGIN_NORMALIZER = Math.log(15);
+
+/**
+ * Classic margin-of-victory dampener (the same shape FiveThirtyEight uses
+ * for NFL Elo): scales with ln(margin), but divided by how big a margin
+ * was already *expected* given the pre-game rating gap. A heavy favorite
+ * blowing out a team it was supposed to blow out gets very little extra
+ * credit (the denominator grows with the rating gap); a team blowing out a
+ * genuinely comparable opponent (small rating gap) gets the full bonus.
+ */
+function marginMultiplier(margin: number, winnerRating: number, loserRating: number): number {
+  const ratingGap = winnerRating - loserRating; // can be negative -- an upset amplifies the bonus further
+  const raw = Math.log(Math.max(1, Math.abs(margin)) + 1) * (2.2 / (0.001 * ratingGap + 2.2));
+  return raw / BASELINE_MARGIN_NORMALIZER;
+}
 
 function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
@@ -119,15 +149,19 @@ export function computeComputerRankings(
     const loserRating = ratings.get(loser.id)!;
 
     const expectedWinner = expectedScore(winnerRating, loserRating);
-    const baseDelta = K_FACTOR * (1 - expectedWinner);
+    const margin = Math.abs(
+      game.predictedScoreTeam1 - game.predictedScoreTeam2,
+    );
+    const mov = marginMultiplier(margin, winnerRating, loserRating);
+    const baseDelta = K_FACTOR * (1 - expectedWinner) * mov;
 
     const winnerWonOnRoad =
       !game.isNeutralSite &&
       (team1Won ? game.team1IsHome === false : game.team1IsHome === true);
 
     // Beating a Power conference team: full (or amplified) credit. Beating
-    // a Group of Six team: scaled down, regardless of how good that
-    // specific opponent's own individual record looks.
+    // a Group of Six team: scaled down, no matter how gaudy the win total
+    // -- unless the margin was big enough to earn its own credit above.
     const winnerDelta =
       (baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0)) *
       conferenceTier(loser);
