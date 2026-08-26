@@ -131,11 +131,11 @@ const FCS_QUALITY_BASELINE = -80;
 // the ACC/Big 12 (a notch below them, not tied with them). Independent
 // isn't part of that explicit ranking; kept between the two Power tiers.
 const CONFERENCE_TIER: Record<string, number> = {
-  "Big Ten": 1.35,
-  SEC: 1.35,
+  "Big Ten": 1.28,
+  SEC: 1.28,
   Independent: 1.1,
-  "Big 12": 1.05,
-  ACC: 1.0,
+  "Big 12": 1.06,
+  ACC: 1.055,
   "Pac 12": 0.55,
   American: 0.5,
   "Mountain West": 0.45,
@@ -213,15 +213,21 @@ const BLOWOUT_MARGIN = 15;
 // scale is stable-ish but the 0-100 scale is stable by definition.
 const HEAD_TO_HEAD_THRESHOLD = 15;
 
-// A much tighter threshold than HEAD_TO_HEAD_THRESHOLD, for pairs that
-// never even played each other: within this tiny a gap, the quality term
-// has essentially settled nothing meaningful, and a team with a strictly
-// better record (more wins, fewer-or-equal losses) shouldn't be shown
-// below one it clearly outperformed record-wise just because of a
-// fraction-of-a-point quality wobble. Deliberately much smaller than the
-// head-to-head threshold -- this is a noise filter, not a license to let
-// quality override a real record gap.
-const RECORD_NOISE_THRESHOLD = 2;
+// A much tighter threshold than HEAD_TO_HEAD_THRESHOLD, for two teams in
+// the SAME conference that never played each other: within this tiny a
+// gap, the quality term has essentially settled nothing meaningful, and a
+// team with a strictly better record shouldn't be shown below one it
+// clearly outperformed record-wise just because of a fraction-of-a-point
+// quality wobble. This only applies within a single conference -- across
+// conferences a "better" record is explicitly NOT a dominance guarantee
+// (that's the entire point of the conference-tier system: an undefeated
+// Group of Six or second-tier Power team should NOT be free to leapfrog
+// a one-loss SEC/Big Ten team just because it has one fewer loss). Kept
+// deliberately tiny (well under a single point) -- this is a noise
+// filter for genuine rounding-level near-ties, not a license to let a
+// team's spotless record override a real, intentional conference-tier
+// gap.
+const RECORD_NOISE_THRESHOLD = 0.6;
 
 /**
  * Checks every pair within range, not just adjacent ones -- a third team
@@ -268,6 +274,7 @@ function applyHeadToHeadTiebreak<
           gap <= HEAD_TO_HEAD_THRESHOLD && beat(lower.team.id, higher.team.id);
         const clearlyBetterRecord =
           gap <= RECORD_NOISE_THRESHOLD &&
+          lower.team.conference === higher.team.conference &&
           lower.wins >= higher.wins &&
           (lower.wins > higher.wins || lower.losses < higher.losses);
         if (!wonHeadToHead && !clearlyBetterRecord) continue;
