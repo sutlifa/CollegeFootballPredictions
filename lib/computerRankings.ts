@@ -137,7 +137,7 @@ const CONFERENCE_TIER: Record<string, number> = {
   "Big 12": 1.06,
   ACC: 1.055,
   "Pac 12": 0.55,
-  American: 0.5,
+  American: 0.65,
   "Mountain West": 0.45,
   "Sun Belt": 0.4,
   CUSA: 0.35,
