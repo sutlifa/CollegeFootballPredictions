@@ -4,8 +4,9 @@ import { isDecided } from "./types";
 /**
  * "Computer Rankings" -- pure Elo, starting every FBS team at a neutral 0.
  * Nothing about preseason polls is baked into the starting point -- ratings
- * are earned entirely from this season's results. Four things move a
- * team's rating:
+ * are earned entirely from this season's results. Five things move a
+ * team's rating (the first four feed the rating itself; the fifth only
+ * adjusts final ordering):
  *  - Wins and losses (the core Elo update).
  *  - Strength of the specific opponent -- their own current rating feeds
  *    the expected-score calc, so beating a good team is worth more than
@@ -33,6 +34,13 @@ import { isDecided } from "./types";
  *    the game was *expected* to be, so running up the score against an
  *    obviously overmatched opponent doesn't inflate a rating the way
  *    walloping a genuinely comparable team does.
+ *  - Head-to-head, as a final tiebreak -- when two teams end up close in
+ *    rating, the actual result between them (if they played) settles who
+ *    ranks above whom, even if the raw numbers alone would have landed a
+ *    hair on the other side. Elo alone can produce an intransitive result
+ *    (Team A beats Team B, but B's other games happen to edge it slightly
+ *    ahead anyway); no real committee would rank B above a team that just
+ *    beat them while sitting this close.
  *
  * FCS/non-FBS opponents get a fixed, clearly-inferior anchor rating (not
  * ranked themselves, just a reference point) so beating one barely moves
@@ -114,6 +122,52 @@ function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
 }
 
+// If two teams are within this many rating points of each other, a head-
+// to-head result between them settles the order -- roughly one game's
+// worth of swing, so it only kicks in when the rating gap is genuinely
+// close, not when a team has clearly separated itself since.
+const HEAD_TO_HEAD_THRESHOLD = 40;
+
+/**
+ * Elo alone can produce an intransitive result: Texas beats Oklahoma this
+ * season, but Oklahoma's *other* games happen to leave it a few points
+ * ahead of Texas anyway. A real committee would never rank Oklahoma above
+ * a Texas team that just beat them while sitting close in the standings --
+ * so when two adjacent teams are within HEAD_TO_HEAD_THRESHOLD of each
+ * other, the actual head-to-head winner (their most recent meeting, if
+ * they played more than once) is placed above, overriding the raw rating
+ * order for that pair specifically.
+ */
+function applyHeadToHeadTiebreak<T extends { team: Team; score: number }>(
+  sorted: T[],
+  headToHead: Map<string, number>,
+): T[] {
+  const result = [...sorted];
+  const pairKey = (aId: number, bId: number) =>
+    aId < bId ? `${aId}_${bId}` : `${bId}_${aId}`;
+
+  for (let pass = 0; pass < 3; pass++) {
+    let swapped = false;
+    for (let i = 0; i < result.length - 1; i++) {
+      const higher = result[i];
+      const lower = result[i + 1];
+      if (higher.score - lower.score > HEAD_TO_HEAD_THRESHOLD) continue;
+      const winnerId = headToHead.get(pairKey(higher.team.id, lower.team.id));
+      if (winnerId === lower.team.id) {
+        // `lower` actually beat `higher` head-to-head and they're close --
+        // move it above, nudging its displayed score just past `higher`'s
+        // so the numbers shown don't visually contradict the new order.
+        const promoted = { ...lower, score: Math.max(lower.score, higher.score + 0.1) } as T;
+        result[i] = promoted;
+        result[i + 1] = higher;
+        swapped = true;
+      }
+    }
+    if (!swapped) break;
+  }
+  return result;
+}
+
 export function computeComputerRankings(
   teams: Team[],
   games: Game[],
@@ -134,6 +188,11 @@ export function computeComputerRankings(
     .filter((g) => g.predictedScoreTeam1 !== g.predictedScoreTeam2)
     .sort((a, b) => a.week - b.week || a.id - b.id);
 
+  // "aId_bId" (lower id first) -> winner's team id for their most recent
+  // meeting -- games are processed in week order, so later meetings simply
+  // overwrite earlier ones.
+  const headToHead = new Map<string, number>();
+
   for (const game of decided) {
     const team1 = teamById.get(game.team1Id);
     const team2 = teamById.get(game.team2Id);
@@ -144,6 +203,10 @@ export function computeComputerRankings(
     const loser = team1Won ? team2 : team1;
     wins.set(winner.id, (wins.get(winner.id) ?? 0) + 1);
     losses.set(loser.id, (losses.get(loser.id) ?? 0) + 1);
+    headToHead.set(
+      winner.id < loser.id ? `${winner.id}_${loser.id}` : `${loser.id}_${winner.id}`,
+      winner.id,
+    );
 
     const winnerRating = ratings.get(winner.id)!;
     const loserRating = ratings.get(loser.id)!;
@@ -174,7 +237,7 @@ export function computeComputerRankings(
     ratings.set(loser.id, loserRating - loserDelta);
   }
 
-  const sorted = teams
+  const byScore = teams
     .filter((t) => t.isFbs)
     .map((team) => ({
       team,
@@ -186,6 +249,8 @@ export function computeComputerRankings(
       if (b.score !== a.score) return b.score - a.score;
       return a.team.name.localeCompare(b.team.name);
     });
+
+  const sorted = applyHeadToHeadTiebreak(byScore, headToHead);
 
   return sorted.map((row, i) => ({
     rank: i + 1,
