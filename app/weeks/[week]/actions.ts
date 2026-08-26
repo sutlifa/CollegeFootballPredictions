@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import { finalizeConferenceStandingsIfReady } from "@/lib/conferenceTiebreakers";
 import { clearPrediction, savePrediction, submitWeek } from "@/lib/queries";
 
 function revalidateAllAffected(week: number) {
@@ -66,5 +67,6 @@ export async function submitWeekAction(formData: FormData) {
   }
 
   await submitWeek(userId, week);
+  await finalizeConferenceStandingsIfReady(userId);
   revalidateAllAffected(week);
 }

@@ -12,6 +12,46 @@ export const CHAMPIONSHIP_CONFERENCES = [
   "Sun Belt",
 ] as const;
 
+// The Sun Belt is the only one of the 9 championship conferences still
+// split into divisions (as of the 2026 season) -- its championship game is
+// East champ vs. West champ, not the conference's top two teams overall.
+// Team names match this app's canonical `teams.name` values exactly.
+export const SUN_BELT_DIVISIONS: Record<"East" | "West", string[]> = {
+  East: [
+    "App State",
+    "Coastal Carolina",
+    "Georgia Southern",
+    "Georgia State",
+    "James Madison",
+    "Marshall",
+    "Old Dominion",
+  ],
+  West: [
+    "Arkansas State",
+    "Louisiana",
+    "Louisiana Tech",
+    "South Alabama",
+    "Southern Miss",
+    "Troy",
+    "UL Monroe",
+  ],
+};
+
+export function sunBeltDivision(teamName: string): "East" | "West" | null {
+  if (SUN_BELT_DIVISIONS.East.includes(teamName)) return "East";
+  if (SUN_BELT_DIVISIONS.West.includes(teamName)) return "West";
+  return null;
+}
+
+/**
+ * Key used to store/look up a conference's finalized standings order (see
+ * lib/conferenceTiebreakers.ts and lib/queries.ts): plain conference name
+ * for everyone except the Sun Belt, which gets one key per division.
+ */
+export function conferenceDivisionKey(conference: string, division: string): string {
+  return division === "ALL" ? conference : `${conference} (${division})`;
+}
+
 // CollegeFootballData.com labels conferences differently than our canonical
 // names (which match the original spreadsheet's Teams tab). Applied once at
 // team-seeding time (scripts/resolve-cfbd-team-ids.ts) so the rest of the

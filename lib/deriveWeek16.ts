@@ -1,6 +1,11 @@
-import { CHAMPIONSHIP_CONFERENCES } from "./conferences";
+import {
+  CHAMPIONSHIP_CONFERENCES,
+  conferenceDivisionKey,
+  SUN_BELT_DIVISIONS,
+  sunBeltDivision,
+} from "./conferences";
 import { computeConferenceStandings } from "./standings";
-import type { Game, Team } from "./types";
+import type { Game, StandingsRow, Team } from "./types";
 
 export type Week16Matchup = {
   conference: string;
@@ -10,16 +15,45 @@ export type Week16Matchup = {
 
 /**
  * Week 16 (conference championships) is never pulled from CFBD in advance --
- * it's derived from each conference's top two teams by the same tiebreak
- * chain as Standings, using weeks 1-15 predictions only. Deterministic: no
- * ties possible since team name is the final tiebreaker.
+ * it's derived from each conference's top two teams (or, for the Sun Belt,
+ * its East and West division champions -- see below), using weeks 1-15
+ * predictions only.
+ *
+ * A conference's real tiebreaker procedure (head-to-head sweep, then
+ * common-opponents win percentage, then further conference-specific steps)
+ * only means something once the full regular season is in, so it's computed
+ * once and stored (see lib/conferenceTiebreakers.ts) rather than re-derived
+ * on every visit. `finalStandings` carries that stored, tiebreaker-resolved
+ * order for conferences where it's ready (keyed by conferenceDivisionKey);
+ * for any conference not yet in there (season still in progress), this
+ * falls back to the same plain record/preseason-rank/name tiebreak chain
+ * Standings uses, as a live preview -- not authoritative, but keeps the
+ * page useful mid-season.
  */
 export function deriveWeek16Matchups(
   teams: Team[],
   gamesWeeks1to15: Game[],
+  finalStandings?: Map<string, number[]>,
 ): Week16Matchup[] {
   const matchups: Week16Matchup[] = [];
   for (const conference of CHAMPIONSHIP_CONFERENCES) {
+    if (conference === "Sun Belt") {
+      const matchup = deriveSunBeltMatchup(teams, gamesWeeks1to15, finalStandings);
+      if (matchup) matchups.push(matchup);
+      continue;
+    }
+
+    const finalOrder = finalStandings?.get(conferenceDivisionKey(conference, "ALL"));
+    if (finalOrder) {
+      if (finalOrder.length < 2) continue;
+      matchups.push({
+        conference,
+        team1Id: finalOrder[0],
+        team2Id: finalOrder[1],
+      });
+      continue;
+    }
+
     const standings = computeConferenceStandings(
       teams,
       gamesWeeks1to15,
@@ -33,6 +67,36 @@ export function deriveWeek16Matchups(
     });
   }
   return matchups;
+}
+
+/**
+ * The Sun Belt is the one championship conference still split into East and
+ * West divisions -- its title game is division champ vs. division champ,
+ * not the conference's top two teams overall.
+ */
+function deriveSunBeltMatchup(
+  teams: Team[],
+  gamesWeeks1to15: Game[],
+  finalStandings?: Map<string, number[]>,
+): Week16Matchup | null {
+  const divisionChampion = (division: "East" | "West"): number | null => {
+    const finalOrder = finalStandings?.get(
+      conferenceDivisionKey("Sun Belt", division),
+    );
+    if (finalOrder) return finalOrder[0] ?? null;
+
+    const standings: StandingsRow[] = computeConferenceStandings(
+      teams,
+      gamesWeeks1to15,
+      "Sun Belt",
+    ).filter((row) => sunBeltDivision(row.team) === division);
+    return standings[0]?.teamId ?? null;
+  };
+
+  const divisions = Object.keys(SUN_BELT_DIVISIONS) as ("East" | "West")[];
+  const [eastChampion, westChampion] = divisions.map(divisionChampion);
+  if (eastChampion == null || westChampion == null) return null;
+  return { conference: "Sun Belt", team1Id: eastChampion, team2Id: westChampion };
 }
 
 /**

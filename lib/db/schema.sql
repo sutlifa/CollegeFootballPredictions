@@ -142,3 +142,28 @@ CREATE TABLE IF NOT EXISTS real_national_champion (
   team_id     INTEGER NOT NULL REFERENCES teams(id),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- The final, tiebreaker-resolved conference standings order (team_ids in
+-- rank order), computed once per user/season/conference -- not recomputed
+-- on every page view. Each conference's real tiebreaker procedure (a
+-- head-to-head sweep, then common-conference-opponents win percentage,
+-- then further conference-specific steps) only means something once the
+-- full regular season is in, so this is only ever written once, right
+-- after that user has submitted every regular-season week (0 through the
+-- Army-Navy week). Cleared out (see clearFinalConferenceStandings) if a
+-- prediction edit un-submits any of those weeks, so a stale order can
+-- never linger past the data it was computed from.
+-- `division` is 'ALL' for every conference except the Sun Belt, which is
+-- the one FBS conference that still splits into East/West divisions (its
+-- championship is division champ vs division champ, not top-2 overall) --
+-- 'ALL' rather than NULL so the primary key behaves normally (Postgres
+-- treats every NULL as distinct from every other NULL for uniqueness).
+CREATE TABLE IF NOT EXISTS conference_final_standings (
+  season       INTEGER NOT NULL,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  conference   TEXT NOT NULL,
+  division     TEXT NOT NULL DEFAULT 'ALL',
+  team_ids     INTEGER[] NOT NULL,
+  computed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (season, user_id, conference, division)
+);

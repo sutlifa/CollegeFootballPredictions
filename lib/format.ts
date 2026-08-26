@@ -23,6 +23,9 @@ export function isValidWeek(week: number): boolean {
   return VALID_WEEKS.includes(week);
 }
 
+/** Every week except 16 (the derived conference championship slate). */
+export const REGULAR_SEASON_WEEKS = VALID_WEEKS.filter((w) => w !== 16);
+
 const kickoffFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York",
   weekday: "short",

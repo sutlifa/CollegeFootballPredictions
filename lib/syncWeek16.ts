@@ -1,13 +1,12 @@
 import { deriveWeek16Matchups, diffWeek16Matchups } from "./deriveWeek16";
-import { VALID_WEEKS } from "./format";
+import { REGULAR_SEASON_WEEKS } from "./format";
 import {
   deleteStaleWeek16Game,
   getAllTeams,
+  getFinalConferenceStandings,
   getGamesForWeeks,
   upsertWeek16Game,
 } from "./queries";
-
-const REGULAR_SEASON_WEEKS = VALID_WEEKS.filter((w) => w !== 16);
 
 /**
  * Called whenever a user visits the Week 16 page. Recomputes that user's
@@ -22,8 +21,9 @@ export async function syncWeek16Games(userId: number): Promise<void> {
   const teams = await getAllTeams();
   const gamesWeeks1to15 = await getGamesForWeeks(REGULAR_SEASON_WEEKS, userId);
   const existingWeek16 = await getGamesForWeeks([16], userId);
+  const finalStandings = await getFinalConferenceStandings(userId);
 
-  const derived = deriveWeek16Matchups(teams, gamesWeeks1to15);
+  const derived = deriveWeek16Matchups(teams, gamesWeeks1to15, finalStandings);
   const { toUpsert } = diffWeek16Matchups(derived, existingWeek16);
 
   for (const matchup of toUpsert) {

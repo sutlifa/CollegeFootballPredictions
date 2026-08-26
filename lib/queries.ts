@@ -1,3 +1,4 @@
+import { conferenceDivisionKey } from "./conferences";
 import { sql } from "./db";
 import { formatDisplayName, type LeaderboardRow } from "./leaderboard";
 import type { Game, GameStatus, Team } from "./types";
@@ -130,6 +131,10 @@ async function unsubmitWeekForGame(userId: number, gameId: number): Promise<void
     WHERE user_id = ${userId}
       AND (season, week) IN (SELECT season, week FROM games WHERE id = ${gameId})
   `;
+  // Any finalized conference tiebreaker order was computed from a set of
+  // results that just changed -- wipe it rather than let it go stale. It's
+  // recomputed once every regular-season week is submitted again.
+  await clearFinalConferenceStandings(userId);
 }
 
 export async function savePrediction(
@@ -192,6 +197,60 @@ export async function getSubmittedWeeks(
     SELECT week FROM week_submissions WHERE user_id = ${userId} AND season = ${season}
   `;
   return rows.map((r) => r.week);
+}
+
+/**
+ * The final, tiebreaker-resolved conference standings order (see
+ * lib/conferenceTiebreakers.ts), only populated once that's been computed
+ * for this user/season. Missing conferences mean "not finalized yet."
+ *
+ * Keyed by conference name for every conference except the Sun Belt (the
+ * one FBS conference still split into East/West divisions), which is keyed
+ * as `"Sun Belt (East)"` / `"Sun Belt (West)"` instead -- see
+ * conferenceDivisionKey.
+ */
+export async function getFinalConferenceStandings(
+  userId: number,
+  season = SEASON,
+): Promise<Map<string, number[]>> {
+  const rows = await sql<{ conference: string; division: string; team_ids: number[] }[]>`
+    SELECT conference, division, team_ids FROM conference_final_standings
+    WHERE user_id = ${userId} AND season = ${season}
+  `;
+  return new Map(
+    rows.map((r) => [conferenceDivisionKey(r.conference, r.division), r.team_ids]),
+  );
+}
+
+export async function storeFinalConferenceStandings(
+  userId: number,
+  conference: string,
+  teamIds: number[],
+  division = "ALL",
+  season = SEASON,
+): Promise<void> {
+  await sql`
+    INSERT INTO conference_final_standings (season, user_id, conference, division, team_ids)
+    VALUES (${season}, ${userId}, ${conference}, ${division}, ${teamIds})
+    ON CONFLICT (season, user_id, conference, division) DO UPDATE SET
+      team_ids = EXCLUDED.team_ids,
+      computed_at = now()
+  `;
+}
+
+/**
+ * Wipes this user's finalized conference standings -- called whenever a
+ * prediction edit un-submits a regular-season week, since the tiebreaker
+ * order was computed from a now-stale set of results. It'll be recomputed
+ * once every regular-season week is submitted again.
+ */
+export async function clearFinalConferenceStandings(
+  userId: number,
+  season = SEASON,
+): Promise<void> {
+  await sql`
+    DELETE FROM conference_final_standings WHERE user_id = ${userId} AND season = ${season}
+  `;
 }
 
 export async function upsertWeek16Game(
