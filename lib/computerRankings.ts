@@ -3,22 +3,27 @@ import { isDecided } from "./types";
 
 /**
  * "Computer Rankings" -- pure Elo, starting every FBS team at a neutral 0.
- * Nothing about preseason polls or conference reputation is baked into the
- * starting point -- ratings are earned entirely from this season's results.
- * Three things move a team's rating, all standard Elo mechanics rather than
- * a hardcoded point-value table:
+ * Nothing about preseason polls is baked into the starting point -- ratings
+ * are earned entirely from this season's results. Three things move a
+ * team's rating:
  *  - Wins and losses (the core Elo update).
  *  - Strength of the specific opponent -- their own current rating feeds
  *    the expected-score calc, so beating a good team is worth more than
  *    beating a bad one, and this propagates transitively (an opponent's
  *    rating already reflects who THEY'VE played).
- *  - Strength of their conference as a whole -- blended into each team's
- *    effective rating for this calc only (see CONFERENCE_WEIGHT), so a
- *    team from a conference that's collectively playing well gets a little
- *    extra credit/blame beyond just their own individual record. This is
- *    recomputed fresh from every team's current rating before each game, so
- *    it evolves week to week as results come in rather than being fixed at
- *    kickoff the way a preseason conference tier would be.
+ *  - Strength of their conference as a whole -- a real, fixed tier
+ *    multiplier (see CONFERENCE_TIER) scales how much a win or loss is
+ *    worth based on the OPPONENT's conference. This intentionally isn't
+ *    derived from each conference's own evolving average rating: a
+ *    conference that plays mostly itself is a closed loop (its average
+ *    rating stays near where it started even as one team inside it wins
+ *    out over its own peers), so a team can still rack up a gaudy record
+ *    and an inflated individual rating purely from beating a string of
+ *    weaker in-conference opponents without that conference's average ever
+ *    reflecting how much weaker it really is. A fixed, real-world-informed
+ *    tier avoids that -- it isn't a preseason-style head start (nothing
+ *    about starting position changes), it only scales the credit actually
+ *    earned from an actual result.
  *
  * FCS/non-FBS opponents get a fixed, clearly-inferior anchor rating (not
  * ranked themselves, just a reference point) so beating one barely moves
@@ -32,14 +37,30 @@ import { isDecided } from "./types";
 
 const FCS_BASELINE = -500;
 
-// How much a team's conference-wide average rating (computed fresh from
-// every member's rating so far, not a static preseason label) factors into
-// their effective strength for this one calculation -- 0 would ignore
-// conference entirely; 1 would judge them purely by their conference's
-// average instead of their own record. 0.2 keeps the specific opponent as
-// the dominant signal while still rewarding/penalizing a conference that's
-// collectively strong/weak this season.
-const CONFERENCE_WEIGHT = 0.2;
+// Real-world relative conference strength, used to scale how much credit a
+// win/loss is worth based on the OPPONENT's conference -- beating a Power
+// conference team earns full (or better) credit; beating a Group of Six
+// team earns less, no matter how gaudy the win total. Centered on 1.0.
+const CONFERENCE_TIER: Record<string, number> = {
+  "Big Ten": 1.15,
+  SEC: 1.15,
+  ACC: 1.05,
+  "Big 12": 1.05,
+  Independent: 1.0,
+  American: 0.85,
+  "Pac 12": 0.8,
+  "Mountain West": 0.8,
+  "Sun Belt": 0.75,
+  MAC: 0.7,
+  CUSA: 0.7,
+};
+const DEFAULT_TIER = 0.85;
+const FCS_TIER = 0.4;
+
+function conferenceTier(team: Team): number {
+  if (!team.isFbs) return FCS_TIER;
+  return CONFERENCE_TIER[team.conference] ?? DEFAULT_TIER;
+}
 
 // Bigger than chess's usual 32: a ~13-game college season needs each result
 // to move the needle more than a many-hundred-game chess rating pool would.
@@ -78,22 +99,6 @@ export function computeComputerRankings(
     losses.set(team.id, 0);
   }
 
-  // Recomputed from whatever the ratings map currently holds each time it's
-  // called -- this is what lets conference strength evolve week to week
-  // instead of being fixed at kickoff.
-  function conferenceAverage(conference: string): number {
-    const members = teams.filter((t) => t.isFbs && t.conference === conference);
-    if (members.length === 0) return 0;
-    const sum = members.reduce((s, t) => s + ratings.get(t.id)!, 0);
-    return sum / members.length;
-  }
-
-  function effectiveRating(team: Team): number {
-    const own = ratings.get(team.id)!;
-    if (!team.isFbs) return own; // FCS: fixed anchor, no conference blend.
-    return own * (1 - CONFERENCE_WEIGHT) + conferenceAverage(team.conference) * CONFERENCE_WEIGHT;
-  }
-
   const decided = games
     .filter(isDecided)
     .filter((g) => g.predictedScoreTeam1 !== g.predictedScoreTeam2)
@@ -113,18 +118,23 @@ export function computeComputerRankings(
     const winnerRating = ratings.get(winner.id)!;
     const loserRating = ratings.get(loser.id)!;
 
-    const expectedWinner = expectedScore(
-      effectiveRating(winner),
-      effectiveRating(loser),
-    );
+    const expectedWinner = expectedScore(winnerRating, loserRating);
     const baseDelta = K_FACTOR * (1 - expectedWinner);
 
     const winnerWonOnRoad =
       !game.isNeutralSite &&
       (team1Won ? game.team1IsHome === false : game.team1IsHome === true);
 
-    const winnerDelta = baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0);
-    const loserDelta = baseDelta * LOSS_PENALTY_MULTIPLIER;
+    // Beating a Power conference team: full (or amplified) credit. Beating
+    // a Group of Six team: scaled down, regardless of how good that
+    // specific opponent's own individual record looks.
+    const winnerDelta =
+      (baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0)) *
+      conferenceTier(loser);
+    // Losing to a weak-conference team costs more (a "bad loss"); losing
+    // to a strong-conference team costs a bit less (more forgivable).
+    const loserDelta =
+      (baseDelta * LOSS_PENALTY_MULTIPLIER) / conferenceTier(winner);
 
     ratings.set(winner.id, winnerRating + winnerDelta);
     ratings.set(loser.id, loserRating - loserDelta);
