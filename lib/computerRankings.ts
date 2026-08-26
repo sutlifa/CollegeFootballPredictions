@@ -131,9 +131,9 @@ const FCS_QUALITY_BASELINE = -80;
 // the ACC/Big 12 (a notch below them, not tied with them). Independent
 // isn't part of that explicit ranking; kept between the two Power tiers.
 const CONFERENCE_TIER: Record<string, number> = {
-  "Big Ten": 1.6,
-  SEC: 1.6,
-  Independent: 1.15,
+  "Big Ten": 1.35,
+  SEC: 1.35,
+  Independent: 1.1,
   "Big 12": 1.05,
   ACC: 1.0,
   "Pac 12": 0.55,
