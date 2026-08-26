@@ -24,18 +24,22 @@ export default async function RankingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink">Computer Rankings</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          An Elo-style rating seeded from each team&apos;s real 2026 preseason
-          rank, updated one submitted week at a time. Beating a team rated
-          well above you swings your rating a lot; beating an FCS team or an
-          unranked patsy barely moves it. Losing to a team rated well above
-          you barely hurts; an upset loss to a weaker team costs a lot.
-          Nothing from a week counts here until you hit{" "}
+          An Elo-style rating, earned entirely from this season&apos;s
+          results -- every team starts at a neutral 0, no preseason poll
+          baked in. Beating a team rated well above you swings your rating a
+          lot; beating an FCS team or an unranked patsy barely moves it.
+          Losing costs more than a plain mirror of what the winner gained,
+          even against a good team, so a losing record can&apos;t hide
+          behind a tough schedule. Strength of conference factors in too,
+          based on how that conference is actually performing this season,
+          not a preseason label. Nothing from a week counts here until you
+          hit{" "}
           <span className="font-semibold text-ink">Submit Week Results</span>{" "}
           on that week&apos;s page.
         </p>
         {submittedWeeks.length === 0 && (
           <p className="mt-2 text-sm text-ink-muted">
-            No weeks submitted yet -- this is pure preseason order.
+            No weeks submitted yet -- everyone starts even at 0.
           </p>
         )}
       </div>

@@ -2,21 +2,27 @@ import type { Game, RankingRow, Team } from "./types";
 import { isDecided } from "./types";
 
 /**
- * "Computer Rankings" = an Elo-style rating, seeded from each team's real
- * 2026 preseason rank (or a conference-tier baseline for unranked FBS teams,
- * or a flat low baseline for FCS/non-FBS opponents), then updated one
- * submitted week at a time.
+ * "Computer Rankings" -- pure Elo, starting every FBS team at a neutral 0.
+ * Nothing about preseason polls or conference reputation is baked into the
+ * starting point -- ratings are earned entirely from this season's results.
+ * Three things move a team's rating, all standard Elo mechanics rather than
+ * a hardcoded point-value table:
+ *  - Wins and losses (the core Elo update).
+ *  - Strength of the specific opponent -- their own current rating feeds
+ *    the expected-score calc, so beating a good team is worth more than
+ *    beating a bad one, and this propagates transitively (an opponent's
+ *    rating already reflects who THEY'VE played).
+ *  - Strength of their conference as a whole -- blended into each team's
+ *    effective rating for this calc only (see CONFERENCE_WEIGHT), so a
+ *    team from a conference that's collectively playing well gets a little
+ *    extra credit/blame beyond just their own individual record. This is
+ *    recomputed fresh from every team's current rating before each game, so
+ *    it evolves week to week as results come in rather than being fixed at
+ *    kickoff the way a preseason conference tier would be.
  *
- * This is the "human factor" layered on top of a computer model: Elo's
- * expected-outcome math already does most of the work --
- *  - beating a team rated far above you swings your rating a lot; beating
- *    a team rated far below you (an FCS team, most of all) barely moves it
- *  - losing to a team rated far above you barely hurts; losing to a team
- *    rated far below you (an upset) hurts a lot
- *  - a team's rating reflects its conference indirectly (Power-4 baselines
- *    start higher than Group-of-5, which start higher than FCS), so
- *    "tougher conference" opponents are automatically worth more without a
- *    hardcoded table of exceptions
+ * FCS/non-FBS opponents get a fixed, clearly-inferior anchor rating (not
+ * ranked themselves, just a reference point) so beating one barely moves
+ * the needle.
  *
  * Games are processed in week order (only weeks the caller has already
  * filtered down to "submitted" ones are included), so the rating path
@@ -24,62 +30,34 @@ import { isDecided } from "./types";
  * from the final win/loss tally alone.
  */
 
-// The #25 team's rating from the formula below (1712 - 24*14 = 1376) --
-// every unranked-team baseline is anchored below this so an unranked team
-// (e.g. Michigan State, not in the AP preseason poll) can never start
-// rated above an actually-ranked team (e.g. Michigan at #16), no matter
-// how strong its conference's baseline tier is.
-const RANK_FLOOR = 1712 - 24 * 14;
+const FCS_BASELINE = -500;
 
-const CONFERENCE_BASELINE: Record<string, number> = {
-  "Big Ten": RANK_FLOOR - 10,
-  SEC: RANK_FLOOR - 10,
-  ACC: RANK_FLOOR - 30,
-  "Big 12": RANK_FLOOR - 30,
-  Independent: RANK_FLOOR - 30,
-  American: RANK_FLOOR - 70,
-  "Pac 12": RANK_FLOOR - 70,
-  "Mountain West": RANK_FLOOR - 80,
-  "Sun Belt": RANK_FLOOR - 100,
-  MAC: RANK_FLOOR - 110,
-  CUSA: RANK_FLOOR - 110,
-};
-const DEFAULT_BASELINE = RANK_FLOOR - 90;
-const FCS_BASELINE = 1100;
-
-// A flat bonus added to the *outcome* delta when the winner won on the
-// road -- not a pre-game expected-score adjustment. Home wins and
-// neutral-site wins get no adjustment at all (both "neutral" -- the raw
-// rating gap alone decides the baseline delta); only an actual road win
-// earns a little extra credit on top of it. This used to be a classic
-// Elo home-field adjustment applied to the *expectation* calc instead,
-// which had it backwards in effect: boosting the home team's effective
-// rating pre-game meant a home win counted as "more expected" (so barely
-// moved the needle) while a road win looked like "less expected" purely
-// because of venue, not because the winner was actually better -- i.e. it
-// could inflate a road win's credit even when the road team was clearly
-// the stronger side already. A flat post-outcome bonus applies uniformly
-// regardless of how big the talent gap was.
-const ROAD_WIN_BONUS = 10;
+// How much a team's conference-wide average rating (computed fresh from
+// every member's rating so far, not a static preseason label) factors into
+// their effective strength for this one calculation -- 0 would ignore
+// conference entirely; 1 would judge them purely by their conference's
+// average instead of their own record. 0.2 keeps the specific opponent as
+// the dominant signal while still rewarding/penalizing a conference that's
+// collectively strong/weak this season.
+const CONFERENCE_WEIGHT = 0.2;
 
 // Bigger than chess's usual 32: a ~13-game college season needs each result
 // to move the needle more than a many-hundred-game chess rating pool would.
-// Raised from 40: with preseason ranks only ~14 points apart, a 40 K-factor
-// produced deltas (~15-23 points) barely bigger than ONE rank-step, so even
-// a genuine top-10 upset only ever moved either team a single spot. 90 lets
-// a decisive upset swing 30-60+ points -- several rank-steps in one result,
-// which is what "the #7 team just beat the #3 team on the road" should
-// actually look like on the board.
 const K_FACTOR = 90;
 
-function initialRating(team: Team): number {
-  if (!team.isFbs) return FCS_BASELINE;
-  if (team.preseasonRank) {
-    // #1 ~= 1712, #25 ~= 1376, roughly a 14-point step per rank.
-    return 1712 - (team.preseasonRank - 1) * 14;
-  }
-  return CONFERENCE_BASELINE[team.conference] ?? DEFAULT_BASELINE;
-}
+// A flat bonus added to the *outcome* delta when the winner won on the
+// road -- not a pre-game expected-score adjustment. Home wins and
+// neutral-site wins get no adjustment at all (both "neutral"); only an
+// actual road win earns a little extra credit on top of the normal delta.
+const ROAD_WIN_BONUS = 10;
+
+// Losing costs MORE than the mirror image of what the winner gained -- even
+// a loss to a good team that "was supposed to happen" should sting more
+// than a plain zero-sum swap credits it for. Without this, a team that
+// goes 2-3 against a brutal schedule can end up barely dented, because
+// each individual loss to a favored opponent only produced a small
+// symmetric delta.
+const LOSS_PENALTY_MULTIPLIER = 1.5;
 
 function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
@@ -95,9 +73,25 @@ export function computeComputerRankings(
   const losses = new Map<number, number>();
 
   for (const team of teams) {
-    ratings.set(team.id, initialRating(team));
+    ratings.set(team.id, team.isFbs ? 0 : FCS_BASELINE);
     wins.set(team.id, 0);
     losses.set(team.id, 0);
+  }
+
+  // Recomputed from whatever the ratings map currently holds each time it's
+  // called -- this is what lets conference strength evolve week to week
+  // instead of being fixed at kickoff.
+  function conferenceAverage(conference: string): number {
+    const members = teams.filter((t) => t.isFbs && t.conference === conference);
+    if (members.length === 0) return 0;
+    const sum = members.reduce((s, t) => s + ratings.get(t.id)!, 0);
+    return sum / members.length;
+  }
+
+  function effectiveRating(team: Team): number {
+    const own = ratings.get(team.id)!;
+    if (!team.isFbs) return own; // FCS: fixed anchor, no conference blend.
+    return own * (1 - CONFERENCE_WEIGHT) + conferenceAverage(team.conference) * CONFERENCE_WEIGHT;
   }
 
   const decided = games
@@ -119,16 +113,21 @@ export function computeComputerRankings(
     const winnerRating = ratings.get(winner.id)!;
     const loserRating = ratings.get(loser.id)!;
 
-    const expectedWinner = expectedScore(winnerRating, loserRating);
-    let delta = K_FACTOR * (1 - expectedWinner);
+    const expectedWinner = expectedScore(
+      effectiveRating(winner),
+      effectiveRating(loser),
+    );
+    const baseDelta = K_FACTOR * (1 - expectedWinner);
 
     const winnerWonOnRoad =
       !game.isNeutralSite &&
       (team1Won ? game.team1IsHome === false : game.team1IsHome === true);
-    if (winnerWonOnRoad) delta += ROAD_WIN_BONUS;
 
-    ratings.set(winner.id, winnerRating + delta);
-    ratings.set(loser.id, Math.max(0, loserRating - delta));
+    const winnerDelta = baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0);
+    const loserDelta = baseDelta * LOSS_PENALTY_MULTIPLIER;
+
+    ratings.set(winner.id, winnerRating + winnerDelta);
+    ratings.set(loser.id, loserRating - loserDelta);
   }
 
   const sorted = teams
