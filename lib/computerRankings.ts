@@ -48,13 +48,23 @@ const DEFAULT_BASELINE = RANK_FLOOR - 90;
 const FCS_BASELINE = 1100;
 
 // Rating-points edge given to the home team's expected-score calculation
-// only (not a flat bonus after the fact) -- a standard Elo-for-football
-// adjustment, roughly matching commonly published home-field values.
-const HOME_FIELD_ADVANTAGE = 65;
+// only (not a flat bonus after the fact) -- kept small relative to the
+// ~14-point gap between adjacent preseason ranks. It used to be 65, nearly
+// 5 ranks' worth, which let home-field context swamp the actual
+// team-strength signal: a true top-10 team winning a true road upset barely
+// out-scored a team that was merely "expected" to win on the road, because
+// the home dog's inflated effective rating made both look similarly close.
+const HOME_FIELD_ADVANTAGE = 25;
 
 // Bigger than chess's usual 32: a ~13-game college season needs each result
 // to move the needle more than a many-hundred-game chess rating pool would.
-const K_FACTOR = 40;
+// Raised from 40: with preseason ranks only ~14 points apart, a 40 K-factor
+// produced deltas (~15-23 points) barely bigger than ONE rank-step, so even
+// a genuine top-10 upset only ever moved either team a single spot. 90 lets
+// a decisive upset swing 30-60+ points -- several rank-steps in one result,
+// which is what "the #7 team just beat the #3 team on the road" should
+// actually look like on the board.
+const K_FACTOR = 90;
 
 function initialRating(team: Team): number {
   if (!team.isFbs) return FCS_BASELINE;
