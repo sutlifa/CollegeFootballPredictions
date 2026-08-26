@@ -2,53 +2,65 @@ import type { Game, RankingRow, Team } from "./types";
 import { isDecided } from "./types";
 
 /**
- * "Computer Rankings" -- pure Elo, starting every FBS team at a neutral 0.
- * Nothing about preseason polls is baked into the starting point -- ratings
- * are earned entirely from this season's results. Six things move a team's
- * rating or its final position (the first four feed the rating itself; the
- * last two only adjust final ordering):
- *  - Wins and losses (the core Elo update).
+ * "Computer Rankings" -- a 0-100 power score, starting every FBS team at a
+ * neutral midpoint (50) and earned entirely from this season's results.
+ * Nothing about preseason polls is baked in. A team's INTERNAL rating
+ * (unbounded, used for all the math below) is earned from:
+ *  - Wins and losses (the core Elo-style update).
  *  - Strength of the specific opponent -- their own current rating feeds
  *    the expected-score calc, so beating a good team is worth more than
  *    beating a bad one, and this propagates transitively (an opponent's
  *    rating already reflects who THEY'VE played).
  *  - Strength of their conference as a whole -- a real, fixed tier
- *    multiplier (see CONFERENCE_TIER) scales how much a win or loss is
- *    worth based on the OPPONENT's conference. The Power Four (ACC, Big
- *    Ten, Big 12, SEC) are deliberately weighted well above everyone else:
- *    their schedules are genuinely harder top to bottom, so a Power team
- *    with a couple of losses should still usually outrank a Group of Six
- *    team with a better record, UNLESS that Group of Six team has actually
- *    proven itself -- by beating a Power team, by running the table, or by
- *    blowing teams out (see margin of victory below). This is a fixed,
- *    real-world-informed tier, not a preseason-style head start -- nothing
- *    about starting position changes, it only scales credit actually
- *    earned from a real result. It's fixed rather than derived from each
- *    conference's own evolving average specifically because a conference
- *    that plays mostly itself is a closed loop: its average rating stays
- *    near where it started even as one team inside it wins out over its
- *    own (equally inflated) peers, so that average never actually reflects
- *    how much weaker the conference really is.
+ *    multiplier (see CONFERENCE_TIER) scales how much a WIN is worth
+ *    based on the OPPONENT's conference. The Power Four (ACC, Big Ten,
+ *    Big 12, SEC) sit well above everyone else: their schedules are
+ *    genuinely harder top to bottom. Fixed rather than derived from each
+ *    conference's own evolving average, because a conference that plays
+ *    mostly itself is a closed loop -- its average stays near where it
+ *    started even as one team inside it wins out over its own (equally
+ *    inflated) peers, so that average never actually reflects how much
+ *    weaker the conference really is.
  *  - Margin of victory -- beating a good team badly counts for more than
  *    barely getting past them, but the bonus shrinks the more one-sided
  *    the game was *expected* to be, so running up the score against an
  *    obviously overmatched opponent doesn't inflate a rating the way
  *    walloping a genuinely comparable team does.
- *  - Record, before rating -- fewer losses ranks a team higher, full stop,
- *    UNLESS the team with more losses has earned a rating edge bigger than
- *    a set amount per extra loss (see RATING_GAP_PER_EXTRA_LOSS). This is
- *    a hard rule, not a hope that the per-game math above happens to land
- *    that way on its own: a team can't simply out-blowout its way past a
- *    meaningfully better record without a real, sizable gap to back it
- *    up, but an exceptional one-loss team can still edge out a
- *    merely-good undefeated one if the gap is big enough.
- *  - Head-to-head, as a final tiebreak -- when two teams end up close in
- *    rating (with a record close enough that the rule above doesn't
- *    already settle it), the actual result between them (if they played)
- *    settles who ranks above whom. Elo alone can produce an intransitive
- *    result (Team A beats Team B, but B's other games happen to edge it
- *    slightly ahead anyway); no real committee would rank B above a team
- *    that just beat them while sitting this close.
+ *  - Losing costs a real, GUARANTEED minimum amount (LOSS_FLAT_PENALTY) on
+ *    top of an opponent-quality-scaled variable amount -- not just a
+ *    multiplier on a variable base. A close loss to a good team still has
+ *    a small variable component (correctly, that's the most forgivable
+ *    kind of loss there is), but earlier versions let that small variable
+ *    number combined with a multiplier stay too small in absolute terms,
+ *    so several losses to good teams didn't add up to as much as they
+ *    should have. The flat floor guarantees every extra loss costs a
+ *    real, predictable amount regardless of who it was against, which is
+ *    what actually keeps win-loss record the dominant signal without
+ *    needing a separate rule bolted onto the sort order.
+ *
+ * The internal rating is then squashed through tanh into the displayed
+ * 0-100 score (50 = average, approaching 100 for a truly exceptional
+ * season, approaching 0 for a truly disastrous one). tanh is strictly
+ * increasing, so the displayed score and the sort order can never
+ * disagree -- unlike an earlier version of this file that added a
+ * separate "record beats rating" sort rule on top of the raw number,
+ * which fixed a couple of specific cases but made the displayed rating
+ * meaningless (a team could show a HIGHER number while being ranked
+ * BELOW a team with a lower one) and broke the conference-tier discount
+ * for Group of Six teams in the process. Baking record-dominance directly
+ * into the rating itself avoids both problems.
+ *
+ * Head-to-head is the one remaining tiebreak applied after sorting: when
+ * two teams end up close (with a comparable-or-better record), the actual
+ * result between them settles who ranks above whom. Elo alone can produce
+ * an intransitive result (Team A beats Team B, but B's other games happen
+ * to edge it slightly ahead anyway); no real committee would rank B above
+ * a team that just beat them while sitting this close. Checked across
+ * every nearby pair, not just adjacent ones -- a third team landing
+ * almost exactly between two otherwise-close rivals would otherwise hide
+ * the violation entirely. Guarded against real 3-way cycles (A beat B, B
+ * beat C, C beat A -- these happen and have no consistent resolution):
+ * the promoted team must not have more losses than the team it's passing.
  *
  * Conference Championship games are a special case: a single game
  * shouldn't reshuffle a whole season's picture, and it never touches any
@@ -68,14 +80,13 @@ import { isDecided } from "./types";
 
 const FCS_BASELINE = -500;
 
-// Real-world relative conference strength, used to scale how much credit a
-// win/loss is worth based on the OPPONENT's conference. Ranked weakest to
+// Real-world relative conference strength, used to scale how much a WIN
+// is worth based on the OPPONENT's conference. Ranked weakest to
 // strongest (1 = strongest): 10 MAC, 9 CUSA, 8 Sun Belt, 7 Mountain West,
 // 6 American, 5 Pac 12, 4 ACC, 3 Big 12, 1 (tied) SEC/Big Ten -- with a
-// deliberate gap between the Power Four (SEC/Big Ten/Big 12/ACC) and
-// everyone else, since a Power team's schedule is genuinely harder top to
-// bottom. Independent isn't part of that explicit ranking; kept at a
-// neutral 1.0 between the Power Four and the Group of Six tier.
+// deliberate gap between the Power Four and everyone else. Independent
+// isn't part of that explicit ranking; kept at a neutral 1.0 between the
+// Power Four and the Group of Six tier.
 const CONFERENCE_TIER: Record<string, number> = {
   "Big Ten": 1.35,
   SEC: 1.35,
@@ -107,22 +118,24 @@ const K_FACTOR = 90;
 // actual road win earns a little extra credit on top of the normal delta.
 const ROAD_WIN_BONUS = 10;
 
-// Losing costs MORE than the mirror image of what the winner gained -- even
-// a loss to a good team that "was supposed to happen" should sting a lot,
-// enough that an extra loss reliably drops a team below same-conference
-// peers with a better record.
-const LOSS_PENALTY_MULTIPLIER = 2.3;
+// A guaranteed minimum cost for ANY loss, before the variable component
+// below. This is what makes an extra loss reliably drop a team below
+// same-conference peers with a better record, regardless of how good the
+// team that beat them was -- a multiplier on a variable base alone let a
+// string of *close* losses to good teams (small variable base each time)
+// stay too cheap in aggregate.
+const LOSS_FLAT_PENALTY = 150;
+
+// The variable, opponent-quality-scaled component on top of the flat
+// floor -- an upset loss to a clearly weaker team still costs extra here.
+const LOSS_VARIABLE_MULTIPLIER = 1.6;
 
 /**
  * How much losing to this particular opponent's conference tier softens
- * (or hardens) the base loss penalty -- deliberately a NARROW range, not a
- * straight division by tier. Losing to an elite Power team is only
- * slightly more forgivable than losing to an average one; losing to a
- * clearly weaker conference costs noticeably more. A wide swing here (the
- * previous version divided the penalty by the winner's tier outright) let
- * losses to fellow Power opponents -- the single most common kind of loss
- * for a Power team -- nearly cancel the whole penalty, which is exactly
- * why multiple losses weren't dropping a team far enough.
+ * (or hardens) the variable component -- a narrow range, not a straight
+ * division by tier. Losing to an elite Power team is only slightly more
+ * forgivable than losing to an average one; losing to a clearly weaker
+ * conference costs noticeably more.
  */
 function lossToughness(winnerTier: number): number {
   return 1.3 - 0.3 * winnerTier;
@@ -152,42 +165,6 @@ function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
 }
 
-// How much better a team's raw rating has to be, PER extra loss, before an
-// extra loss stops deciding the order outright. A team with one more loss
-// needs a genuinely large rating edge (not just "a bit better") to still
-// rank above a team with a better record -- this is what actually
-// guarantees "losses matter a lot" instead of hoping the per-game formula
-// happens to produce that ordering on its own. Tuned so an exceptional,
-// dominant one-loss team (blowout wins, a close loss to an elite
-// opponent) can still edge out a merely-good undefeated team, but a
-// routine extra loss (even one with otherwise-decent wins) does not.
-const RATING_GAP_PER_EXTRA_LOSS = 120;
-
-/**
- * Record comes first: fewer losses ranks higher, full stop -- UNLESS the
- * team with more losses has earned a rating edge bigger than
- * RATING_GAP_PER_EXTRA_LOSS times how many more losses it has. This is
- * deliberately a hard rule rather than a per-game formula tweak: no matter
- * how the Elo math above shakes out, a team can't simply out-blowout its
- * way past a team with a meaningfully better record without a real,
- * sizable rating gap to back it up.
- */
-function compareByRecordThenRating<
-  T extends { team: Team; score: number; losses: number },
->(a: T, b: T): number {
-  if (a.losses !== b.losses) {
-    const extraLosses = Math.abs(a.losses - b.losses);
-    const requiredGap = extraLosses * RATING_GAP_PER_EXTRA_LOSS;
-    const fewerLosses = a.losses < b.losses ? a : b;
-    const moreLosses = a.losses < b.losses ? b : a;
-    const overrides = moreLosses.score - fewerLosses.score > requiredGap;
-    const winner = overrides ? moreLosses : fewerLosses;
-    return winner === a ? -1 : 1;
-  }
-  if (b.score !== a.score) return b.score - a.score;
-  return a.team.name.localeCompare(b.team.name);
-}
-
 // Conference Championship week is one game deciding a conference title --
 // it shouldn't reshuffle a team's whole-season picture the way a regular
 // game does, and it should never touch a team that didn't play that week.
@@ -199,35 +176,24 @@ const CONFERENCE_CHAMPIONSHIP_CLOSE_LOSS_PENALTY = 3;
 const CONFERENCE_CHAMPIONSHIP_BLOWOUT_LOSS_PENALTY = 20;
 const BLOWOUT_MARGIN = 15;
 
-// If two teams are within this many rating points of each other, a head-
-// to-head result between them settles the order -- roughly one game's
-// worth of swing, so it only kicks in when the rating gap is genuinely
-// close, not when a team has clearly separated itself since.
-const HEAD_TO_HEAD_THRESHOLD = 40;
+// If two teams are within this many points of each other ON THE DISPLAYED
+// 0-100 SCALE, a head-to-head result between them settles the order --
+// roughly "close enough to be a real debate." Deliberately checked on the
+// final display score rather than the unbounded internal rating: the
+// internal scale shifts whenever the underlying formula's constants are
+// retuned (it did exactly that when the loss penalty was reworked), which
+// would silently miscalibrate a threshold expressed in internal-rating
+// terms; the 0-100 scale is stable by definition.
+const HEAD_TO_HEAD_THRESHOLD = 15;
 
 /**
- * Elo alone can produce an intransitive result: Texas beats Oklahoma this
- * season, but Oklahoma's *other* games happen to leave it a few points
- * ahead of Texas anyway. A real committee would never rank Oklahoma above
- * a Texas team that just beat them while sitting close in the standings --
- * so when two teams within HEAD_TO_HEAD_THRESHOLD of each other played,
- * the actual head-to-head winner (their most recent meeting, if they
- * played more than once) is placed above, overriding the raw rating order
- * for that pair specifically.
- *
  * Checks every pair within range, not just adjacent ones -- a third team
- * sitting between two otherwise-close rivals (e.g. Texas A&M landing
- * almost exactly between Oklahoma and the Texas team that beat it) would
- * otherwise hide the violation from an adjacent-only scan entirely, since
- * Oklahoma and Texas would never actually be compared to each other.
- *
- * Guarded against real 3-way cycles (A beat B, B beat C, C beat A -- these
- * happen in real seasons and have no consistent resolution): the promoted
- * team must NOT have more losses than the team it's passing. Without that
- * guard, a cycle lets the worst-recorded team of the three ping-pong
- * upward by exploiting whichever single head-to-head win it happens to
- * hold, which is exactly backwards -- head-to-head should only settle a
- * genuine tie, never let a worse record win out over a better one.
+ * sitting between two otherwise-close rivals would otherwise hide the
+ * violation from an adjacent-only scan entirely, since the two ends would
+ * never actually be compared to each other. Guarded against real 3-way
+ * cycles: the promoted team must not have more losses than the team it's
+ * passing, so a cycle can't let the worst-recorded team of the three
+ * ping-pong upward by exploiting whichever single win it happens to hold.
  */
 function applyHeadToHeadTiebreak<
   T extends { team: Team; score: number; losses: number },
@@ -250,11 +216,11 @@ function applyHeadToHeadTiebreak<
           // better record, and they're close (even with other teams
           // between them) -- pull it up to sit directly above `higher`,
           // nudging its displayed score just past `higher`'s so the
-          // numbers shown don't visually contradict the new order.
+          // number shown doesn't visually contradict the new order.
           const [promotedRaw] = result.splice(j, 1);
           const promoted = {
             ...promotedRaw,
-            score: Math.max(promotedRaw.score, higher.score + 0.1),
+            score: Math.round(Math.max(promotedRaw.score, higher.score + 0.1) * 10) / 10,
           } as T;
           result.splice(i, 0, promoted);
           changed = true;
@@ -264,7 +230,31 @@ function applyHeadToHeadTiebreak<
     }
     if (!changed) break;
   }
+
+  // A promoted team's nudged score is only guaranteed to beat the ONE team
+  // it swapped past -- with several swaps interacting, a tiny residual
+  // inconsistency further down the list is possible (and floating point
+  // itself can produce one, e.g. 7.8 + 0.1 rendering as 7.8999999999999995
+  // instead of 7.9). Enforce the invariant outright: the displayed score
+  // must never increase as rank gets worse, full stop.
+  for (let i = 1; i < result.length; i++) {
+    if (result[i].score > result[i - 1].score) {
+      result[i] = { ...result[i], score: result[i - 1].score };
+    }
+  }
   return result;
+}
+
+// Squashes the unbounded internal rating into a 0-100 display score --
+// 50 is average, and it asymptotically approaches 100 (an all-time great
+// season) or 0 (a truly disastrous one) without ever quite reaching
+// either. tanh is strictly increasing, so this can never change the sort
+// order relative to the internal rating -- the number shown always means
+// what the rank shows.
+const DISPLAY_SCALE = 260;
+
+function toDisplayScore(rating: number): number {
+  return Math.round((50 + 50 * Math.tanh(rating / DISPLAY_SCALE)) * 10) / 10;
 }
 
 export function computeComputerRankings(
@@ -341,11 +331,11 @@ export function computeComputerRankings(
       winnerDelta =
         (baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0)) *
         conferenceTier(loser);
-      // Losing costs a lot regardless of who beat you -- only slightly
-      // less against an elite opponent, only slightly more against a weak
-      // one (see lossToughness).
+      // A guaranteed floor, plus a variable component for how bad the
+      // upset was -- see LOSS_FLAT_PENALTY above for why the floor exists.
       loserDelta =
-        baseDelta * LOSS_PENALTY_MULTIPLIER * lossToughness(conferenceTier(winner));
+        LOSS_FLAT_PENALTY +
+        baseDelta * LOSS_VARIABLE_MULTIPLIER * lossToughness(conferenceTier(winner));
     }
 
     ratings.set(winner.id, winnerRating + winnerDelta);
@@ -356,11 +346,14 @@ export function computeComputerRankings(
     .filter((t) => t.isFbs)
     .map((team) => ({
       team,
-      score: ratings.get(team.id)!,
+      score: toDisplayScore(ratings.get(team.id)!),
       wins: wins.get(team.id) ?? 0,
       losses: losses.get(team.id) ?? 0,
     }))
-    .sort(compareByRecordThenRating);
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.team.name.localeCompare(b.team.name);
+    });
 
   const sorted = applyHeadToHeadTiebreak(byScore, headToHead);
 
@@ -371,6 +364,6 @@ export function computeComputerRankings(
     conference: row.team.conference,
     wins: row.wins,
     losses: row.losses,
-    score: Math.round(row.score * 10) / 10,
+    score: row.score,
   }));
 }

@@ -106,7 +106,7 @@ export default async function BracketPage({
                 {s.team}
               </span>{" "}
               <span className="text-ink-muted">
-                ({s.wins}-{s.losses}, {s.score.toFixed(1)} rating)
+                ({s.wins}-{s.losses}, {s.score.toFixed(1)} score)
               </span>
               {s.seed <= 4 && (
                 <span

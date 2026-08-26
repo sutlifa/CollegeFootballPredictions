@@ -24,22 +24,24 @@ export default async function RankingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink">Computer Rankings</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          An Elo-style rating, earned entirely from this season&apos;s
-          results -- every team starts at a neutral 0, no preseason poll
-          baked in. Beating a team rated well above you swings your rating a
-          lot; beating an FCS team or an unranked patsy barely moves it.
-          Losing costs more than a plain mirror of what the winner gained,
-          even against a good team, so a losing record can&apos;t hide
-          behind a tough schedule. Strength of conference factors in too,
-          based on how that conference is actually performing this season,
-          not a preseason label. Nothing from a week counts here until you
-          hit{" "}
+          A 0-100 power score -- 50 is dead average, and it climbs toward
+          100 for a genuinely exceptional season (high wins, low losses,
+          quality wins, no bad losses, a tough schedule). Every team starts
+          at 50, no preseason poll baked in. Beating a team rated well
+          above you swings your score up; beating an FCS team or an
+          unranked patsy barely moves it. Losing costs a real, guaranteed
+          amount every time, so a losing record can&apos;t hide behind a
+          tough schedule -- fewer losses reliably beats more losses unless
+          the extra-loss team has earned a real, sizable edge. Strength of
+          conference factors in too: Power Four wins count for
+          meaningfully more than Group of Six ones. Nothing from a week
+          counts here until you hit{" "}
           <span className="font-semibold text-ink">Submit Week Results</span>{" "}
           on that week&apos;s page.
         </p>
         {submittedWeeks.length === 0 && (
           <p className="mt-2 text-sm text-ink-muted">
-            No weeks submitted yet -- everyone starts even at 0.
+            No weeks submitted yet -- everyone starts even at 50.
           </p>
         )}
       </div>
@@ -52,7 +54,7 @@ export default async function RankingsPage() {
               <th className="px-3 py-2 text-left">Conference</th>
               <th className="px-3 py-2 text-right">W</th>
               <th className="px-3 py-2 text-right">L</th>
-              <th className="px-3 py-2 text-right">Rating</th>
+              <th className="px-3 py-2 text-right">Score</th>
             </tr>
           </thead>
           <tbody>

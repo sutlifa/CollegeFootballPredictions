@@ -85,7 +85,7 @@ export function BracketFieldSelector({ candidates, formAction }: Props) {
               <th className="px-3 py-2 text-left">Conference</th>
               <th className="px-3 py-2 text-right">W</th>
               <th className="px-3 py-2 text-right">L</th>
-              <th className="px-3 py-2 text-right">Rating</th>
+              <th className="px-3 py-2 text-right">Score</th>
               <th className="px-3 py-2 text-left">Auto bid</th>
             </tr>
           </thead>
