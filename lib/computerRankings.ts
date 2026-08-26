@@ -47,14 +47,20 @@ const CONFERENCE_BASELINE: Record<string, number> = {
 const DEFAULT_BASELINE = RANK_FLOOR - 90;
 const FCS_BASELINE = 1100;
 
-// Rating-points edge given to the home team's expected-score calculation
-// only (not a flat bonus after the fact) -- kept small relative to the
-// ~14-point gap between adjacent preseason ranks. It used to be 65, nearly
-// 5 ranks' worth, which let home-field context swamp the actual
-// team-strength signal: a true top-10 team winning a true road upset barely
-// out-scored a team that was merely "expected" to win on the road, because
-// the home dog's inflated effective rating made both look similarly close.
-const HOME_FIELD_ADVANTAGE = 25;
+// A flat bonus added to the *outcome* delta when the winner won on the
+// road -- not a pre-game expected-score adjustment. Home wins and
+// neutral-site wins get no adjustment at all (both "neutral" -- the raw
+// rating gap alone decides the baseline delta); only an actual road win
+// earns a little extra credit on top of it. This used to be a classic
+// Elo home-field adjustment applied to the *expectation* calc instead,
+// which had it backwards in effect: boosting the home team's effective
+// rating pre-game meant a home win counted as "more expected" (so barely
+// moved the needle) while a road win looked like "less expected" purely
+// because of venue, not because the winner was actually better -- i.e. it
+// could inflate a road win's credit even when the road team was clearly
+// the stronger side already. A flat post-outcome bonus applies uniformly
+// regardless of how big the talent gap was.
+const ROAD_WIN_BONUS = 10;
 
 // Bigger than chess's usual 32: a ~13-game college season needs each result
 // to move the needle more than a many-hundred-game chess rating pool would.
@@ -110,20 +116,19 @@ export function computeComputerRankings(
     wins.set(winner.id, (wins.get(winner.id) ?? 0) + 1);
     losses.set(loser.id, (losses.get(loser.id) ?? 0) + 1);
 
-    let team1Effective = ratings.get(team1.id)!;
-    let team2Effective = ratings.get(team2.id)!;
-    if (!game.isNeutralSite) {
-      if (game.team1IsHome === true) team1Effective += HOME_FIELD_ADVANTAGE;
-      else if (game.team1IsHome === false) team2Effective += HOME_FIELD_ADVANTAGE;
-    }
-    const winnerEffective = team1Won ? team1Effective : team2Effective;
-    const loserEffective = team1Won ? team2Effective : team1Effective;
+    const winnerRating = ratings.get(winner.id)!;
+    const loserRating = ratings.get(loser.id)!;
 
-    const expectedWinner = expectedScore(winnerEffective, loserEffective);
-    const delta = K_FACTOR * (1 - expectedWinner);
+    const expectedWinner = expectedScore(winnerRating, loserRating);
+    let delta = K_FACTOR * (1 - expectedWinner);
 
-    ratings.set(winner.id, ratings.get(winner.id)! + delta);
-    ratings.set(loser.id, Math.max(0, ratings.get(loser.id)! - delta));
+    const winnerWonOnRoad =
+      !game.isNeutralSite &&
+      (team1Won ? game.team1IsHome === false : game.team1IsHome === true);
+    if (winnerWonOnRoad) delta += ROAD_WIN_BONUS;
+
+    ratings.set(winner.id, winnerRating + delta);
+    ratings.set(loser.id, Math.max(0, loserRating - delta));
   }
 
   const sorted = teams
