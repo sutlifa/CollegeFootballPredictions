@@ -9,7 +9,7 @@ import { isDecided } from "./types";
  * The internal rating is explicitly two separate, additive parts, not one
  * blended accumulator:
  *
- *   rating = RECORD_WEIGHT * recordScore + qualityRating + confChampAdjustment
+ *   rating = recordWeight(team) * recordScore + qualityRating + confChampAdjustment
  *
  *  - recordScore is just wins minus losses (see below for the small
  *    Conference Championship exception) -- simple, transparent, and
@@ -32,6 +32,16 @@ import { isDecided } from "./types";
  *    circumstances (see QUALITY_K below), and a team can only leapfrog a
  *    better record via a genuinely historic quality edge across an entire
  *    season, not from a handful of good performances.
+ *
+ *    recordWeight(team) itself is not flat -- it's scaled by the team's
+ *    OWN conference tier, so a Power Four win/loss is worth substantially
+ *    more than a Group of Six one. This is what keeps a two-loss Power
+ *    team ahead of a one-loss Group of Six team by default: schedule
+ *    strength suppresses the record term itself, not just the quality
+ *    term, so a gaudy Group of Six record can't just out-weigh a tougher
+ *    one on the strength of raw win count. Within any single conference
+ *    every team shares the same weight, so record dominance there is
+ *    exact and unaffected by this.
  *
  *  - qualityRating is a much smaller-scale, secondary Elo-style number:
  *    strength of the specific opponent (their own current qualityRating
@@ -83,8 +93,20 @@ import { isDecided } from "./types";
 // How much one full win-or-loss is worth in the final rating -- large
 // enough that no realistic quality-component edge overcomes it on its
 // own; only a genuinely historic quality gap across a whole season (far
-// more than QUALITY_K's normal per-game range) can outweigh it.
-const RECORD_WEIGHT = 55;
+// more than QUALITY_K's normal per-game range) can outweigh it. Scaled by
+// the team's OWN conference tier (see CONFERENCE_TIER below): a Power
+// Four win/loss is worth much more than a Group of Six one, because a
+// Power Four schedule is a fundamentally harder one to post a record
+// against. This is what keeps a one-or-two-loss Power team ahead of a
+// Group of Six team with a gaudier record -- a 12-1 Group of Six season
+// simply can't out-weigh a 10-2 Power season on the record term alone,
+// the same way it can't in the real committee's eyes. Within a single
+// conference, every team shares the same weight, so the record-dominance
+// guarantee (see below) still holds there exactly.
+const RECORD_WEIGHT_BASE = 55;
+function recordWeight(team: Team): number {
+  return RECORD_WEIGHT_BASE * conferenceTier(team);
+}
 
 const FCS_QUALITY_BASELINE = -80;
 
@@ -333,7 +355,7 @@ export function computeComputerRankings(
     .filter((t) => t.isFbs)
     .map((team) => {
       const rating =
-        RECORD_WEIGHT * (recordScores.get(team.id) ?? 0) +
+        recordWeight(team) * (recordScores.get(team.id) ?? 0) +
         (qualityRatings.get(team.id) ?? 0) +
         (confChampAdjustments.get(team.id) ?? 0);
       return {
