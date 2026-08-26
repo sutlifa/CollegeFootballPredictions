@@ -40,12 +40,26 @@
   --color-neutral-site: #4f8fd1;
 }
 
+/*
+ * Football-field backdrop: white yard lines every 5 "yards" (60px) spanning
+ * the full width, plus a yard-number column (10-20-30-40-50-40-30-20-10)
+ * pinned to each side, tiling vertically forever as the page scrolls -- like
+ * standing at midfield looking down a field that never ends. The two number
+ * columns are fixed-pixel-sized (not 100%-width) so the digits never stretch
+ * or squish at different viewport widths; only the line layer scales to full
+ * width, which is distortion-free since a straight line has no aspect ratio.
+ */
 body {
   background-image: repeating-linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--color-line) 35%, transparent) 0px,
-    color-mix(in srgb, var(--color-line) 35%, transparent) 2px,
-    transparent 2px,
-    transparent 64px
-  );
+      to bottom,
+      rgba(255, 255, 255, 0.09) 0px,
+      rgba(255, 255, 255, 0.09) 2px,
+      transparent 2px,
+      transparent 60px
+    ),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='1080' viewBox='0 0 80 1080'><g fill='rgba(255,255,255,0.16)' font-family='Arial, Helvetica, sans-serif' font-weight='700' font-size='48' text-anchor='middle'><text x='40' y='76'>10</text><text x='40' y='196'>20</text><text x='40' y='316'>30</text><text x='40' y='436'>40</text><text x='40' y='556'>50</text><text x='40' y='676'>40</text><text x='40' y='796'>30</text><text x='40' y='916'>20</text><text x='40' y='1036'>10</text></g></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='1080' viewBox='0 0 80 1080'><g fill='rgba(255,255,255,0.16)' font-family='Arial, Helvetica, sans-serif' font-weight='700' font-size='48' text-anchor='middle'><text x='40' y='76'>10</text><text x='40' y='196'>20</text><text x='40' y='316'>30</text><text x='40' y='436'>40</text><text x='40' y='556'>50</text><text x='40' y='676'>40</text><text x='40' y='796'>30</text><text x='40' y='916'>20</text><text x='40' y='1036'>10</text></g></svg>");
+  background-repeat: repeat, repeat-y, repeat-y;
+  background-size: 100% 60px, 80px 1080px, 80px 1080px;
+  background-position: 0 0, left top, right top;
 }
