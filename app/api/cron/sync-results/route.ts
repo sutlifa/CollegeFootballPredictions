@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { fetchSeasonGames, type CfbdGame } from "@/lib/cfbd";
 import { VALID_WEEKS } from "@/lib/format";
+import { seedSeasonFromCfbd } from "@/lib/ingest";
 
 export const maxDuration = 60;
 
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
   }
 
   let gamesUpdated = 0;
+  let gamesUpserted = 0;
   let error: string | null = null;
   const weeksChecked = VALID_WEEKS;
 
@@ -66,6 +68,15 @@ export async function GET(request: NextRequest) {
     for (const game of games) {
       gamesUpdated += await syncGame(game);
     }
+
+    // CFBD's schedule for a future season fills in gradually -- a team can
+    // have fewer games listed than its real slate simply because some
+    // haven't been finalized/published yet this far out. Re-running the
+    // same upsert-by-cfbd_game_id ingestion every day picks up any newly-
+    // published games automatically; it's a no-op for games we already
+    // have (ON CONFLICT just updates kickoff/status/week).
+    const seedResults = await seedSeasonFromCfbd();
+    gamesUpserted = seedResults.reduce((sum, r) => sum + r.gamesUpserted, 0);
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
     console.error("[sync-results]", error);
@@ -76,5 +87,5 @@ export async function GET(request: NextRequest) {
     VALUES (${weeksChecked}, ${gamesUpdated}, ${error})
   `;
 
-  return NextResponse.json({ gamesUpdated, error });
+  return NextResponse.json({ gamesUpdated, gamesUpserted, error });
 }

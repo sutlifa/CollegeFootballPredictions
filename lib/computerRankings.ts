@@ -83,25 +83,27 @@ const FCS_BASELINE = -500;
 // Real-world relative conference strength, used to scale how much a WIN
 // is worth based on the OPPONENT's conference. Ranked weakest to
 // strongest (1 = strongest): 10 MAC, 9 CUSA, 8 Sun Belt, 7 Mountain West,
-// 6 American, 5 Pac 12, 4 ACC, 3 Big 12, 1 (tied) SEC/Big Ten -- with a
-// deliberate gap between the Power Four and everyone else. Independent
-// isn't part of that explicit ranking; kept at a neutral 1.0 between the
-// Power Four and the Group of Six tier.
+// 6 American, 5 Pac 12, 4 ACC, 3 Big 12, 1 (tied) SEC/Big Ten -- but with
+// TWO deliberate gaps, not one: a big gap between the Group of Six tier
+// and the Power Four, and a further, equally real gap between the SEC/Big
+// Ten (the clear top) and the ACC/Big 12 (a notch below them, not tied
+// with them). Independent isn't part of that explicit ranking; kept
+// between the two Power tiers.
 const CONFERENCE_TIER: Record<string, number> = {
-  "Big Ten": 1.35,
-  SEC: 1.35,
-  "Big 12": 1.2,
-  ACC: 1.1,
-  Independent: 1.0,
-  "Pac 12": 0.75,
-  American: 0.7,
-  "Mountain West": 0.62,
-  "Sun Belt": 0.55,
-  CUSA: 0.5,
-  MAC: 0.45,
+  "Big Ten": 1.6,
+  SEC: 1.6,
+  Independent: 1.15,
+  "Big 12": 1.05,
+  ACC: 1.0,
+  "Pac 12": 0.55,
+  American: 0.5,
+  "Mountain West": 0.45,
+  "Sun Belt": 0.4,
+  CUSA: 0.35,
+  MAC: 0.3,
 };
-const DEFAULT_TIER = 0.6;
-const FCS_TIER = 0.3;
+const DEFAULT_TIER = 0.4;
+const FCS_TIER = 0.2;
 
 function conferenceTier(team: Team): number {
   if (!team.isFbs) return FCS_TIER;
