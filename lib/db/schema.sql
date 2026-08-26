@@ -77,12 +77,27 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 );
 
 CREATE TABLE IF NOT EXISTS bracket_field (
-  season                 INTEGER NOT NULL,
-  user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  team_ids               INTEGER[] NOT NULL,
-  champion_pick_team_id  INTEGER REFERENCES teams(id),
-  updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  season      INTEGER NOT NULL,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_ids    INTEGER[] NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (season, user_id)
+);
+
+-- One row per bracket game the user has picked a winner for. `slot`
+-- identifies which game in the fixed 12-team bracket tree (see
+-- lib/bracket.ts BracketSlot) -- e.g. 'r1_5v12', 'qf_1', 'sf_1',
+-- 'championship'. Saving a pick for a slot deletes any picks already
+-- stored for slots downstream of it (later rounds that depended on the
+-- old pick), so a changed earlier-round pick can't leave a stale
+-- now-impossible matchup on the books.
+CREATE TABLE IF NOT EXISTS bracket_picks (
+  season      INTEGER NOT NULL,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  slot        TEXT NOT NULL,
+  team_id     INTEGER NOT NULL REFERENCES teams(id),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (season, user_id, slot)
 );
 
 -- A week only counts toward Computer Rankings once the user explicitly

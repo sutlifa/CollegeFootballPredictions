@@ -260,28 +260,54 @@ export async function clearBracketField(
   userId: number,
   season = SEASON,
 ): Promise<void> {
+  // The field determines seeding, which every bracket pick depends on --
+  // picking a new field invalidates any picks made against the old one.
   await sql`DELETE FROM bracket_field WHERE season = ${season} AND user_id = ${userId}`;
+  await sql`DELETE FROM bracket_picks WHERE season = ${season} AND user_id = ${userId}`;
 }
 
-export async function getChampionPick(
+export async function getBracketPicks(
   userId: number,
   season = SEASON,
-): Promise<number | null> {
-  const rows = await sql<{ champion_pick_team_id: number | null }[]>`
-    SELECT champion_pick_team_id FROM bracket_field WHERE season = ${season} AND user_id = ${userId}
+): Promise<Partial<Record<import("./bracket").BracketSlot, number>>> {
+  const rows = await sql<{ slot: string; team_id: number }[]>`
+    SELECT slot, team_id FROM bracket_picks WHERE season = ${season} AND user_id = ${userId}
   `;
-  return rows[0]?.champion_pick_team_id ?? null;
+  const result: Partial<Record<import("./bracket").BracketSlot, number>> = {};
+  for (const row of rows) {
+    result[row.slot as import("./bracket").BracketSlot] = row.team_id;
+  }
+  return result;
 }
 
-export async function setChampionPick(
+/**
+ * Saves picks for every slot in one round in a single transaction, and
+ * deletes any stored picks for slots downstream of them (later rounds that
+ * depended on what's being changed) so a stale, now-impossible matchup
+ * can't linger.
+ */
+export async function saveBracketRoundPicks(
   userId: number,
-  teamId: number,
+  picks: { slot: import("./bracket").BracketSlot; teamId: number }[],
   season = SEASON,
 ): Promise<void> {
-  await sql`
-    UPDATE bracket_field SET champion_pick_team_id = ${teamId}, updated_at = now()
-    WHERE season = ${season} AND user_id = ${userId}
-  `;
+  const { DOWNSTREAM_SLOTS } = await import("./bracket");
+  await sql.begin(async (tx) => {
+    for (const { slot, teamId } of picks) {
+      await tx`
+        INSERT INTO bracket_picks (season, user_id, slot, team_id, updated_at)
+        VALUES (${season}, ${userId}, ${slot}, ${teamId}, now())
+        ON CONFLICT (season, user_id, slot) DO UPDATE SET team_id = EXCLUDED.team_id, updated_at = now()
+      `;
+      const downstream = DOWNSTREAM_SLOTS[slot];
+      if (downstream.length > 0) {
+        await tx`
+          DELETE FROM bracket_picks
+          WHERE season = ${season} AND user_id = ${userId} AND slot = ANY(${downstream})
+        `;
+      }
+    }
+  });
 }
 
 type LeaderboardQueryRow = {
@@ -498,9 +524,11 @@ export async function getAllBracketPicks(
       champion_pick_team_id: number | null;
     }[]
   >`
-    SELECT u.id AS user_id, u.name, u.email, b.team_ids, b.champion_pick_team_id
+    SELECT u.id AS user_id, u.name, u.email, b.team_ids, p.team_id AS champion_pick_team_id
     FROM bracket_field b
     JOIN users u ON u.id = b.user_id
+    LEFT JOIN bracket_picks p
+      ON p.season = b.season AND p.user_id = b.user_id AND p.slot = 'championship'
     WHERE b.season = ${season}
   `;
   return rows.map((row) => ({

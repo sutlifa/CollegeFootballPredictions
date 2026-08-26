@@ -224,6 +224,25 @@ export default async function WeekPage({
         </div>
       )}
 
+      {allDecided && (
+        <div className="flex items-center justify-center gap-3">
+          {submitted && (
+            <span className="text-sm font-medium text-win">
+              ✓ Submitted -- counted in Computer Rankings
+            </span>
+          )}
+          <form action={submitWeekAction}>
+            <input type="hidden" name="week" value={week} />
+            <button
+              type="submit"
+              className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
+            >
+              {submitted ? "Re-submit Week Results" : "Submit Week Results"}
+            </button>
+          </form>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3">
         {prevWeek !== null ? (
           <Link

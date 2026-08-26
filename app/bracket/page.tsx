@@ -1,29 +1,46 @@
 import { auth } from "@/auth";
+import { BracketFieldSelector } from "@/components/BracketFieldSelector";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
 import { TrophyIcon } from "@/components/TrophyIcon";
 import {
-  computeBracketSeeding,
+  BRACKET_ROUNDS,
+  buildBracketState,
+  currentBracketRound,
   getBracketCandidates,
   POWER_CONFERENCES,
+  seedBracketField,
+  type BracketRound,
+  type BracketSlotGame,
+  type Seed,
 } from "@/lib/bracket";
 import { computeComputerRankings } from "@/lib/computerRankings";
 import {
   getAllGames,
   getAllTeams,
   getBracketField,
-  getChampionPick,
+  getBracketPicks,
   getSubmittedWeeks,
 } from "@/lib/queries";
 import {
   resetBracketFieldAction,
+  saveRoundPicksAction,
   setBracketFieldAction,
-  setChampionPickAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function BracketPage() {
+const ROUND_LABEL: Record<BracketRound, string> = {
+  round1: "Round 1",
+  quarterfinal: "Quarterfinal",
+  semifinal: "Semifinal",
+  championship: "Championship",
+};
+
+export default async function BracketPage({
+  searchParams,
+}: PageProps<"/bracket">) {
+  const { editRound } = await searchParams;
   const session = await auth();
   const userId = session!.user.id;
   const [teams, games, selectedTeamIds, submittedWeeks] = await Promise.all([
@@ -33,9 +50,6 @@ export default async function BracketPage() {
     getSubmittedWeeks(userId),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
-  // Conference champions come from the real (predicted) Week 16 results
-  // regardless of submission status -- only the Computer Ranking score
-  // itself is gated behind "Submit Week Results".
   const submitted = new Set(submittedWeeks);
   const rankings = computeComputerRankings(
     teams,
@@ -44,65 +58,44 @@ export default async function BracketPage() {
   const candidates = getBracketCandidates(games, rankings);
 
   if (selectedTeamIds) {
-    const bracket = computeBracketSeeding(selectedTeamIds, rankings);
-    const championPickTeamId = await getChampionPick(userId);
+    const seeds = seedBracketField(selectedTeamIds, rankings);
+    const picks = await getBracketPicks(userId);
+    const slotGames = buildBracketState(seeds, picks);
+    const autoActiveRound = currentBracketRound(slotGames);
+    const requestedEditRound = BRACKET_ROUNDS.includes(editRound as BracketRound)
+      ? (editRound as BracketRound)
+      : null;
+    const displayRound = requestedEditRound ?? autoActiveRound;
+    const isComplete = autoActiveRound === null;
+    const champion = isComplete
+      ? slotGames.find((g) => g.slot === "championship")?.pickedWinner
+      : null;
+
+    const gamesBySlotRound = (round: BracketRound) =>
+      slotGames.filter((g) => g.round === round);
+
     return (
       <div className="space-y-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <TrophyIcon size={88} />
           <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
-            12-Team Playoff Bracket
-            <Tooltip text="Seeded 1-12 by Computer Ranking among your chosen field. Seeds 1-4 get a first-round bye. Round 1 is the standard 5v12, 6v11, 7v10, 8v9. Pick who you think wins it all below -- at the end of the season the Leaderboard awards bonus points for correctly-picked playoff teams (more for surviving each round) and a big bonus for the correct national champion." />
+            {champion ? `${champion.team} -- National Champion` : "Playoff Bracket"}
+            <Tooltip text="Pick the winner of every game, round by round -- Round 1, Quarterfinal, Semifinal, then the Championship. Matchups follow the real fixed CFP bracket (no reseeding): 1 vs winner of 8/9, 2 vs winner of 7/10, 3 vs winner of 6/11, 4 vs winner of 5/12, then the semifinal and championship follow from there. Changing an earlier round's pick clears anything you picked after it, since those matchups depended on it." />
           </h1>
         </div>
-
-        <form
-          action={setChampionPickAction}
-          className="flex flex-wrap items-center justify-center gap-2 text-sm"
-        >
-          <label htmlFor="championPickTeamId" className="text-ink-muted">
-            Who wins it all?
-          </label>
-          <select
-            id="championPickTeamId"
-            name="championPickTeamId"
-            defaultValue={championPickTeamId ?? ""}
-            className="rounded border border-line-strong bg-field px-2 py-1 text-ink"
-          >
-            <option value="" disabled>
-              Pick your national champion
-            </option>
-            {bracket.seeds.map((s) => (
-              <option key={s.teamId} value={s.teamId}>
-                #{s.seed} {s.team}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="rounded bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
-          >
-            Save pick
-          </button>
-          {championPickTeamId !== null && (
-            <span className="text-win">
-              Currently: {teamById.get(championPickTeamId)?.name ?? "?"}
-            </span>
-          )}
-        </form>
         <div className="flex items-center justify-end">
           <form action={resetBracketFieldAction}>
             <button
               type="submit"
               className="rounded border border-line-strong px-3 py-1.5 text-sm text-ink-soft hover:border-accent hover:text-accent-strong"
             >
-              Edit selection
+              Edit 12-team field
             </button>
           </form>
         </div>
 
         <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {bracket.seeds.map((s) => (
+          {seeds.map((s) => (
             <li
               key={s.teamId}
               className="rounded-lg border border-line bg-surface p-3 text-ink"
@@ -127,35 +120,75 @@ export default async function BracketPage() {
           ))}
         </ol>
 
-        <div>
-          <h2 className="mb-2 text-lg font-semibold text-ink">Round 1</h2>
-          <div className="space-y-2">
-            {bracket.round1
-              .filter((g) => g.lowerSeed !== null)
-              .map((g) => {
-                const higher = bracket.seeds.find((s) => s.seed === g.higherSeed);
-                const lower = bracket.seeds.find((s) => s.seed === g.lowerSeed);
-                return (
-                  <div
-                    key={g.higherSeed}
-                    className="rounded-lg border border-line bg-surface p-3 text-ink"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      #{g.higherSeed}
-                      <TeamLogo logoUrl={teamById.get(higher?.teamId ?? -1)?.logoUrl} name={higher?.team ?? ""} size={20} />
-                      {higher?.team}
-                    </span>{" "}
-                    <span className="text-ink-muted">vs</span>{" "}
-                    <span className="inline-flex items-center gap-2">
-                      #{g.lowerSeed}
-                      <TeamLogo logoUrl={teamById.get(lower?.teamId ?? -1)?.logoUrl} name={lower?.team ?? ""} size={20} />
-                      {lower?.team}
-                    </span>
+        {(() => {
+          const activeIndex = requestedEditRound
+            ? BRACKET_ROUNDS.indexOf(requestedEditRound)
+            : autoActiveRound !== null
+              ? BRACKET_ROUNDS.indexOf(autoActiveRound)
+              : BRACKET_ROUNDS.length;
+
+          return BRACKET_ROUNDS.map((round, i) => {
+          if (i > activeIndex) return null; // future round, not reachable yet
+          const roundGames = gamesBySlotRound(round);
+
+          if (i === activeIndex) {
+            return (
+              <div key={round} className="space-y-3 rounded-lg border border-accent/50 bg-accent/5 p-4">
+                <form action={saveRoundPicksAction} className="space-y-4">
+                  <input type="hidden" name="round" value={round} />
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-ink">
+                      {ROUND_LABEL[round]} -- pick a winner for every game
+                    </h2>
+                    <button
+                      type="submit"
+                      className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
+                    >
+                      Submit {ROUND_LABEL[round]} Picks
+                    </button>
                   </div>
-                );
-              })}
-          </div>
-        </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {roundGames.map((g) => (
+                      <BracketGameCard key={g.slot} game={g} teamById={teamById} />
+                    ))}
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
+                    >
+                      Submit {ROUND_LABEL[round]} Picks
+                    </button>
+                  </div>
+                </form>
+              </div>
+            );
+          }
+
+          // Completed round -- read-only summary with an Edit link.
+          return (
+            <div key={round} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-ink">{ROUND_LABEL[round]}</h2>
+                <a
+                  href={`/bracket?editRound=${round}`}
+                  className="rounded border border-line-strong px-2.5 py-1 text-xs text-ink-soft hover:border-accent hover:text-accent-strong"
+                >
+                  Edit
+                </a>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {roundGames.map((g) => (
+                  <div key={g.slot} className="rounded-lg border border-line bg-surface p-3 text-sm">
+                    <TeamLine team={g.team1} teamById={teamById} isWinner={g.pickedWinner?.teamId === g.team1?.teamId} />
+                    <TeamLine team={g.team2} teamById={teamById} isWinner={g.pickedWinner?.teamId === g.team2?.teamId} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+          });
+        })()}
       </div>
     );
   }
@@ -163,6 +196,10 @@ export default async function BracketPage() {
   const decidedPowerConferences = new Set(
     candidates.powerChampions.map((c) => c.conference),
   );
+  const fieldCandidates = candidates.rankings.map((row) => ({
+    ...row,
+    logoUrl: teamById.get(row.teamId)?.logoUrl ?? null,
+  }));
 
   return (
     <div className="space-y-6">
@@ -170,16 +207,14 @@ export default async function BracketPage() {
         <TrophyIcon size={88} />
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           Select the 12-Team Field
-          <Tooltip text="Nothing is auto-selected. Under the real 2026-27 CFP rules: the ACC, Big 12, Big Ten, and SEC champions each get an automatic bid no matter how they're ranked; the Group of Six (American, CUSA, MAC, Mountain West, Pac 12, Sun Belt) gets exactly one automatic bid, given to whichever G6 team is rated highest -- champion or not. Notre Dame and other independents have no automatic path; they're at-large candidates like anyone else. The remaining spots are open at-large picks -- the final call on all 12 is yours." />
+          <Tooltip text="Nothing is auto-selected except the guaranteed automatic bids. Under the real 2026-27 CFP rules: the ACC, Big 12, Big Ten, and SEC champions each get an automatic bid no matter how they're ranked; the Group of Six (American, CUSA, MAC, Mountain West, Pac 12, Sun Belt) gets exactly one automatic bid, given to whichever G6 team is rated highest -- champion or not. Notre Dame and other independents have no automatic path; they're at-large candidates like anyone else." />
         </h1>
         <p className="max-w-xl text-ink-muted">
-          Pick exactly 12 teams. Automatic-bid-eligible teams are marked
-          below; everyone else (including Notre Dame) is an at-large
-          candidate, ranked by Computer Ranking. Seeding and Round 1 pairings
-          are generated automatically once you confirm -- you'll also get to
-          pick a national champion, since the Leaderboard's end-of-season
-          bonus rewards correctly-picked playoff teams and a big bonus for
-          the correct champion.
+          Automatic-bid teams are locked in below and can&apos;t be
+          unchecked. Pick your at-large teams to fill out the 12 -- once
+          you&apos;ve picked enough, the rest lock until you free up a spot.
+          After confirming, you&apos;ll pick the winner of every playoff
+          game round by round.
         </p>
       </div>
 
@@ -203,70 +238,71 @@ export default async function BracketPage() {
         </p>
       )}
 
-      <form action={setBracketFieldAction} className="space-y-4">
-        <div className="overflow-x-auto rounded-lg border border-line">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-2 text-ink-muted">
-              <tr>
-                <th className="px-3 py-2"></th>
-                <th className="px-3 py-2 text-right">Rank</th>
-                <th className="px-3 py-2 text-left">Team</th>
-                <th className="px-3 py-2 text-left">Conference</th>
-                <th className="px-3 py-2 text-right">W</th>
-                <th className="px-3 py-2 text-right">L</th>
-                <th className="px-3 py-2 text-right">Rating</th>
-                <th className="px-3 py-2 text-left">Auto bid</th>
-              </tr>
-            </thead>
-            <tbody>
-              {candidates.rankings.map((row) => (
-                <tr
-                  key={row.teamId}
-                  className={`border-t border-line ${
-                    row.autoBidReason ? "bg-win/10" : "bg-surface"
-                  }`}
-                >
-                  <td className="px-3 py-2">
-                    <input type="checkbox" name="teamIds" value={row.teamId} />
-                  </td>
-                  <td className="px-3 py-2 text-right text-ink">{row.rank}</td>
-                  <td className="px-3 py-2">
-                    <span className="flex items-center gap-2 text-ink">
-                      <TeamLogo
-                        logoUrl={teamById.get(row.teamId)?.logoUrl}
-                        name={row.team}
-                        size={20}
-                      />
-                      {row.team}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-ink-muted">
-                    {row.conference}
-                  </td>
-                  <td className="px-3 py-2 text-right text-ink">{row.wins}</td>
-                  <td className="px-3 py-2 text-right text-ink">{row.losses}</td>
-                  <td className="px-3 py-2 text-right font-mono text-ink">
-                    {row.score.toFixed(1)}
-                  </td>
-                  <td className="px-3 py-2 text-xs font-semibold text-win">
-                    {row.autoBidReason === "power-champion"
-                      ? "Conference champion"
-                      : row.autoBidReason === "group-of-six"
-                        ? "Group of Six"
-                        : ""}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <button
-          type="submit"
-          className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
+      <BracketFieldSelector
+        candidates={fieldCandidates}
+        formAction={setBracketFieldAction}
+      />
+    </div>
+  );
+}
+
+function TeamLine({
+  team,
+  teamById,
+  isWinner,
+}: {
+  team: Seed | null;
+  teamById: Map<number, { logoUrl: string | null }>;
+  isWinner: boolean;
+}) {
+  if (!team) return <div className="text-ink-muted">TBD</div>;
+  return (
+    <div
+      className={`flex items-center gap-2 ${isWinner ? "font-semibold text-win" : "text-ink-muted"}`}
+    >
+      <span className="w-6 text-right text-xs">#{team.seed}</span>
+      <TeamLogo logoUrl={teamById.get(team.teamId)?.logoUrl} name={team.team} size={18} />
+      {team.team}
+      {isWinner && <span className="text-xs">✓</span>}
+    </div>
+  );
+}
+
+function BracketGameCard({
+  game,
+  teamById,
+}: {
+  game: BracketSlotGame;
+  teamById: Map<number, { logoUrl: string | null }>;
+}) {
+  const { slot, team1, team2, pickedWinner } = game;
+  if (!team1 || !team2) {
+    return (
+      <div className="rounded-lg border border-line bg-surface p-3 text-sm text-ink-muted">
+        Waiting on an earlier round&apos;s pick...
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface p-2">
+      {[team1, team2].map((team) => (
+        <label
+          key={team.teamId}
+          className="flex cursor-pointer items-center gap-2 rounded border border-line-strong bg-field px-2 py-2 text-sm text-ink has-checked:border-win has-checked:bg-win/20 has-checked:text-win has-checked:font-semibold"
         >
-          Confirm 12-Team Field
-        </button>
-      </form>
+          <input
+            type="radio"
+            name={`pick_${slot}`}
+            value={team.teamId}
+            defaultChecked={pickedWinner?.teamId === team.teamId}
+            required
+            className="sr-only"
+          />
+          <span className="w-6 text-right text-xs">#{team.seed}</span>
+          <TeamLogo logoUrl={teamById.get(team.teamId)?.logoUrl} name={team.team} size={18} />
+          <span className="truncate">{team.team}</span>
+        </label>
+      ))}
     </div>
   );
 }

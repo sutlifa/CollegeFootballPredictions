@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import type { BracketSlot } from "@/lib/bracket";
+import { SLOTS_BY_ROUND } from "@/lib/bracket";
 import {
   clearBracketField,
+  saveBracketRoundPicks,
   setBracketField,
-  setChampionPick,
 } from "@/lib/queries";
 
 async function requireUserId(): Promise<number> {
@@ -39,12 +41,29 @@ export async function resetBracketFieldAction() {
   revalidatePath("/bracket");
 }
 
-export async function setChampionPickAction(formData: FormData) {
+/**
+ * Saves every slot's pick for one round at once (formData has one
+ * `pick_<slot>` field per game in that round). Validates every game in the
+ * round actually got a pick before writing anything.
+ */
+export async function saveRoundPicksAction(formData: FormData) {
   const userId = await requireUserId();
-  const teamId = Number(formData.get("championPickTeamId"));
-  if (Number.isNaN(teamId)) {
-    throw new Error("Invalid team");
+  const round = formData.get("round") as string;
+  const slots = SLOTS_BY_ROUND[round as keyof typeof SLOTS_BY_ROUND];
+  if (!slots) {
+    throw new Error(`Invalid round: ${round}`);
   }
-  await setChampionPick(userId, teamId);
+
+  const picks: { slot: BracketSlot; teamId: number }[] = [];
+  for (const slot of slots) {
+    const raw = formData.get(`pick_${slot}`);
+    const teamId = Number(raw);
+    if (!raw || Number.isNaN(teamId)) {
+      throw new Error(`Missing a pick for every game in this round`);
+    }
+    picks.push({ slot, teamId });
+  }
+
+  await saveBracketRoundPicks(userId, picks);
   revalidatePath("/bracket");
 }
