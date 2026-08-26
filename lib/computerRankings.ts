@@ -93,19 +93,30 @@ import { isDecided } from "./types";
 // How much one full win-or-loss is worth in the final rating -- large
 // enough that no realistic quality-component edge overcomes it on its
 // own; only a genuinely historic quality gap across a whole season (far
-// more than QUALITY_K's normal per-game range) can outweigh it. Scaled by
-// the team's OWN conference tier (see CONFERENCE_TIER below): a Power
-// Four win/loss is worth much more than a Group of Six one, because a
-// Power Four schedule is a fundamentally harder one to post a record
+// more than QUALITY_K's normal per-game range) can outweigh it.
+//
+// WINS are scaled by the team's OWN conference tier (see CONFERENCE_TIER
+// below): a Power Four win is worth much more than a Group of Six one,
+// because a Power Four schedule is a fundamentally harder one to win
 // against. This is what keeps a one-or-two-loss Power team ahead of a
-// Group of Six team with a gaudier record -- a 12-1 Group of Six season
-// simply can't out-weigh a 10-2 Power season on the record term alone,
-// the same way it can't in the real committee's eyes. Within a single
-// conference, every team shares the same weight, so the record-dominance
-// guarantee (see below) still holds there exactly.
+// Group of Six team with a gaudier win total -- a 12-1 Group of Six
+// season simply can't out-weigh a 10-2 Power season on the record term
+// alone.
+//
+// LOSSES are deliberately NOT scaled by tier. A first version scaled the
+// whole win-minus-loss count by the same tier multiplier, which had an
+// ugly side effect: a weak conference's low tier also made ITS OWN
+// losses cost less, and a strong conference's high tier made a mediocre
+// team's losses cost dramatically more -- so a 3-9 Group of Six team
+// could outrank a 5-7 Power team, the exact inverse of what a real
+// committee would ever do. A loss is a loss regardless of conference;
+// only the credit for winning should depend on how hard that was to do.
+// Within a single conference every team shares the same win-tier, so a
+// strictly better record (more wins, fewer-or-equal losses) still always
+// wins the record term outright.
 const RECORD_WEIGHT_BASE = 55;
-function recordWeight(team: Team): number {
-  return RECORD_WEIGHT_BASE * conferenceTier(team);
+function recordComponent(team: Team, regularWins: number, regularLosses: number): number {
+  return RECORD_WEIGHT_BASE * (conferenceTier(team) * regularWins - regularLosses);
 }
 
 const FCS_QUALITY_BASELINE = -80;
@@ -175,6 +186,18 @@ function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
 }
 
+// How much a loss stings, scaled by the WINNER's conference tier (not the
+// loser's own): losing to a stronger conference's team costs less, losing
+// to a weaker conference's team costs more. 1.0 exactly at the ACC/Big 12
+// tier (1.0); scales down toward ~0.7 for a loss to an SEC/Big Ten team,
+// and up toward ~1.4 for a loss to a MAC-level team. This is on top of
+// (not instead of) the normal expected-score/MOV shrinkage for a truly
+// expected blowout loss -- this term reflects the OPPONENT'S conference
+// specifically, which the quality-rating gap alone doesn't capture.
+function lossToughness(winnerTier: number): number {
+  return 1.55 - 0.55 * winnerTier;
+}
+
 // Conference Championship week: kept entirely separate from both the
 // record and quality terms -- a win is a small flat bonus, a loss barely
 // costs anything unless it was a real blowout.
@@ -190,12 +213,29 @@ const BLOWOUT_MARGIN = 15;
 // scale is stable-ish but the 0-100 scale is stable by definition.
 const HEAD_TO_HEAD_THRESHOLD = 15;
 
+// A much tighter threshold than HEAD_TO_HEAD_THRESHOLD, for pairs that
+// never even played each other: within this tiny a gap, the quality term
+// has essentially settled nothing meaningful, and a team with a strictly
+// better record (more wins, fewer-or-equal losses) shouldn't be shown
+// below one it clearly outperformed record-wise just because of a
+// fraction-of-a-point quality wobble. Deliberately much smaller than the
+// head-to-head threshold -- this is a noise filter, not a license to let
+// quality override a real record gap.
+const RECORD_NOISE_THRESHOLD = 2;
+
 /**
  * Checks every pair within range, not just adjacent ones -- a third team
  * sitting between two otherwise-close rivals would otherwise hide the
  * violation from an adjacent-only scan entirely. Guarded against real
  * 3-way cycles: the promoted team must not have more losses than the team
  * it's passing.
+ *
+ * Two independent triggers can promote a team: (1) it beat the team above
+ * it head-to-head and the gap is within HEAD_TO_HEAD_THRESHOLD, or (2) it
+ * has a strictly better record and the gap is within the much tighter
+ * RECORD_NOISE_THRESHOLD (for pairs that never played -- a near-tie
+ * shouldn't let a sliver of quality-term noise override a clean record
+ * advantage).
  *
  * Promoting a team over a distant rival shifts everyone sitting between
  * them down by one slot -- collateral damage that's only fair to a
@@ -207,7 +247,7 @@ const HEAD_TO_HEAD_THRESHOLD = 15;
  * blocked rather than silently overriding a real, unrelated result.
  */
 function applyHeadToHeadTiebreak<
-  T extends { team: Team; score: number; losses: number },
+  T extends { team: Team; score: number; wins: number; losses: number },
 >(sorted: T[], headToHead: Map<string, number>): T[] {
   const result = [...sorted];
   const pairKey = (aId: number, bId: number) =>
@@ -221,9 +261,16 @@ function applyHeadToHeadTiebreak<
       const higher = result[i];
       for (let j = i + 1; j < result.length; j++) {
         const lower = result[j];
-        if (higher.score - lower.score > HEAD_TO_HEAD_THRESHOLD) continue;
+        const gap = higher.score - lower.score;
         if (lower.losses > higher.losses) continue;
-        if (!beat(lower.team.id, higher.team.id)) continue;
+
+        const wonHeadToHead =
+          gap <= HEAD_TO_HEAD_THRESHOLD && beat(lower.team.id, higher.team.id);
+        const clearlyBetterRecord =
+          gap <= RECORD_NOISE_THRESHOLD &&
+          lower.wins >= higher.wins &&
+          (lower.wins > higher.wins || lower.losses < higher.losses);
+        if (!wonHeadToHead && !clearlyBetterRecord) continue;
 
         let blocked = false;
         for (let k = i + 1; k < j; k++) {
@@ -269,14 +316,16 @@ export function computeComputerRankings(
 ): RankingRow[] {
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const qualityRatings = new Map<number, number>();
-  const recordScores = new Map<number, number>();
+  const regularSeasonWins = new Map<number, number>();
+  const regularSeasonLosses = new Map<number, number>();
   const confChampAdjustments = new Map<number, number>();
   const wins = new Map<number, number>();
   const losses = new Map<number, number>();
 
   for (const team of teams) {
     qualityRatings.set(team.id, team.isFbs ? 0 : FCS_QUALITY_BASELINE);
-    recordScores.set(team.id, 0);
+    regularSeasonWins.set(team.id, 0);
+    regularSeasonLosses.set(team.id, 0);
     confChampAdjustments.set(team.id, 0);
     wins.set(team.id, 0);
     losses.set(team.id, 0);
@@ -323,8 +372,8 @@ export function computeComputerRankings(
       continue;
     }
 
-    recordScores.set(winner.id, (recordScores.get(winner.id) ?? 0) + 1);
-    recordScores.set(loser.id, (recordScores.get(loser.id) ?? 0) - 1);
+    regularSeasonWins.set(winner.id, (regularSeasonWins.get(winner.id) ?? 0) + 1);
+    regularSeasonLosses.set(loser.id, (regularSeasonLosses.get(loser.id) ?? 0) + 1);
 
     const winnerQuality = qualityRatings.get(winner.id)!;
     const loserQuality = qualityRatings.get(loser.id)!;
@@ -337,25 +386,37 @@ export function computeComputerRankings(
       !game.isNeutralSite &&
       (team1Won ? game.team1IsHome === false : game.team1IsHome === true);
 
-    // Beating a Power conference team: full (or amplified) credit.
-    // Beating a Group of Six team: scaled down, no matter how gaudy the
-    // win total -- unless the margin was big enough to earn its own
-    // credit above. This is a simple, symmetric, zero-sum quality
-    // exchange now -- record dominance is RECORD_WEIGHT's job, not this
-    // term's, so it no longer needs its own separate loss-penalty logic.
-    const delta =
-      (baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0)) *
-      conferenceTier(loser);
+    const rawDelta = baseDelta + (winnerWonOnRoad ? ROAD_WIN_BONUS : 0);
 
-    qualityRatings.set(winner.id, winnerQuality + delta);
-    qualityRatings.set(loser.id, loserQuality - delta);
+    // Beating a Power conference team: full (or amplified) credit for the
+    // WINNER, scaled by the LOSER's tier. Beating a Group of Six team:
+    // scaled down for the winner, no matter how gaudy the win total --
+    // unless the margin was big enough to earn its own credit above.
+    //
+    // The loser's own penalty is scaled separately, by lossToughness of
+    // the WINNER's tier -- losing to a stronger conference's team costs
+    // less, losing to a weaker conference's team costs more. It is NOT
+    // scaled by the loser's OWN conference tier: an earlier version used
+    // the same multiplier for both sides, which meant a weak conference's
+    // low tier also made its own losses cost less (and a strong
+    // conference's high tier made its own losses cost dramatically more)
+    // -- letting bad Group of Six teams float above bad Power teams,
+    // exactly backwards from how a real committee would see it.
+    const winnerGain = rawDelta * conferenceTier(loser);
+    const loserPenalty = rawDelta * lossToughness(conferenceTier(winner));
+    qualityRatings.set(winner.id, winnerQuality + winnerGain);
+    qualityRatings.set(loser.id, loserQuality - loserPenalty);
   }
 
   const byScore = teams
     .filter((t) => t.isFbs)
     .map((team) => {
       const rating =
-        recordWeight(team) * (recordScores.get(team.id) ?? 0) +
+        recordComponent(
+          team,
+          regularSeasonWins.get(team.id) ?? 0,
+          regularSeasonLosses.get(team.id) ?? 0,
+        ) +
         (qualityRatings.get(team.id) ?? 0) +
         (confChampAdjustments.get(team.id) ?? 0);
       return {
