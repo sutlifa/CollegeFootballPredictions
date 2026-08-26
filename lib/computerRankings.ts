@@ -170,11 +170,18 @@ const HEAD_TO_HEAD_THRESHOLD = 40;
  * other, the actual head-to-head winner (their most recent meeting, if
  * they played more than once) is placed above, overriding the raw rating
  * order for that pair specifically.
+ *
+ * Guarded against real 3-way cycles (A beat B, B beat C, C beat A -- these
+ * happen in real seasons and have no consistent resolution): the promoted
+ * team must NOT have more losses than the team it's passing. Without that
+ * guard, a cycle lets the worst-recorded team of the three ping-pong
+ * upward by exploiting whichever single head-to-head win it happens to
+ * hold, which is exactly backwards -- head-to-head should only settle a
+ * genuine tie, never let a worse record win out over a better one.
  */
-function applyHeadToHeadTiebreak<T extends { team: Team; score: number }>(
-  sorted: T[],
-  headToHead: Map<string, number>,
-): T[] {
+function applyHeadToHeadTiebreak<
+  T extends { team: Team; score: number; losses: number },
+>(sorted: T[], headToHead: Map<string, number>): T[] {
   const result = [...sorted];
   const pairKey = (aId: number, bId: number) =>
     aId < bId ? `${aId}_${bId}` : `${bId}_${aId}`;
@@ -185,11 +192,13 @@ function applyHeadToHeadTiebreak<T extends { team: Team; score: number }>(
       const higher = result[i];
       const lower = result[i + 1];
       if (higher.score - lower.score > HEAD_TO_HEAD_THRESHOLD) continue;
+      if (lower.losses > higher.losses) continue;
       const winnerId = headToHead.get(pairKey(higher.team.id, lower.team.id));
       if (winnerId === lower.team.id) {
-        // `lower` actually beat `higher` head-to-head and they're close --
-        // move it above, nudging its displayed score just past `higher`'s
-        // so the numbers shown don't visually contradict the new order.
+        // `lower` actually beat `higher` head-to-head, has an equal-or-
+        // better record, and they're close -- move it above, nudging its
+        // displayed score just past `higher`'s so the numbers shown don't
+        // visually contradict the new order.
         const promoted = { ...lower, score: Math.max(lower.score, higher.score + 0.1) } as T;
         result[i] = promoted;
         result[i + 1] = higher;
