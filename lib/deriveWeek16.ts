@@ -2,10 +2,12 @@ import {
   CHAMPIONSHIP_CONFERENCES,
   conferenceDivisionKey,
   SUN_BELT_DIVISIONS,
-  sunBeltDivision,
 } from "./conferences";
-import { computeConferenceStandings } from "./standings";
-import type { Game, StandingsRow, Team } from "./types";
+import {
+  resolveConferenceStandingsWithTiebreakers,
+  resolveSunBeltDivisionStandings,
+} from "./tiebreakerRules";
+import type { Game, Team } from "./types";
 
 export type Week16Matchup = {
   conference: string;
@@ -20,15 +22,18 @@ export type Week16Matchup = {
  * predictions only.
  *
  * A conference's real tiebreaker procedure (head-to-head sweep, then
- * common-opponents win percentage, then further conference-specific steps)
- * only means something once the full regular season is in, so it's computed
- * once and stored (see lib/conferenceTiebreakers.ts) rather than re-derived
- * on every visit. `finalStandings` carries that stored, tiebreaker-resolved
- * order for conferences where it's ready (keyed by conferenceDivisionKey);
- * for any conference not yet in there (season still in progress), this
- * falls back to the same plain record/preseason-rank/name tiebreak chain
- * Standings uses, as a live preview -- not authoritative, but keeps the
- * page useful mid-season.
+ * common-opponents win percentage, then further conference-specific steps --
+ * see lib/tiebreakerRules.ts) is only STORED once and locked in once the
+ * full regular season is in (see lib/conferenceTiebreakers.ts), rather than
+ * being re-derived every visit -- that's what makes it a stable, final
+ * answer instead of something that could keep shifting under a submitted
+ * Week 16 pick. `finalStandings` carries that stored order for conferences
+ * where it's ready (keyed by conferenceDivisionKey). For any conference not
+ * yet in there (season still in progress, or a regular-season prediction
+ * was edited since), this still runs the SAME real tiebreaker procedure
+ * live, as a mid-season preview -- there's no reason the preview should
+ * fall back to a cruder ordering that ignores head-to-head just because
+ * it isn't locked in yet.
  */
 export function deriveWeek16Matchups(
   teams: Team[],
@@ -54,7 +59,7 @@ export function deriveWeek16Matchups(
       continue;
     }
 
-    const standings = computeConferenceStandings(
+    const standings = resolveConferenceStandingsWithTiebreakers(
       teams,
       gamesWeeks1to15,
       conference,
@@ -85,11 +90,7 @@ function deriveSunBeltMatchup(
     );
     if (finalOrder) return finalOrder[0] ?? null;
 
-    const standings: StandingsRow[] = computeConferenceStandings(
-      teams,
-      gamesWeeks1to15,
-      "Sun Belt",
-    ).filter((row) => sunBeltDivision(row.team) === division);
+    const standings = resolveSunBeltDivisionStandings(teams, gamesWeeks1to15, division);
     return standings[0]?.teamId ?? null;
   };
 
