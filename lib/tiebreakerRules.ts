@@ -495,6 +495,52 @@ function buildProcedureWithStandingsStep(
   return CONFERENCE_TIEBREAK_PROCEDURES[conference];
 }
 
+/**
+ * Head-to-head record purely among the teams still tied here, as
+ * wins-minus-losses. Used only as the LAST ordering resort, after every
+ * real procedure step has failed to separate the group.
+ *
+ * A conference would settle that with a coin toss, which isn't
+ * reproducible -- but ordering purely alphabetically threw away
+ * information we actually have. In a three-way tie where nobody swept,
+ * the real steps legitimately don't resolve it, yet showing a team above
+ * one that just beat them looks broken to anyone reading the table. This
+ * keeps those pairs the right way round and only falls to name when even
+ * this says nothing.
+ */
+function headToHeadDiffWithinGroup(
+  group: StandingsRow[],
+  ctx: TiebreakContext,
+): Map<number, number> {
+  const groupIds = new Set(group.map((r) => r.teamId));
+  const diff = new Map<number, number>();
+  for (const row of group) {
+    const others = new Set([...groupIds].filter((id) => id !== row.teamId));
+    let net = 0;
+    for (const g of gamesAgainst(ctx.games, row.teamId, others)) {
+      const won =
+        g.team1Id === row.teamId
+          ? g.predictedScoreTeam1! > g.predictedScoreTeam2!
+          : g.predictedScoreTeam2! > g.predictedScoreTeam1!;
+      net += won ? 1 : -1;
+    }
+    diff.set(row.teamId, net);
+  }
+  return diff;
+}
+
+function finalOrdering(
+  group: StandingsRow[],
+  ctx: TiebreakContext,
+): StandingsRow[] {
+  const diff = headToHeadDiffWithinGroup(group, ctx);
+  return [...group].sort(
+    (a, b) =>
+      (diff.get(b.teamId) ?? 0) - (diff.get(a.teamId) ?? 0) ||
+      a.team.localeCompare(b.team),
+  );
+}
+
 function applyStepList(
   group: StandingsRow[],
   steps: TiebreakMetric[],
@@ -507,7 +553,7 @@ function applyStepList(
     return applyStepList(group, twoWayFallback, ctx, false, undefined);
   }
   if (steps.length === 0) {
-    return [...group].sort((a, b) => a.team.localeCompare(b.team));
+    return finalOrdering(group, ctx);
   }
 
   const [step, ...rest] = steps;
@@ -528,6 +574,47 @@ function applyStepList(
     i = j;
   }
   return result;
+}
+
+/**
+ * Walks the SAME path applyStepList takes for one specific pair, and
+ * reports the step that actually separated them -- or null if the pair
+ * survived every step and was settled by finalOrdering.
+ *
+ * This has to mirror the recursion rather than just evaluating each step
+ * against the whole tied group: a step can split a four-way tie into
+ * smaller groups, and every later step is then scored against that
+ * smaller membership (and, for conferences that set
+ * mergeToTwoWayWhenPairRemains, against a different ladder entirely once
+ * two teams are left). Evaluating only at the top level reported the
+ * wrong reason, and sometimes the wrong direction.
+ */
+function findSeparatingStep(
+  group: StandingsRow[],
+  steps: TiebreakMetric[],
+  ctx: TiebreakContext,
+  restart: boolean,
+  twoWayFallback: TiebreakMetric[] | undefined,
+  aId: number,
+  bId: number,
+): { step: TiebreakMetric | null; group: StandingsRow[] } {
+  if (group.length <= 1) return { step: null, group };
+  if (twoWayFallback && group.length === 2) {
+    return findSeparatingStep(group, twoWayFallback, ctx, false, undefined, aId, bId);
+  }
+  if (steps.length === 0) return { step: null, group };
+
+  const [step, ...rest] = steps;
+  const scores = step(group, ctx);
+  const scoreA = scores.get(aId)!;
+  const scoreB = scores.get(bId)!;
+  if (scoreA !== scoreB) return { step, group };
+
+  // Still together: follow them into their shared partition.
+  const partition = group.filter((r) => scores.get(r.teamId) === scoreA);
+  const separated = partition.length < group.length;
+  const nextSteps = separated && restart ? steps : rest;
+  return findSeparatingStep(partition, nextSteps, ctx, restart, twoWayFallback, aId, bId);
 }
 
 function resolveGroup(
@@ -665,30 +752,73 @@ export function explainTiebreak(
   if (!procedure) return null;
 
   const ctx: TiebreakContext = { games, teams, conference };
-  const group = [a, b];
-  for (const step of procedure.twoWay) {
-    const scores = step(group, ctx);
-    const scoreA = scores.get(a.teamId)!;
-    const scoreB = scores.get(b.teamId)!;
-    if (scoreA === scoreB) continue;
 
-    const leader = scoreA > scoreB ? a : b;
-    const trailer = scoreA > scoreB ? b : a;
+  // Evaluate every step against the WHOLE tied group, not just this pair.
+  // A pair inside a three-way tie is not resolved pairwise: head-to-head
+  // there asks "did anyone sweep the group", which one win between two of
+  // them doesn't answer. Explaining the pair in isolation used to claim
+  // head-to-head had decided an order the group-level step never produced
+  // -- e.g. "Miami leads Florida State: head-to-head" while the table,
+  // correctly, had them the other way round.
+  const group = groupTiedTeams(baseline).find((g) =>
+    g.some((r) => r.teamId === teamAId),
+  );
+  if (!group || !group.some((r) => r.teamId === teamBId)) return null;
+
+  const steps = group.length === 2 ? procedure.twoWay : procedure.multiWay;
+  const tieSize = group.length;
+  const context =
+    tieSize > 2 ? ` (${tieSize}-way tie at ${a.confWins}-${a.confLosses})` : "";
+
+  const headToHeadNote = (leader: StandingsRow, trailer: StandingsRow) => {
+    const h2h = decidedGames(games).find(
+      (g) =>
+        (g.team1Id === leader.teamId && g.team2Id === trailer.teamId) ||
+        (g.team1Id === trailer.teamId && g.team2Id === leader.teamId),
+    );
+    if (!h2h) return null;
+    const leaderScore =
+      h2h.team1Id === leader.teamId ? h2h.predictedScoreTeam1! : h2h.predictedScoreTeam2!;
+    const trailerScore =
+      h2h.team1Id === leader.teamId ? h2h.predictedScoreTeam2! : h2h.predictedScoreTeam1!;
+    return `won ${leaderScore}-${trailerScore}`;
+  };
+
+  const { step, group: finalGroup } = findSeparatingStep(
+    group,
+    steps,
+    ctx,
+    procedure.restartAfterEachStep ?? false,
+    procedure.mergeToTwoWayWhenPairRemains ? procedure.twoWay : undefined,
+    a.teamId,
+    b.teamId,
+  );
+
+  if (step) {
+    const scores = step(finalGroup, ctx);
+    const leader = scores.get(a.teamId)! > scores.get(b.teamId)! ? a : b;
+    const trailer = leader === a ? b : a;
     if (step === headToHeadAmongGroup) {
-      const h2h = decidedGames(games).find(
-        (g) =>
-          (g.team1Id === teamAId && g.team2Id === teamBId) ||
-          (g.team1Id === teamBId && g.team2Id === teamAId),
-      );
-      if (h2h) {
-        const leaderScore =
-          h2h.team1Id === leader.teamId ? h2h.predictedScoreTeam1! : h2h.predictedScoreTeam2!;
-        const trailerScore =
-          h2h.team1Id === leader.teamId ? h2h.predictedScoreTeam2! : h2h.predictedScoreTeam1!;
-        return `${leader.team} leads ${trailer.team}: head-to-head, won ${leaderScore}-${trailerScore}`;
+      const note = headToHeadNote(leader, trailer);
+      if (note) {
+        return `${leader.team} leads ${trailer.team}: head-to-head, ${note}${context}`;
       }
     }
-    return `${leader.team} leads ${trailer.team}: ${step.label}`;
+    return `${leader.team} leads ${trailer.team}: ${step.label}${context}`;
   }
-  return `${a.team} and ${b.team} are tied through every tiebreaker step this app can compute (${conference} steps that need a proprietary ranking service or the CFP committee's poll are skipped) -- ordered alphabetically here; in practice a coin toss or draw would decide it`;
+
+  // Every real step came back inconclusive. Ordering then falls to
+  // head-to-head among whichever teams are still tied together (see
+  // finalOrdering), and only to name if even that says nothing.
+  const diff = headToHeadDiffWithinGroup(finalGroup, ctx);
+  const diffA = diff.get(a.teamId) ?? 0;
+  const diffB = diff.get(b.teamId) ?? 0;
+  if (diffA !== diffB) {
+    const leader = diffA > diffB ? a : b;
+    const trailer = diffA > diffB ? b : a;
+    const note = headToHeadNote(leader, trailer);
+    return `No ${conference} tiebreaker step separates this ${finalGroup.length}-way tie, so it falls to head-to-head between the tied teams: ${leader.team} over ${trailer.team}${note ? `, ${note}` : ""}`;
+  }
+
+  return `${a.team} and ${b.team} are tied through every tiebreaker step this app can compute${context} (${conference} steps needing a proprietary ranking service or the CFP committee's poll are skipped, and head-to-head doesn't separate them either) -- ordered alphabetically here; in practice a coin toss or draw would decide it`;
 }

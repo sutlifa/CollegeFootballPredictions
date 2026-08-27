@@ -117,17 +117,23 @@ export default async function WeekPage({
       </div>
       {weekLocked ? (
         <p className="rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink-soft">
-          <span className="font-semibold text-ink">This week is locked.</span>{" "}
-          Its first game kicked off {formatKickoff(weekLocksAt!.toISOString())},
-          so picks can no longer be added or changed -- same as a fantasy
+          <span className="font-bold text-ink">This week is locked.</span> Its
+          first game kicked off{" "}
+          <span className="font-bold text-ink">
+            {formatKickoff(weekLocksAt!.toISOString())}
+          </span>
+          , so picks can no longer be added or changed -- same as a fantasy
           lineup locking when the week starts.
         </p>
       ) : (
         <>
           {weekLocksAt && (
-            <p className="text-sm text-ink-muted">
-              Picks lock {formatKickoff(weekLocksAt.toISOString())}, when this
-              week&apos;s first game kicks off.
+            <p className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-ink-soft">
+              Picks lock{" "}
+              <span className="font-bold text-accent-strong">
+                {formatKickoff(weekLocksAt.toISOString())}
+              </span>
+              , when this week&apos;s first game kicks off.
             </p>
           )}
           {!allDecided && (
