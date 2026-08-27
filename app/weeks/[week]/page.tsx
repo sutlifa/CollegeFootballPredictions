@@ -32,14 +32,20 @@ export default async function WeekPage({
   const session = await auth();
   const userId = session!.user.id; // proxy.ts guarantees a session here
 
-  if (week === 16) {
+  const submitted = await isWeekSubmitted(userId, week);
+
+  // Once Week 16 is submitted, its matchups are locked in for good -- if
+  // this kept re-deriving on every visit, any later shift in the derived
+  // top two (an earlier week's prediction changing, or the tiebreaker-
+  // resolved standings finalizing for the first time) would silently swap
+  // out the games the user already predicted/submitted against.
+  if (week === 16 && !submitted) {
     await syncWeek16Games(userId);
   }
 
-  const [teams, games, submitted] = await Promise.all([
+  const [teams, games] = await Promise.all([
     getAllTeams(),
     getGamesForWeek(week, userId),
-    isWeekSubmitted(userId, week),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const allDecided = games.length > 0 && games.every(isDecided);
