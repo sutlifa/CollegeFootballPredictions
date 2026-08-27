@@ -123,6 +123,8 @@ export async function getGamesForWeeks(
 }
 
 async function unsubmitWeekForGame(userId: number, gameId: number): Promise<void> {
+  const [game] = await sql<{ week: number }[]>`SELECT week FROM games WHERE id = ${gameId}`;
+
   // If this game's week was already submitted, editing its prediction
   // un-submits that week -- Computer Rankings must not silently pick up a
   // changed score until the user explicitly re-submits.
@@ -131,10 +133,18 @@ async function unsubmitWeekForGame(userId: number, gameId: number): Promise<void
     WHERE user_id = ${userId}
       AND (season, week) IN (SELECT season, week FROM games WHERE id = ${gameId})
   `;
+
   // Any finalized conference tiebreaker order was computed from a set of
-  // results that just changed -- wipe it rather than let it go stale. It's
-  // recomputed once every regular-season week is submitted again.
-  await clearFinalConferenceStandings(userId);
+  // REGULAR-SEASON results -- only wipe it when one of those actually
+  // changed, not when a Week 16 (conference championship) game is edited.
+  // Week 16 is downstream of the standings, not an input to them, so
+  // editing it must never clear the very order that derived it -- doing
+  // so was letting Week 16 quietly fall back to the live/naive ordering
+  // (which ignores head-to-head) the moment a user saved a prediction on
+  // one of its own games.
+  if (game && game.week !== 16) {
+    await clearFinalConferenceStandings(userId);
+  }
 }
 
 export async function savePrediction(
