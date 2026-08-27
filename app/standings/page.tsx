@@ -41,6 +41,27 @@ function tiebreakExplanations(
   });
 }
 
+/**
+ * Deliberately a native `title` rather than the popup <Tooltip>: an
+ * absolutely-positioned popup still contributes to its scroll container's
+ * overflow area even while invisible, so a tooltip on a row near the
+ * bottom of a table was adding a stray scrollbar to whichever conferences
+ * happened to have a tie down there. A title attribute has no layout box
+ * at all.
+ */
+function TiebreakNote({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      tabIndex={0}
+      className="inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-line-strong text-[10px] leading-none font-bold text-ink-muted hover:border-accent hover:text-accent-strong focus:border-accent focus:text-accent-strong focus:outline-none"
+    >
+      ?
+    </span>
+  );
+}
+
 function StandingsTable({
   rows,
   teamById,
@@ -52,8 +73,12 @@ function StandingsTable({
   highlightTop: number;
   explanations?: (string | null)[];
 }) {
+  // overflow-hidden rather than overflow-x-auto: the table is six narrow
+  // columns and shrinks to fit on its own, so the scrollbar was pure noise.
+  // Overflow is still needed here so the rounded corners clip the first and
+  // last table rows.
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
+    <div className="overflow-hidden rounded-lg border border-line">
       <table className="w-full text-sm">
         <thead className="bg-surface-2 text-ink-muted">
           <tr>
@@ -84,7 +109,7 @@ function StandingsTable({
                     size={20}
                   />
                   {row.team}
-                  {explanations?.[i] ? <Tooltip text={explanations[i]!} /> : null}
+                  {explanations?.[i] ? <TiebreakNote text={explanations[i]!} /> : null}
                 </span>
               </td>
               <td className="px-3 py-2 text-right">{row.wins}</td>
