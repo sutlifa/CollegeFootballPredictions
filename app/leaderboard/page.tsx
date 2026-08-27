@@ -1,5 +1,5 @@
 import { Tooltip } from "@/components/Tooltip";
-import { sortLeaderboard } from "@/lib/leaderboard";
+import { hasGradedResults, sortLeaderboard } from "@/lib/leaderboard";
 import {
   getAllBracketPicks,
   getAllConferenceTitlePicks,
@@ -38,6 +38,10 @@ export default async function LeaderboardPage() {
     getRealNationalChampion(),
   ]);
   const sortedRows = sortLeaderboard(rows);
+  // Before any real result exists there is nothing to be "correct" about, so
+  // the scoring columns would just be a wall of 0.0% -- the board shows how
+  // far along everyone's picks are instead until the first game is graded.
+  const seasonStarted = hasGradedResults(rows);
 
   const hasBonusData =
     realConferenceResults.length > 0 ||
@@ -96,34 +100,48 @@ export default async function LeaderboardPage() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           Leaderboard
-          <Tooltip text="Everyone who's signed in and made at least one prediction with a real result to compare against. Sorted by correct-pick percentage first, then by average margin error (lower is better) as the tiebreaker. Only first name + last initial are shown -- no one else's picks are visible, just these two stats." />
+          <Tooltip text="Everyone who's signed in. Picked shows how much of your slate you've filled in (your own Week 16 championship games count toward your total, so the denominator can differ slightly between people). Once real results start coming in, everyone with games to be scored on moves to the top, sorted by correct-pick percentage and then by average margin error (lower is better) as the tiebreaker. Only first name + last initial are shown -- no one else's picks are visible, just these stats." />
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Correct-winner percentage and average margin error, across every
-          signed-in predictor -- updates daily as real results come in.
+          {seasonStarted
+            ? "Correct-winner percentage and average margin error, across every signed-in predictor -- updates daily as real results come in."
+            : "The season hasn't started, so there's nothing to score yet -- this shows how far along everyone's picks are. Correct-pick standings take over once real results start coming in."}
         </p>
       </div>
 
       {sortedRows.length === 0 ? (
         <p className="text-ink-muted">
-          No completed games yet -- check back once the season is underway.
+          No one has signed in yet.
         </p>
       ) : (
-        /* On phones the two rawest columns (Picks, Avg margin error) drop out
-           and "Correct" carries the count as "12/20" instead, so the table
-           fits without sideways scrolling. */
+        /* Picked (how much of the slate is filled in) is always shown -- it's
+           the whole board before the season starts. The scoring columns only
+           appear once something has actually been graded; until then they'd
+           be a wall of zeroes. On phones the rawest columns drop out and fold
+           into the cells that remain, so the table fits without sideways
+           scrolling. */
         <div className="rounded-lg border border-line">
           <table className="w-full text-sm">
             <thead className="bg-surface-2 text-ink-muted">
               <tr>
                 <th className="px-2 py-2 text-right sm:px-3">#</th>
                 <th className="px-2 py-2 text-left sm:px-3">Name</th>
-                <th className="px-2 py-2 text-right sm:px-3">Correct</th>
-                <th className="hidden px-3 py-2 text-right sm:table-cell">Picks</th>
-                <th className="px-2 py-2 text-right sm:px-3">Correct %</th>
+                <th className="px-2 py-2 text-right sm:px-3">Picked</th>
                 <th className="hidden px-3 py-2 text-right sm:table-cell">
-                  Avg margin error
+                  Games picked
                 </th>
+                {seasonStarted && (
+                  <>
+                    <th className="px-2 py-2 text-right sm:px-3">Correct</th>
+                    <th className="hidden px-3 py-2 text-right sm:table-cell">
+                      Scored
+                    </th>
+                    <th className="px-2 py-2 text-right sm:px-3">Correct %</th>
+                    <th className="hidden px-3 py-2 text-right sm:table-cell">
+                      Avg margin error
+                    </th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -138,29 +156,48 @@ export default async function LeaderboardPage() {
                   <td className="px-2 py-2 font-medium sm:px-3">
                     <span className="block leading-tight">{row.displayName}</span>
                     <span className="block text-xs leading-tight text-ink-muted sm:hidden">
-                      avg margin err{" "}
-                      {row.avgMarginDiff !== null
-                        ? row.avgMarginDiff.toFixed(1)
-                        : "--"}
+                      {row.picksMade} of {row.gamesAvailable} games
+                      {seasonStarted && (
+                        <>
+                          {" "}
+                          &middot; avg margin err{" "}
+                          {row.avgMarginDiff !== null
+                            ? row.avgMarginDiff.toFixed(1)
+                            : "--"}
+                        </>
+                      )}
                     </span>
-                  </td>
-                  <td className="px-2 py-2 text-right sm:px-3">
-                    {row.correctPicks}
-                    <span className="text-ink-muted sm:hidden">
-                      /{row.totalPicks}
-                    </span>
-                  </td>
-                  <td className="hidden px-3 py-2 text-right sm:table-cell">
-                    {row.totalPicks}
                   </td>
                   <td className="px-2 py-2 text-right font-mono sm:px-3">
-                    {(row.correctPct * 100).toFixed(1)}%
+                    {(row.pickedPct * 100).toFixed(1)}%
                   </td>
-                  <td className="hidden px-3 py-2 text-right font-mono sm:table-cell">
-                    {row.avgMarginDiff !== null
-                      ? row.avgMarginDiff.toFixed(1)
-                      : "--"}
+                  <td className="hidden px-3 py-2 text-right sm:table-cell">
+                    {row.picksMade}
+                    <span className="text-ink-muted">/{row.gamesAvailable}</span>
                   </td>
+                  {seasonStarted && (
+                    <>
+                      <td className="px-2 py-2 text-right sm:px-3">
+                        {row.correctPicks}
+                        <span className="text-ink-muted sm:hidden">
+                          /{row.totalPicks}
+                        </span>
+                      </td>
+                      <td className="hidden px-3 py-2 text-right sm:table-cell">
+                        {row.totalPicks}
+                      </td>
+                      <td className="px-2 py-2 text-right font-mono sm:px-3">
+                        {row.totalPicks > 0
+                          ? `${(row.correctPct * 100).toFixed(1)}%`
+                          : "--"}
+                      </td>
+                      <td className="hidden px-3 py-2 text-right font-mono sm:table-cell">
+                        {row.avgMarginDiff !== null
+                          ? row.avgMarginDiff.toFixed(1)
+                          : "--"}
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

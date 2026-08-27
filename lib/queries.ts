@@ -383,24 +383,56 @@ type LeaderboardQueryRow = {
   user_id: number;
   name: string | null;
   email: string;
-  total_picks: string; // bigint from Postgres COUNT(*)
+  picks_made: string; // bigint from Postgres COUNT(*)
+  games_available: string;
+  total_picks: string;
   correct_picks: string;
   avg_margin_diff: string | null;
 };
 
 /**
- * One row per user who has predicted at least one game with a real result
- * in -- signed in via Google (the only auth path) is implied by having a
- * users row at all, so this naturally only surfaces people who've actually
- * filled out predictions. Margin diff is |predicted margin - actual margin|
- * (both computed team1-relative, so the sign is self-consistent regardless
- * of which team was picked), averaged over CORRECT picks only.
+ * One row per signed-in user -- EVERY user, not just those with results to
+ * be scored on. Before the season starts nothing has a real result yet, so
+ * a results-only leaderboard would simply be empty; instead each user shows
+ * how much of their slate they've filled in (picks_made / games_available),
+ * which is the only meaningful preseason standing.
+ *
+ * games_available is per-user on purpose: the schedule is shared for weeks
+ * 0-15, but each user gets their OWN Week 16 rows (their predicted
+ * conference championships), so the denominator differs between users
+ * depending on how many championship matchups their predictions have
+ * produced so far.
+ *
+ * Margin diff is |predicted margin - actual margin| (both computed
+ * team1-relative, so the sign is self-consistent regardless of which team
+ * was picked), averaged over CORRECT picks only.
  */
 export async function getLeaderboard(
   season = SEASON,
 ): Promise<LeaderboardRow[]> {
   const rows = await sql<LeaderboardQueryRow[]>`
-    WITH scored AS (
+    WITH shared_games AS (
+      SELECT COUNT(*) AS n
+      FROM games
+      WHERE season = ${season} AND user_id IS NULL AND week <> 16
+    ),
+    per_user_games AS (
+      SELECT
+        u.id AS user_id,
+        (SELECT n FROM shared_games) + COUNT(g.id) AS games_available
+      FROM users u
+      LEFT JOIN games g
+        ON g.user_id = u.id AND g.season = ${season}
+      GROUP BY u.id
+    ),
+    picks AS (
+      SELECT p.user_id, COUNT(*) AS picks_made
+      FROM predictions p
+      JOIN games g ON g.id = p.game_id
+      WHERE g.season = ${season}
+      GROUP BY p.user_id
+    ),
+    scored AS (
       SELECT
         p.user_id,
         (p.predicted_score_team1 > p.predicted_score_team2)
@@ -414,25 +446,42 @@ export async function getLeaderboard(
       WHERE g.season = ${season}
         AND g.actual_score_team1 IS NOT NULL
         AND g.actual_score_team2 IS NOT NULL
+    ),
+    scored_agg AS (
+      SELECT
+        user_id,
+        COUNT(*) AS total_picks,
+        COUNT(*) FILTER (WHERE is_correct) AS correct_picks,
+        AVG(margin_diff) FILTER (WHERE is_correct) AS avg_margin_diff
+      FROM scored
+      GROUP BY user_id
     )
     SELECT
       u.id AS user_id,
       u.name,
       u.email,
-      COUNT(*) AS total_picks,
-      COUNT(*) FILTER (WHERE s.is_correct) AS correct_picks,
-      AVG(s.margin_diff) FILTER (WHERE s.is_correct) AS avg_margin_diff
-    FROM scored s
-    JOIN users u ON u.id = s.user_id
-    GROUP BY u.id, u.name, u.email
+      COALESCE(pk.picks_made, 0) AS picks_made,
+      COALESCE(pug.games_available, 0) AS games_available,
+      COALESCE(sa.total_picks, 0) AS total_picks,
+      COALESCE(sa.correct_picks, 0) AS correct_picks,
+      sa.avg_margin_diff
+    FROM users u
+    LEFT JOIN per_user_games pug ON pug.user_id = u.id
+    LEFT JOIN picks pk ON pk.user_id = u.id
+    LEFT JOIN scored_agg sa ON sa.user_id = u.id
   `;
 
   return rows.map((row) => {
     const totalPicks = Number(row.total_picks);
     const correctPicks = Number(row.correct_picks);
+    const picksMade = Number(row.picks_made);
+    const gamesAvailable = Number(row.games_available);
     return {
       userId: row.user_id,
       displayName: formatDisplayName(row.name, row.email),
+      picksMade,
+      gamesAvailable,
+      pickedPct: gamesAvailable > 0 ? picksMade / gamesAvailable : 0,
       totalPicks,
       correctPicks,
       correctPct: totalPicks > 0 ? correctPicks / totalPicks : 0,
