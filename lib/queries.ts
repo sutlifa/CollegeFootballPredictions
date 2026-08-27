@@ -166,12 +166,60 @@ async function unsubmitWeekForGame(userId: number, gameId: number): Promise<void
   }
 }
 
+/**
+ * When a week's picks freeze: the kickoff of the FIRST game that week --
+ * usually a Wednesday or Thursday night game. Same idea as a fantasy
+ * lineup locking when the week starts; once any game is underway you
+ * can't still be editing that week's picks.
+ *
+ * Null when nothing in the week has a kickoff time yet. That's the case
+ * for Week 16, whose per-user conference championship rows are derived
+ * rather than pulled from the schedule -- those games instead lock
+ * individually once a real result lands (see GamePicker's `isFinal`).
+ */
+export async function getWeekLocksAt(
+  week: number,
+  season = SEASON,
+): Promise<Date | null> {
+  const [row] = await sql<{ locks_at: Date | null }[]>`
+    SELECT MIN(kickoff_at) AS locks_at
+    FROM games
+    WHERE season = ${season} AND week = ${week} AND kickoff_at IS NOT NULL
+  `;
+  return row?.locks_at ? new Date(row.locks_at) : null;
+}
+
+export async function isWeekLocked(
+  week: number,
+  season = SEASON,
+): Promise<boolean> {
+  const locksAt = await getWeekLocksAt(week, season);
+  return locksAt !== null && locksAt.getTime() <= Date.now();
+}
+
+/** Throws if this game's week has already kicked off. */
+async function assertWeekOpen(gameId: number): Promise<void> {
+  const [row] = await sql<{ week: number; season: number }[]>`
+    SELECT week, season FROM games WHERE id = ${gameId}
+  `;
+  if (!row) throw new Error("Unknown game");
+  if (await isWeekLocked(row.week, row.season)) {
+    throw new Error(
+      "This week is locked -- its first game has already kicked off, so picks can no longer be changed.",
+    );
+  }
+}
+
 export async function savePrediction(
   userId: number,
   gameId: number,
   winnerTeamId: number,
   marginBucket: MarginBucketId,
 ): Promise<void> {
+  // Enforced on the server, not just by disabling the buttons -- otherwise
+  // a stale page or a hand-rolled form post could still write after lock.
+  await assertWeekOpen(gameId);
+
   // The winner has to be one of the two teams actually in this game --
   // guards against a tampered form post writing a nonsense pick.
   const [game] = await sql<{ team1_id: number; team2_id: number }[]>`
@@ -197,6 +245,7 @@ export async function clearPrediction(
   userId: number,
   gameId: number,
 ): Promise<void> {
+  await assertWeekOpen(gameId);
   await sql`DELETE FROM predictions WHERE user_id = ${userId} AND game_id = ${gameId}`;
   await unsubmitWeekForGame(userId, gameId);
 }

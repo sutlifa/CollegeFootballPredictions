@@ -10,7 +10,12 @@ import {
   VALID_WEEKS,
 } from "@/lib/format";
 import { isMarginBucketId } from "@/lib/margin";
-import { getAllTeams, getGamesForWeek, isWeekSubmitted } from "@/lib/queries";
+import {
+  getAllTeams,
+  getGamesForWeek,
+  getWeekLocksAt,
+  isWeekSubmitted,
+} from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName, isDecided } from "@/lib/types";
 import {
@@ -44,12 +49,16 @@ export default async function WeekPage({
     await syncWeek16Games(userId);
   }
 
-  const [teams, games] = await Promise.all([
+  const [teams, games, weekLocksAt] = await Promise.all([
     getAllTeams(),
     getGamesForWeek(week, userId),
+    getWeekLocksAt(week),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const allDecided = games.length > 0 && games.every(isDecided);
+  // Picks freeze when the week's first game kicks off, the way a fantasy
+  // lineup locks once the week starts.
+  const weekLocked = weekLocksAt !== null && weekLocksAt.getTime() <= Date.now();
 
   const weekIndex = VALID_WEEKS.indexOf(week);
   const prevWeek = weekIndex > 0 ? VALID_WEEKS[weekIndex - 1] : null;
@@ -85,7 +94,7 @@ export default async function WeekPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           {getWeekLabel(week)}
-          <Tooltip text="The home team comes first -- on the left on a wide screen, on the top line on a phone. A neutral-site game is marked N and gets no home-field boost. Enter your predicted final score for both teams, then hit Save (Clear removes a prediction). Once every game this week has one, Submit Week Results unlocks -- nothing counts toward Computer Rankings or the Bracket until you submit." />
+          <Tooltip text="The home team comes first -- on the left on a wide screen, on the top line on a phone. A neutral-site game is marked N and gets no home-field boost. Tap the margin you expect beside a team to pick that team to win by that much; it saves on the spot, and Clear removes the pick. Picks for a week freeze once that week's first game kicks off, so get them in beforehand. Once every game this week has a pick, Submit Week Results unlocks -- nothing counts toward Computer Rankings or the Bracket until you submit." />
         </h1>
         {allDecided && (
           <div className="flex items-center gap-3">
@@ -106,12 +115,29 @@ export default async function WeekPage({
           </div>
         )}
       </div>
-      {!allDecided && (
-        <p className="text-sm text-ink-muted">
-          Predict every game this week to unlock{" "}
-          <span className="font-semibold text-ink">Submit Week Results</span>{" "}
-          -- nothing counts toward Computer Rankings until you submit.
+      {weekLocked ? (
+        <p className="rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink-soft">
+          <span className="font-semibold text-ink">This week is locked.</span>{" "}
+          Its first game kicked off {formatKickoff(weekLocksAt!.toISOString())},
+          so picks can no longer be added or changed -- same as a fantasy
+          lineup locking when the week starts.
         </p>
+      ) : (
+        <>
+          {weekLocksAt && (
+            <p className="text-sm text-ink-muted">
+              Picks lock {formatKickoff(weekLocksAt.toISOString())}, when this
+              week&apos;s first game kicks off.
+            </p>
+          )}
+          {!allDecided && (
+            <p className="text-sm text-ink-muted">
+              Predict every game this week to unlock{" "}
+              <span className="font-semibold text-ink">Submit Week Results</span>{" "}
+              -- nothing counts toward Computer Rankings until you submit.
+            </p>
+          )}
+        </>
       )}
 
       {week === 16 && (
@@ -156,6 +182,7 @@ export default async function WeekPage({
                   displayName: displayTeamName(team2),
                   logoUrl: team2?.logoUrl ?? null,
                 }}
+                locked={weekLocked}
                 actualScoreTeam1={game.actualScoreTeam1}
                 actualScoreTeam2={game.actualScoreTeam2}
                 initialWinnerTeamId={game.predictedWinnerTeamId}

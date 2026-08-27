@@ -20,6 +20,8 @@ type Props = {
   team2: TeamInfo;
   initialWinnerTeamId: number | null;
   initialMarginBucket: MarginBucketId | null;
+  /** True once this week has kicked off -- picks are frozen for the week. */
+  locked: boolean;
   /** Real result, once it exists. Both null until the game is played. */
   actualScoreTeam1: number | null;
   actualScoreTeam2: number | null;
@@ -55,6 +57,7 @@ export function GamePicker({
   team2,
   initialWinnerTeamId,
   initialMarginBucket,
+  locked,
   actualScoreTeam1,
   actualScoreTeam2,
   saveAction,
@@ -84,8 +87,10 @@ export function GamePicker({
   const scoreFor = (team: TeamInfo) =>
     team.id === team1.id ? actualScoreTeam1 : actualScoreTeam2;
 
+  const frozen = locked || isFinal;
+
   function pick(teamId: number, bucket: MarginBucketId) {
-    if (isFinal) return;
+    if (frozen) return;
     setWinnerTeamId(teamId);
     setMarginBucket(bucket);
     // Let React commit the hidden inputs before the form serializes them.
@@ -127,7 +132,7 @@ export function GamePicker({
             key={bucket.id}
             type="button"
             onClick={() => pick(team.id, bucket.id)}
-            disabled={isFinal}
+            disabled={frozen}
             aria-pressed={picked}
             title={
               isFinal
@@ -135,7 +140,7 @@ export function GamePicker({
                 : `${team.displayName} wins by ${bucket.label} (${bucket.name})`
             }
             className={`flex-1 rounded-md border px-2 py-3 text-center text-xs font-semibold transition-colors sm:py-2.5 ${
-              isFinal ? "cursor-default" : "cursor-pointer"
+              frozen ? "cursor-default" : "cursor-pointer"
             } ${tone}`}
           >
             {bucket.label}
@@ -231,7 +236,7 @@ export function GamePicker({
           <span className="ml-auto text-[11px] text-ink-muted">No pick</span>
         )}
 
-        {!isFinal && complete && (
+        {!frozen && complete && (
           <>
             <span className="ml-auto text-[11px] font-medium text-win">Saved</span>
             <button
