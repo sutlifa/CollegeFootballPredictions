@@ -57,14 +57,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS games_peruser_unique
 CREATE INDEX IF NOT EXISTS games_week_idx ON games (season, week);
 CREATE INDEX IF NOT EXISTS games_user_idx ON games (user_id);
 
+-- A prediction is "who wins, and by roughly how much" -- a winner plus one
+-- of four margin buckets (see lib/margin.ts), not an exact final score.
+-- Exact scores were the original input and turned out to be far too much
+-- work to enter for a whole season; nothing downstream ever used the raw
+-- points anyway, only the margin between them.
 CREATE TABLE IF NOT EXISTS predictions (
-  id                     SERIAL PRIMARY KEY,
-  user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  game_id                INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  predicted_score_team1  INTEGER NOT NULL,
-  predicted_score_team2  INTEGER NOT NULL,
-  created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  id              SERIAL PRIMARY KEY,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  game_id         INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  winner_team_id  INTEGER NOT NULL REFERENCES teams(id),
+  margin_bucket   SMALLINT NOT NULL CHECK (margin_bucket BETWEEN 0 AND 3),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (user_id, game_id)
 );
 

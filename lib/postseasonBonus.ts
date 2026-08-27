@@ -32,8 +32,7 @@ export type UserConferencePick = {
   conference: string;
   team1Id: number;
   team2Id: number;
-  predictedScoreTeam1: number | null;
-  predictedScoreTeam2: number | null;
+  predictedWinnerTeamId: number | null;
 };
 
 export function scoreConferenceTitleBonus(
@@ -52,14 +51,9 @@ export function scoreConferenceTitleBonus(
         pickedPair.has(real.championTeamId) &&
         pickedPair.has(real.runnerUpTeamId);
 
-      const hasWinnerPick =
-        pick.predictedScoreTeam1 !== null && pick.predictedScoreTeam2 !== null;
-      const pickedWinnerId = hasWinnerPick
-        ? pick.predictedScoreTeam1! > pick.predictedScoreTeam2!
-          ? pick.team1Id
-          : pick.team2Id
-        : null;
-      const championCorrect = pickedWinnerId === real.championTeamId;
+      const championCorrect =
+        pick.predictedWinnerTeamId !== null &&
+        pick.predictedWinnerTeamId === real.championTeamId;
 
       const points =
         (matchupCorrect ? CONFERENCE_MATCHUP_POINTS : 0) +

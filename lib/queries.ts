@@ -1,6 +1,11 @@
 import { conferenceDivisionKey } from "./conferences";
 import { sql } from "./db";
 import { formatDisplayName, type LeaderboardRow } from "./leaderboard";
+import {
+  isMarginBucketId,
+  representativeScores,
+  type MarginBucketId,
+} from "./margin";
 import type { Game, GameStatus, Team } from "./types";
 
 const SEASON = 2026;
@@ -40,13 +45,25 @@ type GameRow = {
   is_conference_championship: boolean;
   kickoff_at: string | null;
   status: GameStatus;
-  predicted_score_team1: number | null;
-  predicted_score_team2: number | null;
+  winner_team_id: number | null;
+  margin_bucket: number | null;
   actual_score_team1: number | null;
   actual_score_team2: number | null;
 };
 
 function mapGame(row: GameRow): Game {
+  // Turn the stored pick (winner + margin bucket) into the score pair the
+  // rest of the app reasons about. Only the difference matters -- see the
+  // note on Game.predictedScoreTeam1 in lib/types.ts.
+  let predictedScoreTeam1: number | null = null;
+  let predictedScoreTeam2: number | null = null;
+  if (row.winner_team_id !== null && row.margin_bucket !== null && isMarginBucketId(row.margin_bucket)) {
+    const { winner, loser } = representativeScores(row.margin_bucket);
+    const team1Won = row.winner_team_id === row.team1_id;
+    predictedScoreTeam1 = team1Won ? winner : loser;
+    predictedScoreTeam2 = team1Won ? loser : winner;
+  }
+
   return {
     id: row.id,
     cfbdGameId: row.cfbd_game_id,
@@ -60,8 +77,10 @@ function mapGame(row: GameRow): Game {
     isConferenceChampionship: row.is_conference_championship,
     kickoffAt: row.kickoff_at,
     status: row.status,
-    predictedScoreTeam1: row.predicted_score_team1,
-    predictedScoreTeam2: row.predicted_score_team2,
+    predictedWinnerTeamId: row.winner_team_id,
+    predictedMarginBucket: row.margin_bucket,
+    predictedScoreTeam1,
+    predictedScoreTeam2,
     actualScoreTeam1: row.actual_score_team1,
     actualScoreTeam2: row.actual_score_team2,
   };
@@ -81,7 +100,7 @@ export async function getAllGames(
   season = SEASON,
 ): Promise<Game[]> {
   const rows = await sql<GameRow[]>`
-    SELECT g.*, p.predicted_score_team1, p.predicted_score_team2
+    SELECT g.*, p.winner_team_id, p.margin_bucket
     FROM games g
     LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
     WHERE g.season = ${season} AND (g.user_id IS NULL OR g.user_id = ${userId})
@@ -96,7 +115,7 @@ export async function getGamesForWeek(
   season = SEASON,
 ): Promise<Game[]> {
   const rows = await sql<GameRow[]>`
-    SELECT g.*, p.predicted_score_team1, p.predicted_score_team2
+    SELECT g.*, p.winner_team_id, p.margin_bucket
     FROM games g
     LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
     WHERE g.season = ${season} AND g.week = ${week}
@@ -112,7 +131,7 @@ export async function getGamesForWeeks(
   season = SEASON,
 ): Promise<Game[]> {
   const rows = await sql<GameRow[]>`
-    SELECT g.*, p.predicted_score_team1, p.predicted_score_team2
+    SELECT g.*, p.winner_team_id, p.margin_bucket
     FROM games g
     LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
     WHERE g.season = ${season} AND g.week = ANY(${weeks})
@@ -150,18 +169,25 @@ async function unsubmitWeekForGame(userId: number, gameId: number): Promise<void
 export async function savePrediction(
   userId: number,
   gameId: number,
-  score1: number,
-  score2: number,
+  winnerTeamId: number,
+  marginBucket: MarginBucketId,
 ): Promise<void> {
-  if (score1 === score2) {
-    throw new Error("Predicted scores cannot be tied");
+  // The winner has to be one of the two teams actually in this game --
+  // guards against a tampered form post writing a nonsense pick.
+  const [game] = await sql<{ team1_id: number; team2_id: number }[]>`
+    SELECT team1_id, team2_id FROM games WHERE id = ${gameId}
+  `;
+  if (!game) throw new Error("Unknown game");
+  if (winnerTeamId !== game.team1_id && winnerTeamId !== game.team2_id) {
+    throw new Error("Winner must be one of the two teams in this game");
   }
+
   await sql`
-    INSERT INTO predictions (user_id, game_id, predicted_score_team1, predicted_score_team2)
-    VALUES (${userId}, ${gameId}, ${score1}, ${score2})
+    INSERT INTO predictions (user_id, game_id, winner_team_id, margin_bucket)
+    VALUES (${userId}, ${gameId}, ${winnerTeamId}, ${marginBucket})
     ON CONFLICT (user_id, game_id) DO UPDATE SET
-      predicted_score_team1 = EXCLUDED.predicted_score_team1,
-      predicted_score_team2 = EXCLUDED.predicted_score_team2,
+      winner_team_id = EXCLUDED.winner_team_id,
+      margin_bucket = EXCLUDED.margin_bucket,
       updated_at = now()
   `;
   await unsubmitWeekForGame(userId, gameId);
@@ -387,7 +413,7 @@ type LeaderboardQueryRow = {
   games_available: string;
   total_picks: string;
   correct_picks: string;
-  avg_margin_diff: string | null;
+  correct_margins: string;
 };
 
 /**
@@ -435,24 +461,33 @@ export async function getLeaderboard(
     scored AS (
       SELECT
         p.user_id,
-        (p.predicted_score_team1 > p.predicted_score_team2)
-          = (g.actual_score_team1 > g.actual_score_team2) AS is_correct,
-        ABS(
-          (p.predicted_score_team1 - p.predicted_score_team2)
-          - (g.actual_score_team1 - g.actual_score_team2)
-        ) AS margin_diff
+        p.winner_team_id = CASE
+          WHEN g.actual_score_team1 > g.actual_score_team2 THEN g.team1_id
+          ELSE g.team2_id
+        END AS winner_correct,
+        -- Same four buckets as lib/margin.ts, applied to the real margin.
+        p.margin_bucket = CASE
+          WHEN ABS(g.actual_score_team1 - g.actual_score_team2) <= 7 THEN 0
+          WHEN ABS(g.actual_score_team1 - g.actual_score_team2) <= 14 THEN 1
+          WHEN ABS(g.actual_score_team1 - g.actual_score_team2) <= 21 THEN 2
+          ELSE 3
+        END AS margin_correct
       FROM predictions p
       JOIN games g ON g.id = p.game_id
       WHERE g.season = ${season}
         AND g.actual_score_team1 IS NOT NULL
         AND g.actual_score_team2 IS NOT NULL
+        AND g.actual_score_team1 <> g.actual_score_team2
     ),
     scored_agg AS (
       SELECT
         user_id,
         COUNT(*) AS total_picks,
-        COUNT(*) FILTER (WHERE is_correct) AS correct_picks,
-        AVG(margin_diff) FILTER (WHERE is_correct) AS avg_margin_diff
+        COUNT(*) FILTER (WHERE winner_correct) AS correct_picks,
+        -- Margin accuracy is only asked about games whose winner was
+        -- already right: getting the margin "right" on a game you picked
+        -- the wrong way isn't worth crediting.
+        COUNT(*) FILTER (WHERE winner_correct AND margin_correct) AS correct_margins
       FROM scored
       GROUP BY user_id
     )
@@ -464,7 +499,7 @@ export async function getLeaderboard(
       COALESCE(pug.games_available, 0) AS games_available,
       COALESCE(sa.total_picks, 0) AS total_picks,
       COALESCE(sa.correct_picks, 0) AS correct_picks,
-      sa.avg_margin_diff
+      COALESCE(sa.correct_margins, 0) AS correct_margins
     FROM users u
     LEFT JOIN per_user_games pug ON pug.user_id = u.id
     LEFT JOIN picks pk ON pk.user_id = u.id
@@ -474,6 +509,7 @@ export async function getLeaderboard(
   return rows.map((row) => {
     const totalPicks = Number(row.total_picks);
     const correctPicks = Number(row.correct_picks);
+    const correctMargins = Number(row.correct_margins);
     const picksMade = Number(row.picks_made);
     const gamesAvailable = Number(row.games_available);
     return {
@@ -485,8 +521,8 @@ export async function getLeaderboard(
       totalPicks,
       correctPicks,
       correctPct: totalPicks > 0 ? correctPicks / totalPicks : 0,
-      avgMarginDiff:
-        row.avg_margin_diff !== null ? Number(row.avg_margin_diff) : null,
+      correctMargins,
+      marginPct: correctPicks > 0 ? correctMargins / correctPicks : 0,
     };
   });
 }
@@ -588,12 +624,11 @@ export async function getAllConferenceTitlePicks(
       conference: string;
       team1_id: number;
       team2_id: number;
-      predicted_score_team1: number | null;
-      predicted_score_team2: number | null;
+      winner_team_id: number | null;
     }[]
   >`
     SELECT u.id AS user_id, u.name, u.email, g.conference, g.team1_id, g.team2_id,
-           p.predicted_score_team1, p.predicted_score_team2
+           p.winner_team_id
     FROM games g
     JOIN users u ON u.id = g.user_id
     LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = g.user_id
@@ -615,8 +650,7 @@ export async function getAllConferenceTitlePicks(
       conference: row.conference,
       team1Id: row.team1_id,
       team2Id: row.team2_id,
-      predictedScoreTeam1: row.predicted_score_team1,
-      predictedScoreTeam2: row.predicted_score_team2,
+      predictedWinnerTeamId: row.winner_team_id,
     });
   }
   return Array.from(byUser.values());
@@ -626,10 +660,16 @@ export type UserBracketPickRow = {
   userId: number;
   displayName: string;
   teamIds: number[];
+  /**
+   * Whoever they had winning the four quarterfinals -- i.e. the four teams
+   * they have playing in the semifinals. Shorter than 4 if they haven't
+   * filled the bracket that far in yet.
+   */
+  finalFourTeamIds: number[];
   championPickTeamId: number | null;
 };
 
-/** Every signed-in user's confirmed 12-team field + champion pick (skips anyone who hasn't confirmed a field). */
+/** Every signed-in user's confirmed 12-team field, Final Four and champion pick (skips anyone who hasn't confirmed a field). */
 export async function getAllBracketPicks(
   season = SEASON,
 ): Promise<UserBracketPickRow[]> {
@@ -640,19 +680,28 @@ export async function getAllBracketPicks(
       email: string;
       team_ids: number[];
       champion_pick_team_id: number | null;
+      final_four_team_ids: number[] | null;
     }[]
   >`
-    SELECT u.id AS user_id, u.name, u.email, b.team_ids, p.team_id AS champion_pick_team_id
+    SELECT u.id AS user_id, u.name, u.email, b.team_ids,
+           champ.team_id AS champion_pick_team_id,
+           (
+             SELECT ARRAY_AGG(f.team_id ORDER BY f.slot)
+             FROM bracket_picks f
+             WHERE f.season = b.season AND f.user_id = b.user_id
+               AND f.slot IN ('qf_1', 'qf_2', 'qf_3', 'qf_4')
+           ) AS final_four_team_ids
     FROM bracket_field b
     JOIN users u ON u.id = b.user_id
-    LEFT JOIN bracket_picks p
-      ON p.season = b.season AND p.user_id = b.user_id AND p.slot = 'championship'
+    LEFT JOIN bracket_picks champ
+      ON champ.season = b.season AND champ.user_id = b.user_id AND champ.slot = 'championship'
     WHERE b.season = ${season}
   `;
   return rows.map((row) => ({
     userId: row.user_id,
     displayName: formatDisplayName(row.name, row.email),
     teamIds: row.team_ids,
+    finalFourTeamIds: row.final_four_team_ids ?? [],
     championPickTeamId: row.champion_pick_team_id,
   }));
 }

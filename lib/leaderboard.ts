@@ -8,9 +8,12 @@ export type LeaderboardRow = {
   pickedPct: number; // 0-1
   /** Of this user's picks, how many have a real result to score against yet. */
   totalPicks: number;
+  /** Games where they picked the winning team. */
   correctPicks: number;
-  correctPct: number; // 0-1
-  avgMarginDiff: number | null; // null if this user has zero correct picks yet
+  correctPct: number; // 0-1, out of totalPicks
+  /** Of the games they picked correctly, how many also landed the right margin bucket. */
+  correctMargins: number;
+  marginPct: number; // 0-1, out of correctPicks (not totalPicks)
 };
 
 /** True once at least one real result exists to score anyone against. */
@@ -38,8 +41,8 @@ export function formatDisplayName(
 
 /**
  * Anyone with real results to be scored on ranks above anyone without,
- * sorted by correct-pick percentage then average margin error (lower is
- * better). Users with nothing scored yet -- everyone, before the season
+ * sorted by correct-winner percentage and then by margin accuracy as the
+ * tiebreaker. Users with nothing scored yet -- everyone, before the season
  * starts -- fall below that and are ordered by how much of their slate
  * they've actually filled in, so the preseason board is a meaningful
  * "who's furthest along" list instead of an alphabetical list of zeroes.
@@ -56,14 +59,7 @@ export function sortLeaderboard(rows: LeaderboardRow[]): LeaderboardRow[] {
     }
 
     if (b.correctPct !== a.correctPct) return b.correctPct - a.correctPct;
-    if (a.avgMarginDiff === null && b.avgMarginDiff === null) {
-      return a.displayName.localeCompare(b.displayName);
-    }
-    if (a.avgMarginDiff === null) return 1;
-    if (b.avgMarginDiff === null) return -1;
-    if (a.avgMarginDiff !== b.avgMarginDiff) {
-      return a.avgMarginDiff - b.avgMarginDiff;
-    }
+    if (b.marginPct !== a.marginPct) return b.marginPct - a.marginPct;
     return a.displayName.localeCompare(b.displayName);
   });
 }

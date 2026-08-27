@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { TeamLogo } from "@/components/TeamLogo";
+import { GamePicker } from "@/components/GamePicker";
 import { Tooltip } from "@/components/Tooltip";
 import {
   formatKickoff,
@@ -9,6 +9,7 @@ import {
   isValidWeek,
   VALID_WEEKS,
 } from "@/lib/format";
+import { isMarginBucketId } from "@/lib/margin";
 import { getAllTeams, getGamesForWeek, isWeekSubmitted } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName, isDecided } from "@/lib/types";
@@ -129,123 +130,42 @@ export default async function WeekPage({
             : "No conference has a decided top two yet -- predict more of weeks 1-15."}
         </p>
       ) : (
-        /* Each game is one responsive grid, not a row inside a wide fixed-width
-           table -- the old layout had min-w-[860px] inside an overflow-x-auto
-           wrapper, which meant entering a score on a phone required scrolling
-           sideways for every single game. On small screens each game now
-           stacks: kickoff on its own line, then one line per team with that
-           team's score box beside it, then the buttons. From `sm` up it lays
-           back out as the original seven-column row. Both use the SAME inputs
-           (reordered with `order-*`), so there's no duplicate form state. */
+        /* Each game is a tap-to-pick card (components/GamePicker.tsx):
+           choose the winner, choose how big the win is, and it saves
+           itself. Replaced two number inputs per game -- entering exact
+           scores for a whole season was the single biggest reason people
+           bounced off the app. */
         <div className="space-y-2">
-          <div className="hidden px-3 pb-1 text-xs font-semibold tracking-wide text-ink-muted uppercase sm:grid sm:grid-cols-[10.5rem_minmax(0,1fr)_4.5rem_2.75rem_4.5rem_minmax(0,1fr)_auto] sm:items-center sm:gap-x-3">
-            <span>Kickoff (ET)</span>
-            <span className="text-right">Home</span>
-            <span className="text-center">Score</span>
-            <span />
-            <span className="text-center">Score</span>
-            <span>Away</span>
-            <span />
-          </div>
-
           {games.map((game) => {
-            const isNeutral = game.isNeutralSite || week === 16;
             const team1 = teamById.get(game.team1Id);
             const team2 = teamById.get(game.team2Id);
-            const hasPrediction =
-              game.predictedScoreTeam1 !== null &&
-              game.predictedScoreTeam2 !== null;
-
             return (
-              <form
+              <GamePicker
                 key={game.id}
-                action={savePredictionAction}
-                className="grid grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-x-3 gap-y-2 rounded-lg border border-line bg-surface px-3 py-3 odd:bg-surface/60 sm:grid-cols-[10.5rem_minmax(0,1fr)_4.5rem_2.75rem_4.5rem_minmax(0,1fr)_auto] sm:gap-y-0 sm:py-2.5"
-              >
-                <input type="hidden" name="gameId" value={game.id} />
-                <input type="hidden" name="week" value={week} />
-
-                <span className="order-1 col-span-2 flex items-center gap-2 text-xs text-ink-muted sm:col-span-1 sm:whitespace-nowrap">
-                  {formatKickoff(game.kickoffAt)}
-                  {isNeutral && (
-                    <span
-                      title="Neutral site -- no home-field advantage in the rankings math"
-                      className="rounded-full bg-neutral-site/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-neutral-site sm:hidden"
-                    >
-                      N
-                    </span>
-                  )}
-                </span>
-
-                {/* flex-row-reverse + justify-end puts the logo first and packs
-                    left on mobile; from sm it flips back to name-then-logo,
-                    right-aligned against the score box. */}
-                <span className="order-2 flex min-w-0 flex-row-reverse items-center justify-end gap-2 font-medium text-ink sm:flex-row sm:justify-end sm:text-right">
-                  <span className="truncate">{displayTeamName(team1)}</span>
-                  <TeamLogo logoUrl={team1?.logoUrl} name={team1?.name ?? ""} />
-                </span>
-
-                <input
-                  type="number"
-                  name="score1"
-                  min={0}
-                  inputMode="numeric"
-                  aria-label={`${displayTeamName(team1)} predicted score`}
-                  defaultValue={game.predictedScoreTeam1 ?? ""}
-                  className="order-3 w-full rounded border border-line-strong bg-field px-2 py-2 text-center text-ink sm:py-1"
-                  required
-                />
-
-                <span className="order-4 hidden justify-center sm:flex">
-                  {isNeutral ? (
-                    <span
-                      title="Neutral site -- no home-field advantage in the rankings math"
-                      className="rounded-full bg-neutral-site/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-neutral-site"
-                    >
-                      N
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold tracking-wide text-ink-muted">
-                      VS
-                    </span>
-                  )}
-                </span>
-
-                <input
-                  type="number"
-                  name="score2"
-                  min={0}
-                  inputMode="numeric"
-                  aria-label={`${displayTeamName(team2)} predicted score`}
-                  defaultValue={game.predictedScoreTeam2 ?? ""}
-                  className="order-5 w-full rounded border border-line-strong bg-field px-2 py-2 text-center text-ink sm:py-1"
-                  required
-                />
-
-                <span className="order-4 flex min-w-0 items-center gap-2 font-medium text-ink sm:order-6">
-                  <TeamLogo logoUrl={team2?.logoUrl} name={team2?.name ?? ""} />
-                  <span className="truncate">{displayTeamName(team2)}</span>
-                </span>
-
-                <span className="order-6 col-span-2 flex justify-end gap-2 sm:order-7 sm:col-span-1">
-                  <button
-                    type="submit"
-                    className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong sm:px-3 sm:py-1.5"
-                  >
-                    Save
-                  </button>
-                  {hasPrediction && (
-                    <button
-                      type="submit"
-                      formAction={clearPredictionAction}
-                      formNoValidate
-                      className="rounded border border-line-strong px-4 py-2 text-sm text-ink-soft hover:border-accent hover:text-accent-strong sm:px-3 sm:py-1.5"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </span>
-              </form>
+                gameId={game.id}
+                week={week}
+                kickoffLabel={formatKickoff(game.kickoffAt)}
+                isNeutral={game.isNeutralSite || week === 16}
+                team1={{
+                  id: game.team1Id,
+                  displayName: displayTeamName(team1),
+                  logoUrl: team1?.logoUrl ?? null,
+                }}
+                team2={{
+                  id: game.team2Id,
+                  displayName: displayTeamName(team2),
+                  logoUrl: team2?.logoUrl ?? null,
+                }}
+                initialWinnerTeamId={game.predictedWinnerTeamId}
+                initialMarginBucket={
+                  game.predictedMarginBucket !== null &&
+                  isMarginBucketId(game.predictedMarginBucket)
+                    ? game.predictedMarginBucket
+                    : null
+                }
+                saveAction={savePredictionAction}
+                clearAction={clearPredictionAction}
+              />
             );
           })}
         </div>

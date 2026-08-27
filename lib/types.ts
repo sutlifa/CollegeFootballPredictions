@@ -29,6 +29,17 @@ export type Game = {
   isConferenceChampionship: boolean;
   kickoffAt: string | null;
   status: GameStatus;
+  /** What the user actually picked: a winner and a margin bucket (lib/margin.ts). */
+  predictedWinnerTeamId: number | null;
+  predictedMarginBucket: number | null;
+  /**
+   * DERIVED from the pick above, not stored and not a claim about the real
+   * final score -- only the difference between the two carries meaning.
+   * Everything that reasons about a predicted result (standings, Computer
+   * Rankings' margin-of-victory term, conference tiebreakers, the bracket)
+   * works off this pair, so switching the input from exact scores to margin
+   * buckets didn't require rewriting any of that logic.
+   */
   predictedScoreTeam1: number | null;
   predictedScoreTeam2: number | null;
   actualScoreTeam1: number | null;

@@ -1,41 +1,21 @@
+import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
 import { hasGradedResults, sortLeaderboard } from "@/lib/leaderboard";
 import {
   getAllBracketPicks,
-  getAllConferenceTitlePicks,
+  getAllTeams,
   getLeaderboard,
-  getRealConferenceResults,
-  getRealNationalChampion,
   getRealPlayoffRounds,
 } from "@/lib/queries";
-import { scoreConferenceTitleBonus, scorePlayoffBonus } from "@/lib/postseasonBonus";
 
 export const dynamic = "force-dynamic";
 
-type BonusRow = {
-  userId: number;
-  displayName: string;
-  conferencePoints: number;
-  playoffPoints: number;
-  championPickCorrect: boolean;
-  totalPoints: number;
-};
-
 export default async function LeaderboardPage() {
-  const [
-    rows,
-    conferencePicksByUser,
-    bracketPicksByUser,
-    realConferenceResults,
-    realPlayoffRounds,
-    realNationalChampionTeamId,
-  ] = await Promise.all([
+  const [rows, bracketPicksByUser, realPlayoffRounds, teams] = await Promise.all([
     getLeaderboard(),
-    getAllConferenceTitlePicks(),
     getAllBracketPicks(),
-    getRealConferenceResults(),
     getRealPlayoffRounds(),
-    getRealNationalChampion(),
+    getAllTeams(),
   ]);
   const sortedRows = sortLeaderboard(rows);
   // Before any real result exists there is nothing to be "correct" about, so
@@ -43,76 +23,59 @@ export default async function LeaderboardPage() {
   // far along everyone's picks are instead until the first game is graded.
   const seasonStarted = hasGradedResults(rows);
 
-  const hasBonusData =
-    realConferenceResults.length > 0 ||
-    Object.keys(realPlayoffRounds).length > 0 ||
-    realNationalChampionTeamId !== null;
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const realField = realPlayoffRounds.field ?? null;
+  const realFieldSet = new Set(realField ?? []);
 
-  const bonusByUser = new Map<number, BonusRow>();
-  const getOrInit = (userId: number, displayName: string): BonusRow => {
-    let row = bonusByUser.get(userId);
-    if (!row) {
-      row = {
-        userId,
-        displayName,
-        conferencePoints: 0,
-        playoffPoints: 0,
-        championPickCorrect: false,
-        totalPoints: 0,
-      };
-      bonusByUser.set(userId, row);
-    }
-    return row;
+  const playoffRows = bracketPicksByUser
+    .map((user) => ({
+      ...user,
+      // How many of their 12 are in the real playoff field. Only meaningful
+      // once the real field has actually been entered.
+      fieldCorrect: realField
+        ? user.teamIds.filter((id) => realFieldSet.has(id)).length
+        : null,
+    }))
+    .sort((a, b) => {
+      if (a.fieldCorrect !== b.fieldCorrect) {
+        return (b.fieldCorrect ?? -1) - (a.fieldCorrect ?? -1);
+      }
+      return a.displayName.localeCompare(b.displayName);
+    });
+
+  const teamChip = (teamId: number, highlight: boolean) => {
+    const team = teamById.get(teamId);
+    return (
+      <span
+        key={teamId}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs ${
+          highlight
+            ? "border-win/60 bg-win/10 text-win"
+            : "border-line-strong bg-field text-ink-soft"
+        }`}
+      >
+        <TeamLogo logoUrl={team?.logoUrl ?? null} name={team?.name ?? ""} size={16} />
+        {team?.name ?? "Unknown"}
+      </span>
+    );
   };
-
-  for (const user of conferencePicksByUser) {
-    const conferenceBonus = scoreConferenceTitleBonus(
-      user.picks,
-      realConferenceResults,
-    );
-    const points = conferenceBonus.reduce((sum, r) => sum + r.points, 0);
-    if (points === 0) continue;
-    const row = getOrInit(user.userId, user.displayName);
-    row.conferencePoints += points;
-    row.totalPoints += points;
-  }
-
-  for (const user of bracketPicksByUser) {
-    const playoffBonus = scorePlayoffBonus(
-      user.teamIds,
-      user.championPickTeamId,
-      realPlayoffRounds,
-      realNationalChampionTeamId,
-    );
-    if (playoffBonus.totalPoints === 0) continue;
-    const row = getOrInit(user.userId, user.displayName);
-    row.playoffPoints += playoffBonus.totalPoints;
-    row.championPickCorrect = playoffBonus.championPickCorrect;
-    row.totalPoints += playoffBonus.totalPoints;
-  }
-
-  const bonusRows = Array.from(bonusByUser.values()).sort(
-    (a, b) => b.totalPoints - a.totalPoints,
-  );
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           Leaderboard
-          <Tooltip text="Everyone who's signed in. Picked shows how much of your slate you've filled in (your own Week 16 championship games count toward your total, so the denominator can differ slightly between people). Once real results start coming in, everyone with games to be scored on moves to the top, sorted by correct-pick percentage and then by average margin error (lower is better) as the tiebreaker. Only first name + last initial are shown -- no one else's picks are visible, just these stats." />
+          <Tooltip text="Everyone who's signed in. Picked shows how much of your slate you've filled in (your own Week 16 championship games count toward your total, so the denominator can differ slightly between people). Winners is the share of your graded picks where you had the right team. Margin is how often you also nailed the margin bucket (1-7, 8-14, 15-21, 22+) -- counted only on games you already picked the right winner for, since getting the margin 'right' on a game you picked backwards isn't worth anything. Only first name + last initial are shown; no one else's picks are visible." />
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
           {seasonStarted
-            ? "Correct-winner percentage and average margin error, across every signed-in predictor -- updates daily as real results come in."
-            : "The season hasn't started, so there's nothing to score yet -- this shows how far along everyone's picks are. Correct-pick standings take over once real results start coming in."}
+            ? "Correct winners and margin accuracy across every signed-in predictor -- updates daily as real results come in."
+            : "The season hasn't started, so there's nothing to score yet -- this shows how far along everyone's picks are. Winner and margin standings take over once real results start coming in."}
         </p>
       </div>
 
       {sortedRows.length === 0 ? (
-        <p className="text-ink-muted">
-          No one has signed in yet.
-        </p>
+        <p className="text-ink-muted">No one has signed in yet.</p>
       ) : (
         /* Picked (how much of the slate is filled in) is always shown -- it's
            the whole board before the season starts. The scoring columns only
@@ -132,13 +95,13 @@ export default async function LeaderboardPage() {
                 </th>
                 {seasonStarted && (
                   <>
-                    <th className="px-2 py-2 text-right sm:px-3">Correct</th>
+                    <th className="px-2 py-2 text-right sm:px-3">Winners</th>
                     <th className="hidden px-3 py-2 text-right sm:table-cell">
-                      Scored
+                      Correct / graded
                     </th>
-                    <th className="px-2 py-2 text-right sm:px-3">Correct %</th>
+                    <th className="px-2 py-2 text-right sm:px-3">Margin</th>
                     <th className="hidden px-3 py-2 text-right sm:table-cell">
-                      Avg margin error
+                      Margin hits
                     </th>
                   </>
                 )}
@@ -160,10 +123,7 @@ export default async function LeaderboardPage() {
                       {seasonStarted && (
                         <>
                           {" "}
-                          &middot; avg margin err{" "}
-                          {row.avgMarginDiff !== null
-                            ? row.avgMarginDiff.toFixed(1)
-                            : "--"}
+                          &middot; {row.correctPicks}/{row.totalPicks} right
                         </>
                       )}
                     </span>
@@ -177,24 +137,23 @@ export default async function LeaderboardPage() {
                   </td>
                   {seasonStarted && (
                     <>
-                      <td className="px-2 py-2 text-right sm:px-3">
-                        {row.correctPicks}
-                        <span className="text-ink-muted sm:hidden">
-                          /{row.totalPicks}
-                        </span>
-                      </td>
-                      <td className="hidden px-3 py-2 text-right sm:table-cell">
-                        {row.totalPicks}
-                      </td>
                       <td className="px-2 py-2 text-right font-mono sm:px-3">
                         {row.totalPicks > 0
                           ? `${(row.correctPct * 100).toFixed(1)}%`
                           : "--"}
                       </td>
-                      <td className="hidden px-3 py-2 text-right font-mono sm:table-cell">
-                        {row.avgMarginDiff !== null
-                          ? row.avgMarginDiff.toFixed(1)
+                      <td className="hidden px-3 py-2 text-right sm:table-cell">
+                        {row.correctPicks}
+                        <span className="text-ink-muted">/{row.totalPicks}</span>
+                      </td>
+                      <td className="px-2 py-2 text-right font-mono sm:px-3">
+                        {row.correctPicks > 0
+                          ? `${(row.marginPct * 100).toFixed(1)}%`
                           : "--"}
+                      </td>
+                      <td className="hidden px-3 py-2 text-right sm:table-cell">
+                        {row.correctMargins}
+                        <span className="text-ink-muted">/{row.correctPicks}</span>
                       </td>
                     </>
                   )}
@@ -207,83 +166,78 @@ export default async function LeaderboardPage() {
 
       <div>
         <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
-          Postseason bonus
-          <Tooltip text="Extra points on top of the running leaderboard, once real conference championship and playoff results are known. Conference titles: +5 for picking both real finalists, +10 more for picking the real winner (per conference). Playoffs: points for each of your 12 picks still alive at each checkpoint (Round of 12/8/4/2), weighted higher for surviving further, plus a big bonus for correctly picking the national champion." />
+          Playoff picks
+          <Tooltip text="Everyone's hand-picked 12-team field, the four teams they have reaching the semifinals, and their national champion. Once the real playoff field is known, 'Field' scores how many of their 12 actually made it -- that's purely about the teams, not about predicting exact matchups. Teams that really did make the field are highlighted." />
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Only appears once conference championships and/or the playoff are
-          decided -- nothing to show yet during the regular season.
+          {realField
+            ? "Highlighted teams really did make the playoff field."
+            : "Scoring appears here once the real playoff field is entered."}
         </p>
       </div>
 
-      {!hasBonusData ? (
+      {playoffRows.length === 0 ? (
         <p className="text-ink-muted">
-          Not available yet -- checks back in once conference championships
-          and the playoff are decided.
-        </p>
-      ) : bonusRows.length === 0 ? (
-        <p className="text-ink-muted">
-          Results are in, but no one has any bonus points yet.
+          No one has confirmed a 12-team field yet -- see the Bracket page.
         </p>
       ) : (
-        /* Phones keep only rank / name / total; the conference and playoff
-           splits move under the name so the row still fits. */
-        <div className="rounded-lg border border-line">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-2 text-ink-muted">
-              <tr>
-                <th className="px-2 py-2 text-right sm:px-3">#</th>
-                <th className="px-2 py-2 text-left sm:px-3">Name</th>
-                <th className="hidden px-3 py-2 text-right sm:table-cell">
-                  Conf. bonus
-                </th>
-                <th className="hidden px-3 py-2 text-right sm:table-cell">
-                  Playoff bonus
-                </th>
-                <th className="hidden px-3 py-2 text-left sm:table-cell">
-                  Champion pick
-                </th>
-                <th className="px-2 py-2 text-right sm:px-3">Total bonus</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bonusRows.map((row, i) => (
-                <tr
-                  key={row.userId}
-                  className="border-t border-line bg-surface text-ink"
-                >
-                  <td className="px-2 py-2 text-right font-semibold text-accent-strong sm:px-3">
-                    {i + 1}
-                  </td>
-                  <td className="px-2 py-2 font-medium sm:px-3">
-                    <span className="block leading-tight">{row.displayName}</span>
-                    <span className="block text-xs leading-tight text-ink-muted sm:hidden">
-                      conf {row.conferencePoints} &middot; playoff{" "}
-                      {row.playoffPoints}
-                      {row.championPickCorrect && (
-                        <span className="font-semibold text-win">
-                          {" "}
-                          &middot; champion correct!
-                        </span>
+        <div className="space-y-3">
+          {playoffRows.map((user) => (
+            <div
+              key={user.userId}
+              className="rounded-lg border border-line bg-surface px-3 py-3"
+            >
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-semibold text-ink">{user.displayName}</span>
+                {user.fieldCorrect !== null && (
+                  <span className="text-sm text-ink-muted">
+                    Field:{" "}
+                    <span className="font-mono font-semibold text-win">
+                      {user.fieldCorrect}
+                    </span>
+                    <span className="text-ink-muted">
+                      /{user.teamIds.length} correct
+                    </span>
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  <span className="mb-1 block text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                    Final Four
+                  </span>
+                  {user.finalFourTeamIds.length === 0 ? (
+                    <span className="text-sm text-ink-muted">
+                      Bracket not filled out that far yet.
+                    </span>
+                  ) : (
+                    <span className="flex flex-wrap gap-1.5">
+                      {user.finalFourTeamIds.map((id) =>
+                        teamChip(id, realFieldSet.has(id)),
                       )}
                     </span>
-                  </td>
-                  <td className="hidden px-3 py-2 text-right sm:table-cell">
-                    {row.conferencePoints}
-                  </td>
-                  <td className="hidden px-3 py-2 text-right sm:table-cell">
-                    {row.playoffPoints}
-                  </td>
-                  <td className="hidden px-3 py-2 text-xs font-semibold text-win sm:table-cell">
-                    {row.championPickCorrect ? "Correct!" : ""}
-                  </td>
-                  <td className="px-2 py-2 text-right font-mono font-semibold sm:px-3">
-                    {row.totalPoints}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                </div>
+
+                <div>
+                  <span className="mb-1 block text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                    Champion
+                  </span>
+                  {user.championPickTeamId === null ? (
+                    <span className="text-sm text-ink-muted">
+                      No champion picked yet.
+                    </span>
+                  ) : (
+                    teamChip(
+                      user.championPickTeamId,
+                      realFieldSet.has(user.championPickTeamId),
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
