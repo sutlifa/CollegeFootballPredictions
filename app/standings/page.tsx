@@ -41,27 +41,6 @@ function tiebreakExplanations(
   });
 }
 
-/**
- * Deliberately a native `title` rather than the popup <Tooltip>: an
- * absolutely-positioned popup still contributes to its scroll container's
- * overflow area even while invisible, so a tooltip on a row near the
- * bottom of a table was adding a stray scrollbar to whichever conferences
- * happened to have a tie down there. A title attribute has no layout box
- * at all.
- */
-function TiebreakNote({ text }: { text: string }) {
-  return (
-    <span
-      title={text}
-      aria-label={text}
-      tabIndex={0}
-      className="inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-line-strong text-[10px] leading-none font-bold text-ink-muted hover:border-accent hover:text-accent-strong focus:border-accent focus:text-accent-strong focus:outline-none"
-    >
-      ?
-    </span>
-  );
-}
-
 function StandingsTable({
   rows,
   teamById,
@@ -73,35 +52,43 @@ function StandingsTable({
   highlightTop: number;
   explanations?: (string | null)[];
 }) {
-  // overflow-hidden rather than overflow-x-auto: the table is six narrow
-  // columns and shrinks to fit on its own, so the scrollbar was pure noise.
-  // Overflow is still needed here so the rounded corners clip the first and
-  // last table rows.
+  // No `overflow` on this wrapper at all -- deliberately. It isn't a scroll
+  // container, so it can't produce a scrollbar, and the tiebreak tooltips
+  // can hang outside it freely. (overflow-x-auto was the original bug: an
+  // absolutely-positioned tooltip still counts toward a scroll container's
+  // overflow area even while invisible, so any conference with a tie near
+  // the bottom of its table grew a stray scrollbar. overflow-hidden fixed
+  // the bar but clipped the tooltips instead.) Since nothing clips the
+  // table now, the rounded corners are applied to the corner cells
+  // themselves rather than to this wrapper.
+  const lastRow = rows.length - 1;
   return (
-    <div className="overflow-hidden rounded-lg border border-line">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-ink-muted">
+    <div className="rounded-lg border border-line">
+      <table className="w-full border-separate border-spacing-0 text-sm">
+        <thead className="text-ink-muted">
           <tr>
-            <th className="px-3 py-2 text-right">#</th>
-            <th className="px-3 py-2 text-left">Team</th>
-            <th className="px-3 py-2 text-right">W</th>
-            <th className="px-3 py-2 text-right">L</th>
-            <th className="px-3 py-2 text-right">Conf W</th>
-            <th className="px-3 py-2 text-right">Conf L</th>
+            <th className="rounded-tl-lg bg-surface-2 px-3 py-2 text-right">#</th>
+            <th className="bg-surface-2 px-3 py-2 text-left">Team</th>
+            <th className="bg-surface-2 px-3 py-2 text-right">W</th>
+            <th className="bg-surface-2 px-3 py-2 text-right">L</th>
+            <th className="bg-surface-2 px-3 py-2 text-right">Conf W</th>
+            <th className="rounded-tr-lg bg-surface-2 px-3 py-2 text-right">Conf L</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
             <tr
               key={row.teamId}
-              className={`border-t border-line bg-surface ${
-                i < highlightTop ? "bg-surface-2" : ""
-              }`}
+              className={i < highlightTop ? "bg-surface-2" : "bg-surface"}
             >
-              <td className="px-3 py-2 text-right font-semibold text-accent-strong">
+              <td
+                className={`border-t border-line px-3 py-2 text-right font-semibold text-accent-strong ${
+                  i === lastRow ? "rounded-bl-lg" : ""
+                }`}
+              >
                 {i + 1}
               </td>
-              <td className="px-3 py-2">
+              <td className="border-t border-line px-3 py-2">
                 <span className="flex items-center gap-2">
                   <TeamLogo
                     logoUrl={teamById.get(row.teamId)?.logoUrl ?? null}
@@ -109,13 +96,19 @@ function StandingsTable({
                     size={20}
                   />
                   {row.team}
-                  {explanations?.[i] ? <TiebreakNote text={explanations[i]!} /> : null}
+                  {explanations?.[i] ? <Tooltip text={explanations[i]!} /> : null}
                 </span>
               </td>
-              <td className="px-3 py-2 text-right">{row.wins}</td>
-              <td className="px-3 py-2 text-right">{row.losses}</td>
-              <td className="px-3 py-2 text-right">{row.confWins}</td>
-              <td className="px-3 py-2 text-right">{row.confLosses}</td>
+              <td className="border-t border-line px-3 py-2 text-right">{row.wins}</td>
+              <td className="border-t border-line px-3 py-2 text-right">{row.losses}</td>
+              <td className="border-t border-line px-3 py-2 text-right">{row.confWins}</td>
+              <td
+                className={`border-t border-line px-3 py-2 text-right ${
+                  i === lastRow ? "rounded-br-lg" : ""
+                }`}
+              >
+                {row.confLosses}
+              </td>
             </tr>
           ))}
         </tbody>
