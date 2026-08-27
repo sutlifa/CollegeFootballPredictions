@@ -109,16 +109,21 @@ export default async function LeaderboardPage() {
           No completed games yet -- check back once the season is underway.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line">
+        /* On phones the two rawest columns (Picks, Avg margin error) drop out
+           and "Correct" carries the count as "12/20" instead, so the table
+           fits without sideways scrolling. */
+        <div className="rounded-lg border border-line">
           <table className="w-full text-sm">
             <thead className="bg-surface-2 text-ink-muted">
               <tr>
-                <th className="px-3 py-2 text-right">#</th>
-                <th className="px-3 py-2 text-left">Name</th>
-                <th className="px-3 py-2 text-right">Correct</th>
-                <th className="px-3 py-2 text-right">Picks</th>
-                <th className="px-3 py-2 text-right">Correct %</th>
-                <th className="px-3 py-2 text-right">Avg margin error</th>
+                <th className="px-2 py-2 text-right sm:px-3">#</th>
+                <th className="px-2 py-2 text-left sm:px-3">Name</th>
+                <th className="px-2 py-2 text-right sm:px-3">Correct</th>
+                <th className="hidden px-3 py-2 text-right sm:table-cell">Picks</th>
+                <th className="px-2 py-2 text-right sm:px-3">Correct %</th>
+                <th className="hidden px-3 py-2 text-right sm:table-cell">
+                  Avg margin error
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -127,16 +132,31 @@ export default async function LeaderboardPage() {
                   key={row.userId}
                   className="border-t border-line bg-surface text-ink"
                 >
-                  <td className="px-3 py-2 text-right font-semibold text-accent-strong">
+                  <td className="px-2 py-2 text-right font-semibold text-accent-strong sm:px-3">
                     {i + 1}
                   </td>
-                  <td className="px-3 py-2 font-medium">{row.displayName}</td>
-                  <td className="px-3 py-2 text-right">{row.correctPicks}</td>
-                  <td className="px-3 py-2 text-right">{row.totalPicks}</td>
-                  <td className="px-3 py-2 text-right font-mono">
+                  <td className="px-2 py-2 font-medium sm:px-3">
+                    <span className="block leading-tight">{row.displayName}</span>
+                    <span className="block text-xs leading-tight text-ink-muted sm:hidden">
+                      avg margin err{" "}
+                      {row.avgMarginDiff !== null
+                        ? row.avgMarginDiff.toFixed(1)
+                        : "--"}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-right sm:px-3">
+                    {row.correctPicks}
+                    <span className="text-ink-muted sm:hidden">
+                      /{row.totalPicks}
+                    </span>
+                  </td>
+                  <td className="hidden px-3 py-2 text-right sm:table-cell">
+                    {row.totalPicks}
+                  </td>
+                  <td className="px-2 py-2 text-right font-mono sm:px-3">
                     {(row.correctPct * 100).toFixed(1)}%
                   </td>
-                  <td className="px-3 py-2 text-right font-mono">
+                  <td className="hidden px-3 py-2 text-right font-mono sm:table-cell">
                     {row.avgMarginDiff !== null
                       ? row.avgMarginDiff.toFixed(1)
                       : "--"}
@@ -169,16 +189,24 @@ export default async function LeaderboardPage() {
           Results are in, but no one has any bonus points yet.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line">
+        /* Phones keep only rank / name / total; the conference and playoff
+           splits move under the name so the row still fits. */
+        <div className="rounded-lg border border-line">
           <table className="w-full text-sm">
             <thead className="bg-surface-2 text-ink-muted">
               <tr>
-                <th className="px-3 py-2 text-right">#</th>
-                <th className="px-3 py-2 text-left">Name</th>
-                <th className="px-3 py-2 text-right">Conf. bonus</th>
-                <th className="px-3 py-2 text-right">Playoff bonus</th>
-                <th className="px-3 py-2 text-left">Champion pick</th>
-                <th className="px-3 py-2 text-right">Total bonus</th>
+                <th className="px-2 py-2 text-right sm:px-3">#</th>
+                <th className="px-2 py-2 text-left sm:px-3">Name</th>
+                <th className="hidden px-3 py-2 text-right sm:table-cell">
+                  Conf. bonus
+                </th>
+                <th className="hidden px-3 py-2 text-right sm:table-cell">
+                  Playoff bonus
+                </th>
+                <th className="hidden px-3 py-2 text-left sm:table-cell">
+                  Champion pick
+                </th>
+                <th className="px-2 py-2 text-right sm:px-3">Total bonus</th>
               </tr>
             </thead>
             <tbody>
@@ -187,20 +215,32 @@ export default async function LeaderboardPage() {
                   key={row.userId}
                   className="border-t border-line bg-surface text-ink"
                 >
-                  <td className="px-3 py-2 text-right font-semibold text-accent-strong">
+                  <td className="px-2 py-2 text-right font-semibold text-accent-strong sm:px-3">
                     {i + 1}
                   </td>
-                  <td className="px-3 py-2 font-medium">{row.displayName}</td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-2 py-2 font-medium sm:px-3">
+                    <span className="block leading-tight">{row.displayName}</span>
+                    <span className="block text-xs leading-tight text-ink-muted sm:hidden">
+                      conf {row.conferencePoints} &middot; playoff{" "}
+                      {row.playoffPoints}
+                      {row.championPickCorrect && (
+                        <span className="font-semibold text-win">
+                          {" "}
+                          &middot; champion correct!
+                        </span>
+                      )}
+                    </span>
+                  </td>
+                  <td className="hidden px-3 py-2 text-right sm:table-cell">
                     {row.conferencePoints}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="hidden px-3 py-2 text-right sm:table-cell">
                     {row.playoffPoints}
                   </td>
-                  <td className="px-3 py-2 text-xs font-semibold text-win">
+                  <td className="hidden px-3 py-2 text-xs font-semibold text-win sm:table-cell">
                     {row.championPickCorrect ? "Correct!" : ""}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono font-semibold">
+                  <td className="px-2 py-2 text-right font-mono font-semibold sm:px-3">
                     {row.totalPoints}
                   </td>
                 </tr>

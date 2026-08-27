@@ -45,40 +45,48 @@ export default async function RankingsPage() {
           </p>
         )}
       </div>
-      <div className="overflow-x-auto rounded-lg border border-line">
+      {/* The Conference column is dropped on phones -- six columns don't fit
+          in ~375px without sideways scrolling -- and folded under the team
+          name instead, so nothing is actually lost. */}
+      <div className="rounded-lg border border-line">
         <table className="w-full text-sm">
           <thead className="bg-surface-2 text-ink-muted">
             <tr>
-              <th className="px-3 py-2 text-right">Rank</th>
-              <th className="px-3 py-2 text-left">Team</th>
-              <th className="px-3 py-2 text-left">Conference</th>
-              <th className="px-3 py-2 text-right">W</th>
-              <th className="px-3 py-2 text-right">L</th>
-              <th className="px-3 py-2 text-right">Score</th>
+              <th className="px-2 py-2 text-right sm:px-3">Rank</th>
+              <th className="px-2 py-2 text-left sm:px-3">Team</th>
+              <th className="hidden px-3 py-2 text-left sm:table-cell">Conference</th>
+              <th className="px-2 py-2 text-right sm:px-3">W</th>
+              <th className="px-2 py-2 text-right sm:px-3">L</th>
+              <th className="px-2 py-2 text-right sm:px-3">Score</th>
             </tr>
           </thead>
           <tbody>
             {rankings.map((row) => (
               <tr key={row.teamId} className="border-t border-line bg-surface">
-                <td className="px-3 py-2 text-right font-semibold text-accent-strong">
+                <td className="px-2 py-2 text-right font-semibold text-accent-strong sm:px-3">
                   {row.rank}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-2 py-2 sm:px-3">
                   <span className="flex items-center gap-2 text-ink">
                     <TeamLogo
                       logoUrl={teamById.get(row.teamId)?.logoUrl}
                       name={row.team}
                       size={20}
                     />
-                    {row.team}
+                    <span className="min-w-0">
+                      <span className="block leading-tight">{row.team}</span>
+                      <span className="block text-xs leading-tight text-ink-muted sm:hidden">
+                        {row.conference}
+                      </span>
+                    </span>
                   </span>
                 </td>
-                <td className="px-3 py-2 text-ink-muted">
+                <td className="hidden px-3 py-2 text-ink-muted sm:table-cell">
                   {row.conference}
                 </td>
-                <td className="px-3 py-2 text-right">{row.wins}</td>
-                <td className="px-3 py-2 text-right">{row.losses}</td>
-                <td className="px-3 py-2 text-right font-mono">
+                <td className="px-2 py-2 text-right sm:px-3">{row.wins}</td>
+                <td className="px-2 py-2 text-right sm:px-3">{row.losses}</td>
+                <td className="px-2 py-2 text-right font-mono sm:px-3">
                   {row.score.toFixed(1)}
                 </td>
               </tr>

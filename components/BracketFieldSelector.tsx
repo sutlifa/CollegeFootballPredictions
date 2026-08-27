@@ -75,40 +75,57 @@ export function BracketFieldSelector({ candidates, formAction }: Props) {
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-line">
+      {/* Conference / Score / Auto-bid are dropped on phones -- eight columns
+          can't fit ~375px without sideways scrolling, and this table is where
+          you actually tap the checkboxes. Their values fold under the team
+          name instead, so nothing is lost. Checkboxes get a bigger hit area
+          on touch. */}
+      <div className="rounded-lg border border-line">
         <table className="w-full text-sm">
           <thead className="bg-surface-2 text-ink-muted">
             <tr>
-              <th className="px-3 py-2"></th>
-              <th className="px-3 py-2 text-right">Rank</th>
-              <th className="px-3 py-2 text-left">Team</th>
-              <th className="px-3 py-2 text-left">Conference</th>
-              <th className="px-3 py-2 text-right">W</th>
-              <th className="px-3 py-2 text-right">L</th>
-              <th className="px-3 py-2 text-right">Score</th>
-              <th className="px-3 py-2 text-left">Auto bid</th>
+              <th className="px-2 py-2 sm:px-3"></th>
+              <th className="px-2 py-2 text-right sm:px-3">Rank</th>
+              <th className="px-2 py-2 text-left sm:px-3">Team</th>
+              <th className="hidden px-3 py-2 text-left sm:table-cell">Conference</th>
+              <th className="px-2 py-2 text-right sm:px-3">W</th>
+              <th className="px-2 py-2 text-right sm:px-3">L</th>
+              <th className="hidden px-3 py-2 text-right sm:table-cell">Score</th>
+              <th className="hidden px-3 py-2 text-left sm:table-cell">Auto bid</th>
             </tr>
           </thead>
           <tbody>
             {autoBid.map((row) => (
               <tr key={row.teamId} className="border-t border-line bg-win/10">
-                <td className="px-3 py-2 text-center text-win" title="Locked -- automatic bid">
+                <td className="px-2 py-2 text-center text-win sm:px-3" title="Locked -- automatic bid">
                   🔒
                 </td>
-                <td className="px-3 py-2 text-right text-ink">{row.rank}</td>
-                <td className="px-3 py-2">
+                <td className="px-2 py-2 text-right text-ink sm:px-3">{row.rank}</td>
+                <td className="px-2 py-2 sm:px-3">
                   <span className="flex items-center gap-2 text-ink">
                     <TeamLogo logoUrl={row.logoUrl} name={row.team} size={20} />
-                    {row.team}
+                    <span className="min-w-0">
+                      <span className="block leading-tight">{row.team}</span>
+                      <span className="block text-xs leading-tight text-ink-muted sm:hidden">
+                        {row.conference} &middot; {row.score.toFixed(1)} &middot;{" "}
+                        <span className="font-semibold text-win">
+                          {row.autoBidReason === "power-champion"
+                            ? "Champion"
+                            : "Group of Six"}
+                        </span>
+                      </span>
+                    </span>
                   </span>
                 </td>
-                <td className="px-3 py-2 text-ink-muted">{row.conference}</td>
-                <td className="px-3 py-2 text-right text-ink">{row.wins}</td>
-                <td className="px-3 py-2 text-right text-ink">{row.losses}</td>
-                <td className="px-3 py-2 text-right font-mono text-ink">
+                <td className="hidden px-3 py-2 text-ink-muted sm:table-cell">
+                  {row.conference}
+                </td>
+                <td className="px-2 py-2 text-right text-ink sm:px-3">{row.wins}</td>
+                <td className="px-2 py-2 text-right text-ink sm:px-3">{row.losses}</td>
+                <td className="hidden px-3 py-2 text-right font-mono text-ink sm:table-cell">
                   {row.score.toFixed(1)}
                 </td>
-                <td className="px-3 py-2 text-xs font-semibold text-win">
+                <td className="hidden px-3 py-2 text-xs font-semibold text-win sm:table-cell">
                   {row.autoBidReason === "power-champion"
                     ? "Conference champion"
                     : "Group of Six"}
@@ -123,7 +140,7 @@ export function BracketFieldSelector({ candidates, formAction }: Props) {
                   key={row.teamId}
                   className={`border-t border-line ${isChecked ? "bg-win/10" : "bg-surface"} ${disabled ? "opacity-40" : ""}`}
                 >
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-2 sm:px-3">
                     <input
                       type="checkbox"
                       name="teamIds"
@@ -131,22 +148,31 @@ export function BracketFieldSelector({ candidates, formAction }: Props) {
                       checked={isChecked}
                       disabled={disabled}
                       onChange={() => toggle(row.teamId)}
+                      aria-label={`Select ${row.team}`}
+                      className="h-5 w-5 align-middle sm:h-4 sm:w-4"
                     />
                   </td>
-                  <td className="px-3 py-2 text-right text-ink">{row.rank}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-2 text-right text-ink sm:px-3">{row.rank}</td>
+                  <td className="px-2 py-2 sm:px-3">
                     <span className="flex items-center gap-2 text-ink">
                       <TeamLogo logoUrl={row.logoUrl} name={row.team} size={20} />
-                      {row.team}
+                      <span className="min-w-0">
+                        <span className="block leading-tight">{row.team}</span>
+                        <span className="block text-xs leading-tight text-ink-muted sm:hidden">
+                          {row.conference} &middot; {row.score.toFixed(1)}
+                        </span>
+                      </span>
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-ink-muted">{row.conference}</td>
-                  <td className="px-3 py-2 text-right text-ink">{row.wins}</td>
-                  <td className="px-3 py-2 text-right text-ink">{row.losses}</td>
-                  <td className="px-3 py-2 text-right font-mono text-ink">
+                  <td className="hidden px-3 py-2 text-ink-muted sm:table-cell">
+                    {row.conference}
+                  </td>
+                  <td className="px-2 py-2 text-right text-ink sm:px-3">{row.wins}</td>
+                  <td className="px-2 py-2 text-right text-ink sm:px-3">{row.losses}</td>
+                  <td className="hidden px-3 py-2 text-right font-mono text-ink sm:table-cell">
                     {row.score.toFixed(1)}
                   </td>
-                  <td className="px-3 py-2 text-xs text-ink-muted"></td>
+                  <td className="hidden px-3 py-2 text-xs text-ink-muted sm:table-cell"></td>
                 </tr>
               );
             })}

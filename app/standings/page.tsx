@@ -67,12 +67,12 @@ function StandingsTable({
       <table className="w-full border-separate border-spacing-0 text-sm">
         <thead className="text-ink-muted">
           <tr>
-            <th className="rounded-tl-lg bg-surface-2 px-3 py-2 text-right">#</th>
-            <th className="bg-surface-2 px-3 py-2 text-left">Team</th>
-            <th className="bg-surface-2 px-3 py-2 text-right">W</th>
-            <th className="bg-surface-2 px-3 py-2 text-right">L</th>
-            <th className="bg-surface-2 px-3 py-2 text-right">Conf W</th>
-            <th className="rounded-tr-lg bg-surface-2 px-3 py-2 text-right">Conf L</th>
+            <th className="rounded-tl-lg bg-surface-2 px-2 py-2 sm:px-3 text-right">#</th>
+            <th className="bg-surface-2 px-2 py-2 sm:px-3 text-left">Team</th>
+            <th className="bg-surface-2 px-2 py-2 sm:px-3 text-right">W</th>
+            <th className="bg-surface-2 px-2 py-2 sm:px-3 text-right">L</th>
+            <th className="bg-surface-2 px-2 py-2 sm:px-3 text-right">Conf W</th>
+            <th className="rounded-tr-lg bg-surface-2 px-2 py-2 sm:px-3 text-right">Conf L</th>
           </tr>
         </thead>
         <tbody>
@@ -82,13 +82,13 @@ function StandingsTable({
               className={i < highlightTop ? "bg-surface-2" : "bg-surface"}
             >
               <td
-                className={`border-t border-line px-3 py-2 text-right font-semibold text-accent-strong ${
+                className={`border-t border-line px-2 py-2 sm:px-3 text-right font-semibold text-accent-strong ${
                   i === lastRow ? "rounded-bl-lg" : ""
                 }`}
               >
                 {i + 1}
               </td>
-              <td className="border-t border-line px-3 py-2">
+              <td className="border-t border-line px-2 py-2 sm:px-3">
                 <span className="flex items-center gap-2">
                   <TeamLogo
                     logoUrl={teamById.get(row.teamId)?.logoUrl ?? null}
@@ -99,11 +99,11 @@ function StandingsTable({
                   {explanations?.[i] ? <Tooltip text={explanations[i]!} /> : null}
                 </span>
               </td>
-              <td className="border-t border-line px-3 py-2 text-right">{row.wins}</td>
-              <td className="border-t border-line px-3 py-2 text-right">{row.losses}</td>
-              <td className="border-t border-line px-3 py-2 text-right">{row.confWins}</td>
+              <td className="border-t border-line px-2 py-2 sm:px-3 text-right">{row.wins}</td>
+              <td className="border-t border-line px-2 py-2 sm:px-3 text-right">{row.losses}</td>
+              <td className="border-t border-line px-2 py-2 sm:px-3 text-right">{row.confWins}</td>
               <td
-                className={`border-t border-line px-3 py-2 text-right ${
+                className={`border-t border-line px-2 py-2 sm:px-3 text-right ${
                   i === lastRow ? "rounded-br-lg" : ""
                 }`}
               >
