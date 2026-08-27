@@ -35,10 +35,13 @@ import { isDecided } from "./types";
  * fall back to a cruder, no-real-tiebreaker ordering just because the
  * season isn't finished yet.
  */
-export type TiebreakMetric = (
+export type TiebreakMetric = ((
   group: StandingsRow[],
   ctx: TiebreakContext,
-) => Map<number, number>;
+) => Map<number, number>) & {
+  /** Human-readable name shown in the "why" explanation on Standings -- see explainTiebreak. */
+  label: string;
+};
 
 export type TiebreakContext = {
   /** Decided games covering the whole regular season (conference + non-conference). */
@@ -125,7 +128,7 @@ function conferenceOpponentIds(
  * every conference's policy specifies ("group remains tied unless one team
  * defeated all other tied teams").
  */
-export const headToHeadAmongGroup: TiebreakMetric = (group, ctx) => {
+export const headToHeadAmongGroup = ((group, ctx) => {
   const groupIds = new Set(group.map((r) => r.teamId));
   const fullRoundRobin = group.every((row) => {
     const others = new Set([...groupIds].filter((id) => id !== row.teamId));
@@ -157,10 +160,11 @@ export const headToHeadAmongGroup: TiebreakMetric = (group, ctx) => {
     result.set(row.teamId, wins === games.length ? 1 : wins === 0 ? -1 : 0);
   }
   return result;
-};
+}) as TiebreakMetric;
+headToHeadAmongGroup.label = "Head-to-head";
 
 /** Win percentage against CONFERENCE opponents common to every team in the group. */
-export const commonConferenceOpponentsWinPct: TiebreakMetric = (group, ctx) => {
+export const commonConferenceOpponentsWinPct = ((group, ctx) => {
   const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
   const opponentSets = group.map((row) =>
     conferenceOpponentIds(ctx.games, row.teamId, teamById, ctx.conference),
@@ -172,10 +176,11 @@ export const commonConferenceOpponentsWinPct: TiebreakMetric = (group, ctx) => {
     result.set(row.teamId, winPct(gamesAgainst(ctx.games, row.teamId, common), row.teamId));
   }
   return result;
-};
+}) as TiebreakMetric;
+commonConferenceOpponentsWinPct.label = "Record vs. common conference opponents";
 
 /** Win percentage in ALL conference games (conference-wide, not just common opponents). */
-export const fullConferenceRecordPct: TiebreakMetric = (group, ctx) => {
+export const fullConferenceRecordPct = ((group, ctx) => {
   const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
   const result = new Map<number, number>();
   for (const row of group) {
@@ -183,10 +188,11 @@ export const fullConferenceRecordPct: TiebreakMetric = (group, ctx) => {
     result.set(row.teamId, winPct(gamesAgainst(ctx.games, row.teamId, opponents), row.teamId));
   }
   return result;
-};
+}) as TiebreakMetric;
+fullConferenceRecordPct.label = "Overall conference record";
 
 /** Win percentage across the full schedule (conference + non-conference). */
-export const overallRecordPct: TiebreakMetric = (group, ctx) => {
+export const overallRecordPct = ((group, ctx) => {
   const result = new Map<number, number>();
   for (const row of group) {
     const games = decidedGames(ctx.games).filter(
@@ -195,10 +201,11 @@ export const overallRecordPct: TiebreakMetric = (group, ctx) => {
     result.set(row.teamId, winPct(games, row.teamId));
   }
   return result;
-};
+}) as TiebreakMetric;
+overallRecordPct.label = "Overall record";
 
 /** Same as overallRecordPct, but games against a non-FBS opponent don't count at all. */
-export const overallRecordPctFbsOnly: TiebreakMetric = (group, ctx) => {
+export const overallRecordPctFbsOnly = ((group, ctx) => {
   const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
   const result = new Map<number, number>();
   for (const row of group) {
@@ -209,7 +216,8 @@ export const overallRecordPctFbsOnly: TiebreakMetric = (group, ctx) => {
     result.set(row.teamId, winPct(games, row.teamId));
   }
   return result;
-};
+}) as TiebreakMetric;
+overallRecordPctFbsOnly.label = "Overall record vs. FBS opponents";
 
 /**
  * "Strength of conference schedule": the average conference winning
@@ -218,7 +226,7 @@ export const overallRecordPctFbsOnly: TiebreakMetric = (group, ctx) => {
  * otherwise since the whole point is comparing two teams who already have
  * an identical conference record).
  */
-export const cumulativeOpponentConferenceWinPct: TiebreakMetric = (group, ctx) => {
+export const cumulativeOpponentConferenceWinPct = ((group, ctx) => {
   const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
   const result = new Map<number, number>();
   for (const row of group) {
@@ -234,14 +242,15 @@ export const cumulativeOpponentConferenceWinPct: TiebreakMetric = (group, ctx) =
     result.set(row.teamId, pcts.reduce((a, b) => a + Math.max(0, b), 0) / pcts.length);
   }
   return result;
-};
+}) as TiebreakMetric;
+cumulativeOpponentConferenceWinPct.label = "Strength of conference schedule";
 
 /**
  * Big 12-specific: total win count (conference + non-conference) in a
  * 12-game season, except only one win against a non-FBS opponent counts --
  * any additional FCS-or-lower win is excluded.
  */
-export const big12TotalWins: TiebreakMetric = (group, ctx) => {
+export const big12TotalWins = ((group, ctx) => {
   const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
   const result = new Map<number, number>();
   for (const row of group) {
@@ -263,7 +272,8 @@ export const big12TotalWins: TiebreakMetric = (group, ctx) => {
     result.set(row.teamId, fbsWins + Math.min(1, fcsWins));
   }
   return result;
-};
+}) as TiebreakMetric;
+big12TotalWins.label = "Total wins";
 
 /**
  * SEC-specific: the one proprietary-sounding step that's actually a fully
@@ -275,7 +285,7 @@ export const big12TotalWins: TiebreakMetric = (group, ctx) => {
  * Margin = offense - defense, averaged over all of a team's conference
  * games.
  */
-export const secCappedScoringMargin: TiebreakMetric = (group, ctx) => {
+export const secCappedScoringMargin = ((group, ctx) => {
   const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
   const allDecided = decidedGames(ctx.games);
 
@@ -314,14 +324,15 @@ export const secCappedScoringMargin: TiebreakMetric = (group, ctx) => {
     result.set(row.teamId, totalMargin / games.length);
   }
   return result;
-};
+}) as TiebreakMetric;
+secCappedScoringMargin.label = "Scoring margin";
 
 /**
  * Sun Belt-specific: win percentage in DIVISION-ONLY conference games (as
  * opposed to the whole-conference record used to build the initial
  * standings/grouping).
  */
-export const sunBeltDivisionOnlyRecordPct: TiebreakMetric = (group, ctx) => {
+export const sunBeltDivisionOnlyRecordPct = ((group, ctx) => {
   const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
   const division = sunBeltDivision(group[0].team);
   const result = new Map<number, number>();
@@ -331,10 +342,11 @@ export const sunBeltDivisionOnlyRecordPct: TiebreakMetric = (group, ctx) => {
     result.set(row.teamId, winPct(gamesAgainst(ctx.games, row.teamId, new Set(opponents)), row.teamId));
   }
   return result;
-};
+}) as TiebreakMetric;
+sunBeltDivisionOnlyRecordPct.label = "Division record";
 
 /** Sun Belt-specific: win percentage against common opponents in the OTHER division. */
-export const sunBeltCommonNonDivisionalOpponentsWinPct: TiebreakMetric = (group, ctx) => {
+export const sunBeltCommonNonDivisionalOpponentsWinPct = ((group, ctx) => {
   const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
   const division = sunBeltDivision(group[0].team);
   const opponentSets = group.map((row) => {
@@ -348,7 +360,8 @@ export const sunBeltCommonNonDivisionalOpponentsWinPct: TiebreakMetric = (group,
     result.set(row.teamId, winPct(gamesAgainst(ctx.games, row.teamId, common), row.teamId));
   }
   return result;
-};
+}) as TiebreakMetric;
+sunBeltCommonNonDivisionalOpponentsWinPct.label = "Common non-divisional opponents";
 
 /**
  * "Record against the next-highest-placed common opponent in the
@@ -363,7 +376,7 @@ export const sunBeltCommonNonDivisionalOpponentsWinPct: TiebreakMetric = (group,
 export function recordVsCommonOpponentsByStandingsOrder(
   baseline: StandingsRow[],
 ): TiebreakMetric {
-  return (group, ctx) => {
+  const metric = ((group, ctx) => {
     const teamById = new Map(ctx.teams.map((t) => [t.id, t]));
     const opponentSets = group.map((row) =>
       conferenceOpponentIds(ctx.games, row.teamId, teamById, ctx.conference),
@@ -393,7 +406,9 @@ export function recordVsCommonOpponentsByStandingsOrder(
       }
     }
     return new Map(group.map((r) => [r.teamId, 0]));
-  };
+  }) as TiebreakMetric;
+  metric.label = "Record vs. next-best common opponent";
+  return metric;
 }
 
 const CONFERENCE_TIEBREAK_PROCEDURES: Partial<
@@ -592,4 +607,88 @@ export function resolveSunBeltDivisionStandings(
     result.push(...resolveGroup(group, procedure, ctx));
   }
   return result;
+}
+
+/**
+ * Human-readable explanation of why one team currently ranks above another
+ * when the two share the same conference record -- e.g. "Ohio State leads
+ * Oregon: Head-to-head (won 31-28)". Returns null when there's nothing to
+ * explain (different records -- no tie to break -- or the two aren't even
+ * competing for the same spot, like Sun Belt teams in different
+ * divisions). Purely informational: recomputes the SAME conference
+ * procedure used everywhere else, restricted to just this one pair, so a
+ * two-team tie's explanation always exactly matches how it was actually
+ * resolved.
+ */
+export function explainTiebreak(
+  teamAId: number,
+  teamBId: number,
+  teams: Team[],
+  games: Game[],
+  conference: string,
+  /**
+   * That conference's (or Sun Belt division's) standings rows, if the
+   * caller already has them -- saves recomputing the whole conference's
+   * standings once per explained pair, which is the bulk of this
+   * function's cost. Safe to pass the already-tiebreaker-RESOLVED rows:
+   * resolving only reorders teams *within* an equal-record group, so the
+   * record-based tiering the procedure depends on is identical either way.
+   */
+  precomputedStandings?: StandingsRow[],
+): string | null {
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const isSunBelt = conference === "Sun Belt";
+  const division = isSunBelt ? sunBeltDivision(teamById.get(teamAId)?.name ?? "") : null;
+  if (isSunBelt) {
+    if (!division || sunBeltDivision(teamById.get(teamBId)?.name ?? "") !== division) {
+      return null; // different divisions -- not competing for the same title
+    }
+  }
+
+  const baseline =
+    precomputedStandings ??
+    (isSunBelt
+      ? computeConferenceStandings(teams, games, "Sun Belt").filter(
+          (row) => sunBeltDivision(row.team) === division,
+        )
+      : computeConferenceStandings(teams, games, conference));
+
+  const a = baseline.find((r) => r.teamId === teamAId);
+  const b = baseline.find((r) => r.teamId === teamBId);
+  if (!a || !b) return null;
+  if (a.confWins !== b.confWins || a.confLosses !== b.confLosses) return null;
+
+  const procedure = buildProcedureWithStandingsStep(
+    conference as (typeof CHAMPIONSHIP_CONFERENCES)[number],
+    baseline,
+  );
+  if (!procedure) return null;
+
+  const ctx: TiebreakContext = { games, teams, conference };
+  const group = [a, b];
+  for (const step of procedure.twoWay) {
+    const scores = step(group, ctx);
+    const scoreA = scores.get(a.teamId)!;
+    const scoreB = scores.get(b.teamId)!;
+    if (scoreA === scoreB) continue;
+
+    const leader = scoreA > scoreB ? a : b;
+    const trailer = scoreA > scoreB ? b : a;
+    if (step === headToHeadAmongGroup) {
+      const h2h = decidedGames(games).find(
+        (g) =>
+          (g.team1Id === teamAId && g.team2Id === teamBId) ||
+          (g.team1Id === teamBId && g.team2Id === teamAId),
+      );
+      if (h2h) {
+        const leaderScore =
+          h2h.team1Id === leader.teamId ? h2h.predictedScoreTeam1! : h2h.predictedScoreTeam2!;
+        const trailerScore =
+          h2h.team1Id === leader.teamId ? h2h.predictedScoreTeam2! : h2h.predictedScoreTeam1!;
+        return `${leader.team} leads ${trailer.team}: head-to-head, won ${leaderScore}-${trailerScore}`;
+      }
+    }
+    return `${leader.team} leads ${trailer.team}: ${step.label}`;
+  }
+  return `${a.team} and ${b.team} are tied through every tiebreaker step this app can compute (${conference} steps that need a proprietary ranking service or the CFP committee's poll are skipped) -- ordered alphabetically here; in practice a coin toss or draw would decide it`;
 }
