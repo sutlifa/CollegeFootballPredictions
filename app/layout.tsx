@@ -99,8 +99,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
           {children}
         </main>
-        <footer className="border-t border-line px-4 py-3 text-center text-xs text-ink-muted">
-          2026 Season
+        {/* No top border -- the footer sits flush against the page. */}
+        <footer className="mx-auto w-full max-w-5xl space-y-1 px-4 py-4 text-center text-xs text-ink-muted">
+          <p>2026 Season</p>
+          <p>&copy; {new Date().getFullYear()} Sutlifa. All rights reserved.</p>
+          <p className="text-[11px] leading-relaxed">
+            Not affiliated with or endorsed by the NCAA, the College Football
+            Playoff, or any school or conference. Team names and logos are
+            trademarks of their respective owners.
+          </p>
         </footer>
       </body>
     </html>
