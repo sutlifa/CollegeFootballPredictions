@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS games (
   conference                  TEXT,
   is_conference_championship  BOOLEAN NOT NULL DEFAULT FALSE,
   kickoff_at                  TIMESTAMPTZ,
+  -- CFBD has not published a real start time yet; kickoff_at holds its
+  -- placeholder (midnight ET of the intended day), so show the date only.
+  kickoff_tbd                 BOOLEAN NOT NULL DEFAULT FALSE,
   status                      TEXT NOT NULL DEFAULT 'scheduled',
   actual_score_team1          INTEGER,
   actual_score_team2          INTEGER,

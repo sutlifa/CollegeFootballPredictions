@@ -20,6 +20,8 @@ export type CfbdGame = {
   week: number;
   seasonType: string;
   startDate: string;
+  /** True when CFBD has no real kickoff time yet -- startDate is then a placeholder. */
+  startTimeTBD: boolean | null;
   completed: boolean;
   neutralSite: boolean;
   homeTeam: string;

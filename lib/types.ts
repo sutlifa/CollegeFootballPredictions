@@ -28,6 +28,8 @@ export type Game = {
   conference: string | null;
   isConferenceChampionship: boolean;
   kickoffAt: string | null;
+  /** CFBD has no real start time yet -- show the date only. */
+  kickoffTbd: boolean;
   status: GameStatus;
   /** What the user actually picked: a winner and a margin bucket (lib/margin.ts). */
   predictedWinnerTeamId: number | null;

@@ -44,6 +44,7 @@ type GameRow = {
   conference: string | null;
   is_conference_championship: boolean;
   kickoff_at: string | null;
+  kickoff_tbd: boolean;
   status: GameStatus;
   winner_team_id: number | null;
   margin_bucket: number | null;
@@ -76,6 +77,7 @@ function mapGame(row: GameRow): Game {
     conference: row.conference,
     isConferenceChampionship: row.is_conference_championship,
     kickoffAt: row.kickoff_at,
+    kickoffTbd: row.kickoff_tbd ?? false,
     status: row.status,
     predictedWinnerTeamId: row.winner_team_id,
     predictedMarginBucket: row.margin_bucket,
@@ -181,12 +183,21 @@ export async function getWeekLocksAt(
   week: number,
   season = SEASON,
 ): Promise<Date | null> {
-  const [row] = await sql<{ locks_at: Date | null }[]>`
-    SELECT MIN(kickoff_at) AS locks_at
+  // Prefer the earliest CONFIRMED kickoff. A game CFBD hasn't timed yet
+  // carries a midnight-Eastern placeholder, which would otherwise drag the
+  // lock to the very start of the day and freeze the week hours before
+  // anything actually kicks off. Only if nothing in the week has a real
+  // time yet does the placeholder stand in -- and once CFBD publishes the
+  // real times the daily sync replaces it, moving the lock later.
+  const [row] = await sql<{ confirmed: Date | null; any_kickoff: Date | null }[]>`
+    SELECT
+      MIN(kickoff_at) FILTER (WHERE NOT kickoff_tbd) AS confirmed,
+      MIN(kickoff_at) AS any_kickoff
     FROM games
     WHERE season = ${season} AND week = ${week} AND kickoff_at IS NOT NULL
   `;
-  return row?.locks_at ? new Date(row.locks_at) : null;
+  const locksAt = row?.confirmed ?? row?.any_kickoff ?? null;
+  return locksAt ? new Date(locksAt) : null;
 }
 
 export async function isWeekLocked(

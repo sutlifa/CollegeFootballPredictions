@@ -36,10 +36,35 @@ const kickoffFormatter = new Intl.DateTimeFormat("en-US", {
   timeZoneName: "short",
 });
 
-/** e.g. "Sat, Aug 29, 12:00 PM EDT" -- shows EST or EDT correctly for the date, not hardcoded. */
-export function formatKickoff(kickoffAt: string | null): string {
+const dateOnlyFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
+/**
+ * e.g. "Sat, Aug 29, 12:00 PM EDT" -- shows EST or EDT correctly for the
+ * date, not hardcoded.
+ *
+ * When CFBD hasn't published a kickoff time yet it still gives a date, with
+ * midnight Eastern standing in for the time. Rendering that verbatim showed
+ * a wall of games at "12:00 AM", which isn't a real time and reads as a
+ * bug. Those show the day with "TBD" in place of the time instead.
+ *
+ * The day is taken from the same Eastern-time instant either way, so a
+ * TBD game lands on the date CFBD actually intends. (Do NOT infer TBD from
+ * a midnight timestamp -- a genuine late kickoff on the west coast or in
+ * Hawaii can legitimately be midnight Eastern. Only CFBD's own
+ * startTimeTBD flag decides this.)
+ */
+export function formatKickoff(
+  kickoffAt: string | null,
+  kickoffTbd = false,
+): string {
   if (!kickoffAt) return "TBD";
   const date = new Date(kickoffAt);
   if (Number.isNaN(date.getTime())) return "TBD";
+  if (kickoffTbd) return `${dateOnlyFormatter.format(date)} — TBD`;
   return kickoffFormatter.format(date);
 }

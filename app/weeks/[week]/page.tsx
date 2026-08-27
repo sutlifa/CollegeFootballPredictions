@@ -176,7 +176,7 @@ export default async function WeekPage({
                 key={game.id}
                 gameId={game.id}
                 week={week}
-                kickoffLabel={formatKickoff(game.kickoffAt)}
+                kickoffLabel={formatKickoff(game.kickoffAt, game.kickoffTbd)}
                 isNeutral={game.isNeutralSite || week === 16}
                 team1={{
                   id: game.team1Id,

@@ -77,15 +77,16 @@ async function upsertGame(game: CfbdGame, week: number): Promise<void> {
   await sql`
     INSERT INTO games (
       cfbd_game_id, season, week, team1_id, team2_id,
-      team1_is_home, is_neutral_site, kickoff_at, status
+      team1_is_home, is_neutral_site, kickoff_at, kickoff_tbd, status
     )
     VALUES (
       ${String(game.id)}, ${game.season}, ${week}, ${homeTeamId}, ${awayTeamId},
-      TRUE, ${game.neutralSite}, ${game.startDate}, ${status}
+      TRUE, ${game.neutralSite}, ${game.startDate}, ${game.startTimeTBD === true}, ${status}
     )
     ON CONFLICT (cfbd_game_id) DO UPDATE SET
       week = EXCLUDED.week,
       kickoff_at = EXCLUDED.kickoff_at,
+      kickoff_tbd = EXCLUDED.kickoff_tbd,
       status = EXCLUDED.status
   `;
 }
