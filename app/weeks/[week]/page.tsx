@@ -156,6 +156,8 @@ export default async function WeekPage({
                   displayName: displayTeamName(team2),
                   logoUrl: team2?.logoUrl ?? null,
                 }}
+                actualScoreTeam1={game.actualScoreTeam1}
+                actualScoreTeam2={game.actualScoreTeam2}
                 initialWinnerTeamId={game.predictedWinnerTeamId}
                 initialMarginBucket={
                   game.predictedMarginBucket !== null &&
