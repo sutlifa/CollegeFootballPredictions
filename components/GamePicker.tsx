@@ -25,17 +25,21 @@ type Props = {
 };
 
 /**
- * One game's pick: tap the winner, tap how big the win is. Saves itself as
- * soon as both halves are chosen (and on every change after that), so
- * there's no Save button to hunt for -- a full week is two taps per game.
+ * One game, ONE click. Each team has its own row of margin buttons, so
+ * tapping "8-14" next to Oregon says "Oregon wins by 8-14" in a single
+ * action -- picking a winner and then a margin separately was two taps and
+ * allowed the nonsensical in-between state of having chosen a margin for
+ * one team and a winner on the other side.
  *
- * The two choices are plain <button>s writing to hidden inputs, NOT radio
- * inputs. React resets a form after a server action completes, which wipes
- * the DOM `checked` state of a controlled radio whose React state didn't
- * happen to change during that same render -- so picking the winner and
- * then the margin submitted the margin with the winner already blanked
- * out. Hidden inputs are driven purely by state and are immune to that
- * reset.
+ * On phones the two teams stack, each above its own row of four buttons.
+ * From `sm` up it opens out into a tree: margins, team, versus, team,
+ * margins -- with the smallest margin nearest each team on both sides, so
+ * the scale reads outward from the middle.
+ *
+ * The choice is written to hidden inputs by plain <button>s rather than
+ * radios: React resets a form once a server action completes, which wipes
+ * the DOM state of a controlled radio whose React state didn't change in
+ * that same render. Hidden inputs driven purely by state are immune.
  */
 export function GamePicker({
   gameId,
@@ -56,40 +60,56 @@ export function GamePicker({
 
   const complete = winnerTeamId !== null && marginBucket !== null;
 
-  function submitIfComplete(nextWinner: number | null, nextBucket: MarginBucketId | null) {
-    if (nextWinner === null || nextBucket === null) return;
+  function pick(teamId: number, bucket: MarginBucketId) {
+    setWinnerTeamId(teamId);
+    setMarginBucket(bucket);
     // Let React commit the hidden inputs before the form serializes them.
     startTransition(() => {
       requestAnimationFrame(() => formRef.current?.requestSubmit());
     });
   }
 
-  function pickWinner(teamId: number) {
-    setWinnerTeamId(teamId);
-    submitIfComplete(teamId, marginBucket);
-  }
+  const marginRow = (team: TeamInfo, side: "left" | "right") => (
+    <div
+      role="group"
+      aria-label={`${team.displayName} margin of victory`}
+      className={`flex gap-1.5 sm:flex-1 ${
+        side === "left" ? "sm:flex-row-reverse" : ""
+      }`}
+    >
+      {MARGIN_BUCKETS.map((bucket) => {
+        const selected = winnerTeamId === team.id && marginBucket === bucket.id;
+        return (
+          <button
+            key={bucket.id}
+            type="button"
+            onClick={() => pick(team.id, bucket.id)}
+            aria-pressed={selected}
+            title={`${team.displayName} wins by ${bucket.label} (${bucket.name})`}
+            className={`flex-1 cursor-pointer rounded-md border px-2 py-3 text-center text-xs font-semibold transition-colors sm:py-2.5 ${
+              selected
+                ? "border-accent bg-accent/15 text-accent-strong"
+                : "border-line-strong bg-field text-ink-soft hover:border-accent/60 hover:text-ink"
+            }`}
+          >
+            {bucket.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
-  function pickMargin(bucket: MarginBucketId) {
-    setMarginBucket(bucket);
-    submitIfComplete(winnerTeamId, bucket);
-  }
-
-  const teamButton = (team: TeamInfo) => {
-    const selected = winnerTeamId === team.id;
+  const teamLabel = (team: TeamInfo, align: "left" | "right") => {
+    const isWinner = winnerTeamId === team.id;
     return (
-      <button
-        type="button"
-        onClick={() => pickWinner(team.id)}
-        aria-pressed={selected}
-        className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border px-3 py-2.5 text-left text-sm font-medium transition-colors ${
-          selected
-            ? "border-accent bg-accent/15 text-accent-strong"
-            : "border-line-strong bg-field text-ink-soft hover:border-accent/60 hover:text-ink"
-        }`}
+      <span
+        className={`flex min-w-0 items-center gap-2 text-sm font-medium ${
+          align === "right" ? "sm:flex-row-reverse sm:text-right" : ""
+        } ${isWinner ? "text-accent-strong" : "text-ink"}`}
       >
         <TeamLogo logoUrl={team.logoUrl} name={team.displayName} size={20} />
         <span className="truncate">{team.displayName}</span>
-      </button>
+      </span>
     );
   };
 
@@ -117,48 +137,43 @@ export function GamePicker({
           </span>
         )}
         {complete && (
-          <span className="ml-auto text-[11px] font-medium text-win">Saved</span>
+          <>
+            <span className="ml-auto text-[11px] font-medium text-win">Saved</span>
+            <button
+              type="submit"
+              formAction={clearAction}
+              formNoValidate
+              className="rounded border border-line-strong px-2 py-0.5 text-[11px] text-ink-soft hover:border-accent hover:text-accent-strong"
+            >
+              Clear
+            </button>
+          </>
         )}
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="flex gap-2 sm:flex-1" role="group" aria-label="Winner">
-          {teamButton(team1)}
-          {teamButton(team2)}
+      {/* Mobile: team above its own buttons, twice over. Desktop: the same
+          pieces reflowed into margins | team | VS | team | margins. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="flex flex-col gap-1.5 sm:flex-1 sm:flex-row sm:items-center sm:gap-3">
+          {/* sm:order-last pulls the team in beside the VS, leaving its
+              margins on the outside -- the scale reads outward from the
+              middle. On mobile the label just sits above its buttons. */}
+          <div className="sm:order-last sm:w-36 sm:shrink-0 sm:text-right">
+            {teamLabel(team1, "right")}
+          </div>
+          {marginRow(team1, "left")}
         </div>
 
-        <div className="flex gap-1.5 sm:shrink-0" role="group" aria-label="Margin of victory">
-          {MARGIN_BUCKETS.map((bucket) => {
-            const selected = marginBucket === bucket.id;
-            return (
-              <button
-                key={bucket.id}
-                type="button"
-                onClick={() => pickMargin(bucket.id)}
-                aria-pressed={selected}
-                title={`${bucket.name} -- wins by ${bucket.label} points`}
-                className={`flex-1 cursor-pointer rounded-md border px-2 py-2 text-center text-xs font-semibold transition-colors sm:flex-none ${
-                  selected
-                    ? "border-accent bg-accent/15 text-accent-strong"
-                    : "border-line-strong bg-field text-ink-soft hover:border-accent/60 hover:text-ink"
-                }`}
-              >
-                {bucket.label}
-              </button>
-            );
-          })}
-        </div>
+        <span className="hidden shrink-0 text-[10px] font-bold tracking-wide text-ink-muted sm:block">
+          VS
+        </span>
 
-        {complete && (
-          <button
-            type="submit"
-            formAction={clearAction}
-            formNoValidate
-            className="self-end rounded border border-line-strong px-3 py-1.5 text-xs text-ink-soft hover:border-accent hover:text-accent-strong sm:self-auto"
-          >
-            Clear
-          </button>
-        )}
+        <div className="flex flex-col gap-1.5 sm:flex-1 sm:flex-row sm:items-center sm:gap-3">
+          <div className="order-first sm:w-36 sm:shrink-0">
+            {teamLabel(team2, "left")}
+          </div>
+          {marginRow(team2, "right")}
+        </div>
       </div>
     </form>
   );
