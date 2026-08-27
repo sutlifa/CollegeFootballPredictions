@@ -65,7 +65,7 @@ export default async function LeaderboardPage() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           Leaderboard
-          <Tooltip text="Everyone who's signed in. Picked shows how much of your slate you've filled in (your own Week 16 championship games count toward your total, so the denominator can differ slightly between people). Winners is the share of your graded picks where you had the right team. Margin is how often you also nailed the margin bucket (1-7, 8-14, 15-21, 22+) -- counted only on games you already picked the right winner for, since getting the margin 'right' on a game you picked backwards isn't worth anything. Only first name + last initial are shown; no one else's picks are visible." />
+          <Tooltip text="Everyone who's signed in, ranked by Winners and then by Margins. Each percentage is followed by the raw count it came from -- and all three divide by something different, so the definitions are spelled out under the table. Only first name + last initial are shown; no one else's picks are visible." />
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
           {seasonStarted
@@ -89,19 +89,46 @@ export default async function LeaderboardPage() {
               <tr>
                 <th className="px-2 py-2 text-right sm:px-3">#</th>
                 <th className="px-2 py-2 text-left sm:px-3">Name</th>
-                <th className="px-2 py-2 text-right sm:px-3">Picked</th>
-                <th className="hidden px-3 py-2 text-right sm:table-cell">
-                  Games picked
+                {/* Each percentage is followed by the raw fraction it came
+                    from, named after the same thing, because all three have
+                    DIFFERENT denominators -- see the note under the table. */}
+                <th
+                  className="px-2 py-2 text-right sm:px-3"
+                  title="Share of your schedule you've entered a pick for"
+                >
+                  Picked
+                </th>
+                <th
+                  className="hidden px-3 py-2 text-right sm:table-cell"
+                  title="Picks entered out of games on your schedule"
+                >
+                  Picks made
                 </th>
                 {seasonStarted && (
                   <>
-                    <th className="px-2 py-2 text-right sm:px-3">Winners</th>
-                    <th className="hidden px-3 py-2 text-right sm:table-cell">
-                      Correct / graded
+                    <th
+                      className="px-2 py-2 text-right sm:px-3"
+                      title="Share of your played games where you had the right team"
+                    >
+                      Winners
                     </th>
-                    <th className="px-2 py-2 text-right sm:px-3">Margin</th>
-                    <th className="hidden px-3 py-2 text-right sm:table-cell">
-                      Margin hits
+                    <th
+                      className="hidden px-3 py-2 text-right sm:table-cell"
+                      title="Right team out of your games that have been played"
+                    >
+                      Winners hit
+                    </th>
+                    <th
+                      className="px-2 py-2 text-right sm:px-3"
+                      title="Of the games you got the winner right, how often the margin landed too"
+                    >
+                      Margins
+                    </th>
+                    <th
+                      className="hidden px-3 py-2 text-right sm:table-cell"
+                      title="Right margin out of the games you got the winner right"
+                    >
+                      Margins hit
                     </th>
                   </>
                 )}
@@ -119,11 +146,17 @@ export default async function LeaderboardPage() {
                   <td className="px-2 py-2 font-medium sm:px-3">
                     <span className="block leading-tight">{row.displayName}</span>
                     <span className="block text-xs leading-tight text-ink-muted sm:hidden">
-                      {row.picksMade} of {row.gamesAvailable} games
-                      {seasonStarted && (
+                      {/* Only the raw count that matters for the current phase --
+                          all three percentages are already visible as their own
+                          columns here, so listing every fraction just wrapped
+                          the name cell onto four lines. */}
+                      {seasonStarted ? (
                         <>
-                          {" "}
-                          &middot; {row.correctPicks}/{row.totalPicks} right
+                          {row.correctPicks}/{row.totalPicks} winners
+                        </>
+                      ) : (
+                        <>
+                          {row.picksMade}/{row.gamesAvailable} picked
                         </>
                       )}
                     </span>
@@ -162,6 +195,42 @@ export default async function LeaderboardPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {sortedRows.length > 0 && (
+        /* The three percentages each divide by something different, which is
+           the genuinely confusing part -- so spell the denominators out
+           rather than leaving people to infer them from the headers. */
+        <dl className="grid gap-x-6 gap-y-2 text-xs text-ink-muted sm:grid-cols-3">
+          <div>
+            <dt className="font-semibold text-ink-soft">Picked</dt>
+            <dd className="m-0">
+              Picks entered, out of every game on your schedule. Your own Week
+              16 championship matchups count toward that total, so it can
+              differ slightly between people.
+            </dd>
+          </div>
+          {seasonStarted && (
+            <>
+              <div>
+                <dt className="font-semibold text-ink-soft">Winners</dt>
+                <dd className="m-0">
+                  Games where you had the right team, out of your picks that
+                  have actually been played. Games still to come don&apos;t
+                  count against you.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-ink-soft">Margins</dt>
+                <dd className="m-0">
+                  How often the margin bucket landed too (1-7, 8-14, 15-21,
+                  22+) — out of the games you already got the winner right,
+                  since the margin is moot on a game you picked backwards.
+                </dd>
+              </div>
+            </>
+          )}
+        </dl>
       )}
 
       <div>
