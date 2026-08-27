@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
+import { MobileNav } from "@/components/MobileNav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,13 +37,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-field text-ink">
-        <header className="border-b-2 border-accent/70 bg-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
-          <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-5 px-4 py-3 text-sm">
+        {/* `relative` anchors the mobile menu panel, which drops out of the
+            header with `absolute inset-x-0 top-full`. */}
+        <header className="relative border-b-2 border-accent/70 bg-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
+          <nav className="mx-auto flex max-w-5xl items-center gap-5 px-4 py-3 text-sm">
             <span className="flex items-center gap-2 text-base font-bold tracking-wide text-accent-strong">
               <span aria-hidden>🏈</span> CFB Predictions
             </span>
+
+            {/* Inline nav is `sm` and up only -- below that these links and
+                the sign-out button live in the folding menu instead of
+                wrapping onto three cramped lines. */}
             {session?.user && (
-              <div className="flex flex-wrap gap-1">
+              <div className="hidden gap-1 sm:flex sm:flex-wrap">
                 {NAV_LINKS.map((link) => (
                   <Link
                     key={link.href}
@@ -55,7 +62,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               </div>
             )}
             {session?.user && (
-              <div className="ml-auto flex items-center gap-3">
+              <div className="ml-auto hidden items-center gap-3 sm:flex">
                 <span className="text-ink-muted">
                   {session.user.name ?? session.user.email}
                 </span>
@@ -72,6 +79,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     Sign out
                   </button>
                 </form>
+              </div>
+            )}
+
+            {session?.user && (
+              <div className="ml-auto sm:hidden">
+                <MobileNav
+                  links={NAV_LINKS}
+                  userLabel={session.user.name ?? session.user.email ?? ""}
+                  signOutAction={async () => {
+                    "use server";
+                    await signOut({ redirectTo: "/signin" });
+                  }}
+                />
               </div>
             )}
           </nav>
