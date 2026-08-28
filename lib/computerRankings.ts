@@ -165,19 +165,35 @@ const QUALITY_WIN_WEIGHT = 40;
 const QUALITY_WIN_THRESHOLD = 0.5;
 
 /**
- * Ceiling on a team's total quality-win bonus, so the bonus can separate
- * teams with the SAME record but never overturn a better one.
+ * How much of the rating everything OTHER than win-loss record is allowed
+ * to move -- the quality rating, the quality-win bonus and the conference
+ * championship adjustment, taken together.
  *
- * It has to scale with the conference rather than being a flat number.
- * Inside a conference one extra WIN is worth `tier * 55` -- 70 in the SEC
- * but only 16.5 in the MAC -- while one extra LOSS is a flat 55. The
- * smallest record increment a team's conference can produce is therefore
- * `55 * min(tier, 1)`, and the cap sits just under that. A flat cap was
- * tried first and left three same-conference pairs out of order, all of
- * them in Group of Six conferences where a win is worth least.
+ * This is what actually makes "a better record always ranks higher inside
+ * a conference" true rather than merely likely. The record term is scaled
+ * by conference tier, so one extra win is worth `tier * 55` -- 70 in the
+ * SEC but only 16.5 in the MAC -- while one extra loss is a flat 55. The
+ * smallest record step a conference can produce is therefore
+ * `55 * min(tier, 1)`. Bounding the combined non-record contribution to
+ * ±45% of that leaves a total possible swing of 90% of one record step,
+ * which cannot bridge it.
+ *
+ * Capping only the quality-win bonus was not enough: the Elo quality
+ * rating alone can range far wider than 16.5, which is why Group of Six
+ * conferences still had teams sitting above others with better records
+ * (Miami (OH) 8-4 above Toledo 9-4, who never even played). Higher tiers
+ * get proportionally more room, which is the intended effect -- there is
+ * more genuine résumé difference to express between two 10-2 SEC teams
+ * than between two 8-4 MAC teams.
  */
-function qualityWinCap(team: Team): number {
-  return 0.9 * RECORD_WEIGHT_BASE * Math.min(conferenceTier(team), 1);
+const NON_RECORD_HEADROOM_FRACTION = 0.45;
+
+function nonRecordHeadroom(team: Team): number {
+  return (
+    NON_RECORD_HEADROOM_FRACTION *
+    RECORD_WEIGHT_BASE *
+    Math.min(conferenceTier(team), 1)
+  );
 }
 
 // A flat bonus added to the quality delta when the winner won on the
@@ -306,6 +322,21 @@ function applyHeadToHeadTiebreak<
         let blocked = false;
         for (let k = i + 1; k < j; k++) {
           const mid = result[k];
+          // Never drag a team past a bystander with a strictly better
+          // record. Head-to-head can justify passing the team you actually
+          // beat, but not everyone sitting in between -- and when the three
+          // form a genuine cycle (A beat B, B beat C, C beat A) the better
+          // record is the fairer way to break it than whichever pair the
+          // scan happened to reach first. Without this, beating a 9-3 team
+          // let an 8-3 team leapfrog a 9-3 team that had beaten IT.
+          const midHasBetterRecord =
+            mid.wins >= lower.wins &&
+            mid.losses <= lower.losses &&
+            (mid.wins > lower.wins || mid.losses < lower.losses);
+          if (midHasBetterRecord) {
+            blocked = true;
+            break;
+          }
           if (beat(mid.team.id, lower.team.id) && !beat(higher.team.id, mid.team.id)) {
             blocked = true;
             break;
@@ -498,28 +529,32 @@ export function computeComputerRankings(
       bonus +=
         QUALITY_WIN_WEIGHT * Math.max(0, percentile - QUALITY_WIN_THRESHOLD);
     }
-    // Capped below what a single loss costs in the record term, so this can
-    // separate two teams with the SAME record but can never lift a worse
-    // record above a better one inside a conference -- the guarantee the
-    // record term exists to provide. Uncapped, a long tail of quality wins
-    // outweighed an extra loss, which is precisely the failure the
-    // record/quality split was built to rule out (it put three
-    // same-conference pairs out of order the first time this ran).
-    qualityWinBonus.set(team.id, Math.min(bonus, qualityWinCap(team)));
+    qualityWinBonus.set(team.id, bonus);
   }
 
   const byScore = teams
     .filter((t) => t.isFbs)
     .map((team) => {
+      // Everything that is not win-loss record is bounded together, so no
+      // combination of quality rating, quality wins and a conference
+      // championship can add up to more than one record step in this
+      // team's conference. See nonRecordHeadroom.
+      const headroom = nonRecordHeadroom(team);
+      const nonRecord = Math.max(
+        -headroom,
+        Math.min(
+          headroom,
+          (qualityRatings.get(team.id) ?? 0) +
+            (confChampAdjustments.get(team.id) ?? 0) +
+            (qualityWinBonus.get(team.id) ?? 0),
+        ),
+      );
       const rating =
         recordComponent(
           team,
           regularSeasonWins.get(team.id) ?? 0,
           regularSeasonLosses.get(team.id) ?? 0,
-        ) +
-        (qualityRatings.get(team.id) ?? 0) +
-        (confChampAdjustments.get(team.id) ?? 0) +
-        (qualityWinBonus.get(team.id) ?? 0);
+        ) + nonRecord;
       return {
         team,
         score: toDisplayScore(rating),
