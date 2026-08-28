@@ -3,19 +3,34 @@ import { Tooltip } from "@/components/Tooltip";
 import { hasGradedResults, sortLeaderboard } from "@/lib/leaderboard";
 import {
   getAllBracketPicks,
+  getAllConferenceTitlePicks,
   getAllTeams,
   getLeaderboard,
+  getRealConferenceResults,
+  getRealNationalChampion,
   getRealPlayoffRounds,
 } from "@/lib/queries";
+import { scoreSeason, SEASON_POINTS } from "@/lib/seasonScore";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
-  const [rows, bracketPicksByUser, realPlayoffRounds, teams] = await Promise.all([
+  const [
+    rows,
+    bracketPicksByUser,
+    realPlayoffRounds,
+    teams,
+    conferencePicksByUser,
+    realConferenceResults,
+    realNationalChampionTeamId,
+  ] = await Promise.all([
     getLeaderboard(),
     getAllBracketPicks(),
     getRealPlayoffRounds(),
     getAllTeams(),
+    getAllConferenceTitlePicks(),
+    getRealConferenceResults(),
+    getRealNationalChampion(),
   ]);
   const sortedRows = sortLeaderboard(rows);
   // Before any real result exists there is nothing to be "correct" about, so
@@ -26,6 +41,33 @@ export default async function LeaderboardPage() {
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const realField = realPlayoffRounds.field ?? null;
   const realFieldSet = new Set(realField ?? []);
+
+  // The season total: one number per person, from the four things they were
+  // actually asked to predict. Only shown once some real result exists to
+  // score against -- before that it would be a column of zeroes.
+  const conferencePicksById = new Map(
+    conferencePicksByUser.map((u) => [u.userId, u.picks]),
+  );
+  const bracketById = new Map(bracketPicksByUser.map((u) => [u.userId, u]));
+  const seasonScores = scoreSeason(
+    rows.map((row) => ({
+      userId: row.userId,
+      displayName: row.displayName,
+      correctWinners: row.correctPicks,
+      correctMargins: row.correctMargins,
+      conferencePicks: conferencePicksById.get(row.userId) ?? [],
+      playoffTeamIds: bracketById.get(row.userId)?.teamIds ?? [],
+      championPickTeamId: bracketById.get(row.userId)?.championPickTeamId ?? null,
+    })),
+    {
+      realChampionByConference: new Map(
+        realConferenceResults.map((r) => [r.conference, r.championTeamId]),
+      ),
+      realPlayoffField: realField,
+      realNationalChampionTeamId,
+    },
+  );
+  const anySeasonPoints = seasonScores.some((s) => s.total > 0);
 
   const playoffRows = bracketPicksByUser
     .map((user) => ({
@@ -73,6 +115,88 @@ export default async function LeaderboardPage() {
             : "The season hasn't started, so there's nothing to score yet -- this shows how far along everyone's picks are. Winner and margin standings take over once real results start coming in."}
         </p>
       </div>
+
+      {anySeasonPoints && (
+        <div className="space-y-2">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
+            Season score
+            <Tooltip
+              text={`One total from the four things you predict. A correct winner is ${SEASON_POINTS.correctWinner} point and the right margin bucket on top of it another ${SEASON_POINTS.correctMargin}. Naming a conference champion is worth ${SEASON_POINTS.conferenceChampion} and each of your 12 that actually makes the playoff field ${SEASON_POINTS.playoffFieldTeam}, because there are only nine and twelve of those to get -- without that weighting, hundreds of regular season games would drown the postseason out entirely. Calling the national champion is worth ${SEASON_POINTS.nationalChampion}.`}
+            />
+          </h2>
+          <p className="text-sm text-ink-muted">
+            The percentages below say how accurate you are. This says who is
+            winning.
+          </p>
+          <div className="rounded-lg border border-line">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-2 text-ink-muted">
+                <tr>
+                  <th className="px-2 py-2 text-right sm:px-3">#</th>
+                  <th className="px-2 py-2 text-left sm:px-3">Name</th>
+                  <th className="hidden px-3 py-2 text-right sm:table-cell">Games</th>
+                  <th className="hidden px-3 py-2 text-right sm:table-cell">Margins</th>
+                  <th className="hidden px-3 py-2 text-right sm:table-cell">Conf titles</th>
+                  <th className="hidden px-3 py-2 text-right sm:table-cell">Playoff field</th>
+                  <th className="px-2 py-2 text-right sm:px-3">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seasonScores.map((s, i) => (
+                  <tr
+                    key={s.userId}
+                    className="border-t border-line bg-surface text-ink"
+                  >
+                    <td className="px-2 py-2 text-right font-semibold text-accent-strong sm:px-3">
+                      {i + 1}
+                    </td>
+                    <td className="px-2 py-2 font-medium sm:px-3">
+                      <span className="block leading-tight">
+                        {s.displayName}
+                        {s.nationalChampionCorrect && (
+                          <span className="ml-1.5 text-xs font-semibold text-win">
+                            🏆 champion
+                          </span>
+                        )}
+                      </span>
+                      <span className="block text-xs leading-tight text-ink-muted sm:hidden">
+                        {s.gamePoints} games &middot; {s.marginPoints} margins
+                        &middot; {s.conferencePoints} titles &middot;{" "}
+                        {s.playoffPoints} playoff
+                      </span>
+                    </td>
+                    <td className="hidden px-3 py-2 text-right sm:table-cell">
+                      {s.gamePoints}
+                      <span className="text-ink-muted"> ({s.correctWinners})</span>
+                    </td>
+                    <td className="hidden px-3 py-2 text-right sm:table-cell">
+                      {s.marginPoints}
+                      <span className="text-ink-muted"> ({s.correctMargins})</span>
+                    </td>
+                    <td className="hidden px-3 py-2 text-right sm:table-cell">
+                      {s.conferencePoints}
+                      <span className="text-ink-muted">
+                        {" "}
+                        ({s.conferenceChampions}/{s.conferenceChampionsPossible})
+                      </span>
+                    </td>
+                    <td className="hidden px-3 py-2 text-right sm:table-cell">
+                      {s.playoffPoints}
+                      <span className="text-ink-muted">
+                        {" "}
+                        ({s.playoffFieldTeams}/{s.playoffFieldPossible})
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right font-mono font-semibold text-accent-strong sm:px-3">
+                      {s.total}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {sortedRows.length === 0 ? (
         <p className="text-ink-muted">No one has signed in yet.</p>

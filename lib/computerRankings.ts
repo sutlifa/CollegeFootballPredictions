@@ -384,7 +384,9 @@ function applyHeadToHeadTiebreak<
         const [promotedRaw] = result.splice(j, 1);
         const promoted = {
           ...promotedRaw,
-          score: Math.round(Math.max(promotedRaw.score, higher.score + 0.1) * 10) / 10,
+          score:
+            Math.round(Math.max(promotedRaw.score, higher.score + 0.001) * 1000) /
+            1000,
         } as T;
         result.splice(i, 0, promoted);
         changed = true;
@@ -406,7 +408,11 @@ function applyHeadToHeadTiebreak<
 const DISPLAY_SCALE = 500;
 
 function toDisplayScore(rating: number): number {
-  return Math.round((50 + 50 * Math.tanh(rating / DISPLAY_SCALE)) * 10) / 10;
+  // Three decimals: at one decimal, teams whose ratings genuinely differed
+  // rounded to the same number and looked tied on screen (23 adjacent
+  // same-conference pairs did). The sort already uses the exact rating, so
+  // this only changes what is shown -- but it should agree with the order.
+  return Math.round((50 + 50 * Math.tanh(rating / DISPLAY_SCALE)) * 1000) / 1000;
 }
 
 export function computeComputerRankings(

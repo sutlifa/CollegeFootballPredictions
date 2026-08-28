@@ -34,14 +34,12 @@ export default async function RankingsPage() {
           tough schedule -- fewer losses reliably beats more losses unless
           the extra-loss team has earned a real, sizable edge. Strength of
           conference factors in too: Power Four wins count for
-          meaningfully more than Group of Six ones. Nothing from a week
-          counts here until you hit{" "}
-          <span className="font-semibold text-ink">Submit Week Results</span>{" "}
-          on that week&apos;s page.
+          meaningfully more than Group of Six ones. A week counts here as soon as every
+          game in it has a pick.
         </p>
         {submittedWeeks.length === 0 && (
           <p className="mt-2 text-sm text-ink-muted">
-            No weeks submitted yet -- everyone starts even at 50.
+            No completed weeks yet -- everyone starts even at 50.
           </p>
         )}
       </div>
@@ -87,7 +85,7 @@ export default async function RankingsPage() {
                 <td className="px-2 py-2 text-right sm:px-3">{row.wins}</td>
                 <td className="px-2 py-2 text-right sm:px-3">{row.losses}</td>
                 <td className="px-2 py-2 text-right font-mono sm:px-3">
-                  {row.score.toFixed(1)}
+                  {row.score.toFixed(3)}
                 </td>
               </tr>
             ))}

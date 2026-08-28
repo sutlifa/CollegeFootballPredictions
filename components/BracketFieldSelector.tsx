@@ -107,7 +107,7 @@ export function BracketFieldSelector({ candidates, formAction }: Props) {
                     <span className="min-w-0">
                       <span className="block leading-tight">{row.team}</span>
                       <span className="block text-xs leading-tight text-ink-muted sm:hidden">
-                        {row.conference} &middot; {row.score.toFixed(1)} &middot;{" "}
+                        {row.conference} &middot; {row.score.toFixed(3)} &middot;{" "}
                         <span className="font-semibold text-win">
                           {row.autoBidReason === "power-champion"
                             ? "Champion"
@@ -123,7 +123,7 @@ export function BracketFieldSelector({ candidates, formAction }: Props) {
                 <td className="px-2 py-2 text-right text-ink sm:px-3">{row.wins}</td>
                 <td className="px-2 py-2 text-right text-ink sm:px-3">{row.losses}</td>
                 <td className="hidden px-3 py-2 text-right font-mono text-ink sm:table-cell">
-                  {row.score.toFixed(1)}
+                  {row.score.toFixed(3)}
                 </td>
                 <td className="hidden px-3 py-2 text-xs font-semibold text-win sm:table-cell">
                   {row.autoBidReason === "power-champion"
@@ -159,7 +159,7 @@ export function BracketFieldSelector({ candidates, formAction }: Props) {
                       <span className="min-w-0">
                         <span className="block leading-tight">{row.team}</span>
                         <span className="block text-xs leading-tight text-ink-muted sm:hidden">
-                          {row.conference} &middot; {row.score.toFixed(1)}
+                          {row.conference} &middot; {row.score.toFixed(3)}
                         </span>
                       </span>
                     </span>
@@ -170,7 +170,7 @@ export function BracketFieldSelector({ candidates, formAction }: Props) {
                   <td className="px-2 py-2 text-right text-ink sm:px-3">{row.wins}</td>
                   <td className="px-2 py-2 text-right text-ink sm:px-3">{row.losses}</td>
                   <td className="hidden px-3 py-2 text-right font-mono text-ink sm:table-cell">
-                    {row.score.toFixed(1)}
+                    {row.score.toFixed(3)}
                   </td>
                   <td className="hidden px-3 py-2 text-xs text-ink-muted sm:table-cell"></td>
                 </tr>
