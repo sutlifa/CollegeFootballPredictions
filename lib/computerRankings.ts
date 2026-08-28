@@ -156,6 +156,30 @@ function conferenceTier(team: Team): number {
 // the primary driver of the rating.
 const QUALITY_K = 12;
 
+// Extra credit for a win over a team that was still strong at season's end,
+// on top of the Elo credit already banked when the game was played. Full
+// award for beating the eventual best team in the country, tapering to
+// nothing at the median -- so it rewards a schedule of quality wins
+// without ever penalising a team whose beaten opponent later faded.
+const QUALITY_WIN_WEIGHT = 40;
+const QUALITY_WIN_THRESHOLD = 0.5;
+
+/**
+ * Ceiling on a team's total quality-win bonus, so the bonus can separate
+ * teams with the SAME record but never overturn a better one.
+ *
+ * It has to scale with the conference rather than being a flat number.
+ * Inside a conference one extra WIN is worth `tier * 55` -- 70 in the SEC
+ * but only 16.5 in the MAC -- while one extra LOSS is a flat 55. The
+ * smallest record increment a team's conference can produce is therefore
+ * `55 * min(tier, 1)`, and the cap sits just under that. A flat cap was
+ * tried first and left three same-conference pairs out of order, all of
+ * them in Group of Six conferences where a win is worth least.
+ */
+function qualityWinCap(team: Team): number {
+  return 0.9 * RECORD_WEIGHT_BASE * Math.min(conferenceTier(team), 1);
+}
+
 // A flat bonus added to the quality delta when the winner won on the
 // road -- not a pre-game expected-score adjustment. Home wins and
 // neutral-site wins get no adjustment at all (both "neutral"); only an
@@ -328,6 +352,8 @@ export function computeComputerRankings(
   const confChampAdjustments = new Map<number, number>();
   const wins = new Map<number, number>();
   const losses = new Map<number, number>();
+  /** FBS teams each team beat, for the end-of-season quality-win bonus. */
+  const beatenOpponents = new Map<number, number[]>();
 
   for (const team of teams) {
     qualityRatings.set(team.id, team.isFbs ? 0 : FCS_QUALITY_BASELINE);
@@ -336,6 +362,7 @@ export function computeComputerRankings(
     confChampAdjustments.set(team.id, 0);
     wins.set(team.id, 0);
     losses.set(team.id, 0);
+    beatenOpponents.set(team.id, []);
   }
 
   const decided = games
@@ -413,6 +440,72 @@ export function computeComputerRankings(
     const loserPenalty = rawDelta * lossToughness(conferenceTier(winner));
     qualityRatings.set(winner.id, winnerQuality + winnerGain);
     qualityRatings.set(loser.id, loserQuality - loserPenalty);
+
+    if (loser.isFbs) {
+      beatenOpponents.get(winner.id)!.push(loser.id);
+    }
+  }
+
+  // ---- Quality wins, judged on where the opponent FINISHED ----------------
+  //
+  // The credit above is Elo-style and sequential: it uses the opponent's
+  // rating at the moment you played them, and it is never taken back. Beat
+  // a team while they look great and you keep every point of that even if
+  // they collapse in November.
+  //
+  // What that alone misses is the difference between beating a team that
+  // stayed good and beating one whose ranking evaporated. So each win also
+  // earns a bonus scaled by how strong the opponent was AT THE END. It is
+  // strictly additive and never negative -- a beaten team falling apart can
+  // only fail to earn you extra, it can never cost you anything -- but a
+  // season full of wins over teams that held up finishes ahead of an
+  // identical record built on teams that didn't.
+  const preliminary = new Map<number, number>();
+  for (const team of teams) {
+    if (!team.isFbs) continue;
+    preliminary.set(
+      team.id,
+      recordComponent(
+        team,
+        regularSeasonWins.get(team.id) ?? 0,
+        regularSeasonLosses.get(team.id) ?? 0,
+      ) +
+        (qualityRatings.get(team.id) ?? 0) +
+        (confChampAdjustments.get(team.id) ?? 0),
+    );
+  }
+  // Percentile of each team's finishing strength: 1 for the best team in the
+  // country, 0 for the worst. Using a percentile rather than the raw rating
+  // keeps this stable no matter how the rating constants are retuned.
+  const finishOrder = [...preliminary.entries()].sort((a, b) => b[1] - a[1]);
+  const finishPercentile = new Map<number, number>();
+  finishOrder.forEach(([teamId], i) => {
+    finishPercentile.set(
+      teamId,
+      finishOrder.length > 1 ? 1 - i / (finishOrder.length - 1) : 1,
+    );
+  });
+
+  const qualityWinBonus = new Map<number, number>();
+  for (const team of teams) {
+    if (!team.isFbs) continue;
+    let bonus = 0;
+    for (const opponentId of beatenOpponents.get(team.id) ?? []) {
+      const percentile = finishPercentile.get(opponentId) ?? 0;
+      // Only wins over teams that finished in the top half count, ramping
+      // from nothing at the median to the full award for beating the best
+      // team in the country.
+      bonus +=
+        QUALITY_WIN_WEIGHT * Math.max(0, percentile - QUALITY_WIN_THRESHOLD);
+    }
+    // Capped below what a single loss costs in the record term, so this can
+    // separate two teams with the SAME record but can never lift a worse
+    // record above a better one inside a conference -- the guarantee the
+    // record term exists to provide. Uncapped, a long tail of quality wins
+    // outweighed an extra loss, which is precisely the failure the
+    // record/quality split was built to rule out (it put three
+    // same-conference pairs out of order the first time this ran).
+    qualityWinBonus.set(team.id, Math.min(bonus, qualityWinCap(team)));
   }
 
   const byScore = teams
@@ -425,7 +518,8 @@ export function computeComputerRankings(
           regularSeasonLosses.get(team.id) ?? 0,
         ) +
         (qualityRatings.get(team.id) ?? 0) +
-        (confChampAdjustments.get(team.id) ?? 0);
+        (confChampAdjustments.get(team.id) ?? 0) +
+        (qualityWinBonus.get(team.id) ?? 0);
       return {
         team,
         score: toDisplayScore(rating),
@@ -455,4 +549,54 @@ export function computeComputerRankings(
     losses: row.losses,
     score: row.score,
   }));
+}
+
+/**
+ * The rankings as they stood after each week that has games, so a team's
+ * rise or fall through the season is visible rather than only its final
+ * position. Each entry is a full ranking computed from every game up to
+ * and including that week -- exactly what computeComputerRankings would
+ * have returned at the time.
+ *
+ * Note the rating is path-dependent by design (Elo credit uses the
+ * opponent's rating at the moment you played them), so this genuinely
+ * re-runs the season week by week rather than interpolating a final
+ * answer backwards.
+ */
+export function computeWeeklyRankings(
+  teams: Team[],
+  games: Game[],
+): { week: number; rankings: RankingRow[] }[] {
+  const weeks = [...new Set(games.filter(isDecided).map((g) => g.week))].sort(
+    (a, b) => a - b,
+  );
+  return weeks.map((week) => ({
+    week,
+    rankings: computeComputerRankings(
+      teams,
+      games.filter((g) => g.week <= week),
+    ),
+  }));
+}
+
+/**
+ * How far each team moved between the two most recent ranked weeks.
+ * Positive means climbing (rank 12 -> 8 is +4); null when the team has no
+ * previous week to compare against.
+ */
+export function rankMovement(
+  weekly: { week: number; rankings: RankingRow[] }[],
+): Map<number, number | null> {
+  const movement = new Map<number, number | null>();
+  if (weekly.length === 0) return movement;
+  const current = weekly[weekly.length - 1].rankings;
+  const previous = weekly.length > 1 ? weekly[weekly.length - 2].rankings : null;
+  const previousRank = new Map(
+    (previous ?? []).map((r) => [r.teamId, r.rank]),
+  );
+  for (const row of current) {
+    const before = previousRank.get(row.teamId);
+    movement.set(row.teamId, before === undefined ? null : before - row.rank);
+  }
+  return movement;
 }

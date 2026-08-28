@@ -4,13 +4,18 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { finalizeConferenceStandingsIfReady } from "@/lib/conferenceTiebreakers";
 import { isMarginBucketId } from "@/lib/margin";
-import { clearPrediction, savePrediction, submitWeek } from "@/lib/queries";
+import {
+  clearPrediction,
+  savePrediction,
+  syncWeekSubmission,
+} from "@/lib/queries";
 
 function revalidateAllAffected(week: number) {
   revalidatePath(`/weeks/${week}`);
   revalidatePath("/standings");
   revalidatePath("/rankings");
   revalidatePath("/bracket");
+  revalidatePath("/leaderboard");
   revalidatePath("/");
 }
 
@@ -20,6 +25,18 @@ async function requireUserId(): Promise<number> {
     throw new Error("Not signed in");
   }
   return session.user.id;
+}
+
+/**
+ * A week submits itself as soon as every game in it has a pick, and
+ * un-submits if a pick is cleared -- so there's no separate button to
+ * remember, and editing one game in a finished week silently re-submits it
+ * rather than dropping the whole week out of the rankings.
+ */
+async function settleWeek(userId: number, week: number) {
+  await syncWeekSubmission(userId, week);
+  await finalizeConferenceStandingsIfReady(userId);
+  revalidateAllAffected(week);
 }
 
 export async function savePredictionAction(formData: FormData) {
@@ -37,7 +54,7 @@ export async function savePredictionAction(formData: FormData) {
   }
 
   await savePrediction(userId, gameId, winnerTeamId, marginBucket);
-  revalidateAllAffected(week);
+  await settleWeek(userId, week);
 }
 
 export async function clearPredictionAction(formData: FormData) {
@@ -49,17 +66,5 @@ export async function clearPredictionAction(formData: FormData) {
   }
 
   await clearPrediction(userId, gameId);
-  revalidateAllAffected(week);
-}
-
-export async function submitWeekAction(formData: FormData) {
-  const userId = await requireUserId();
-  const week = Number(formData.get("week"));
-  if (Number.isNaN(week)) {
-    throw new Error("Invalid week");
-  }
-
-  await submitWeek(userId, week);
-  await finalizeConferenceStandingsIfReady(userId);
-  revalidateAllAffected(week);
+  await settleWeek(userId, week);
 }

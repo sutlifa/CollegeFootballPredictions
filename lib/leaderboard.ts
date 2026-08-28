@@ -6,6 +6,9 @@ export type LeaderboardRow = {
   /** Games this user could pick this season (shared schedule + their own Week 16). */
   gamesAvailable: number;
   pickedPct: number; // 0-1
+  /** Conference championship picks, kept out of the regular-season totals above. */
+  confChampPicked: number;
+  confChampAvailable: number;
   /** Of this user's picks, how many have a real result to score against yet. */
   totalPicks: number;
   /** Games where they picked the winning team. */

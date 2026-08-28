@@ -284,6 +284,43 @@ export async function submitWeek(
   `;
 }
 
+/**
+ * Submits a week automatically once every game in it has a pick, and
+ * withdraws the submission if it no longer does.
+ *
+ * There's no reason to make people press a button that can only ever be
+ * pressed when the week is already complete -- and because editing a pick
+ * clears the submission first, a change to an otherwise-finished week
+ * would silently drop it out of the rankings until they noticed. Calling
+ * this after every save/clear keeps "complete" and "submitted" the same
+ * thing.
+ */
+export async function syncWeekSubmission(
+  userId: number,
+  week: number,
+  season = SEASON,
+): Promise<boolean> {
+  const [row] = await sql<{ total: number; picked: number }[]>`
+    SELECT
+      COUNT(g.id)::int AS total,
+      COUNT(p.id)::int AS picked
+    FROM games g
+    LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
+    WHERE g.season = ${season} AND g.week = ${week}
+      AND (g.user_id = ${userId} OR (g.user_id IS NULL AND g.week <> 16))
+  `;
+  const complete = !!row && row.total > 0 && row.picked === row.total;
+  if (complete) {
+    await submitWeek(userId, week, season);
+  } else {
+    await sql`
+      DELETE FROM week_submissions
+      WHERE user_id = ${userId} AND season = ${season} AND week = ${week}
+    `;
+  }
+  return complete;
+}
+
 /** Weeks this user has submitted -- only these count toward Computer Rankings. */
 export async function getSubmittedWeeks(
   userId: number,
@@ -471,6 +508,8 @@ type LeaderboardQueryRow = {
   email: string;
   picks_made: string; // bigint from Postgres COUNT(*)
   games_available: string;
+  conf_champ_picked: string;
+  conf_champ_available: string;
   total_picks: string;
   correct_picks: string;
   correct_margins: string;
@@ -483,40 +522,41 @@ type LeaderboardQueryRow = {
  * how much of their slate they've filled in (picks_made / games_available),
  * which is the only meaningful preseason standing.
  *
- * games_available is per-user on purpose: the schedule is shared for weeks
- * 0-15, but each user gets their OWN Week 16 rows (their predicted
- * conference championships), so the denominator differs between users
- * depending on how many championship matchups their predictions have
- * produced so far.
- *
- * Margin diff is |predicted margin - actual margin| (both computed
- * team1-relative, so the sign is self-consistent regardless of which team
- * was picked), averaged over CORRECT picks only.
+ * Conference championships (Week 16) are deliberately EXCLUDED from
+ * picks_made / games_available. Those rows are derived per-user from each
+ * person's own predicted standings, so counting them made the denominator
+ * differ between people -- 897 for someone who'd opened Week 16, 888 for
+ * someone who hadn't -- which made the Picked column look broken. They're
+ * counted separately (conf_champ_*) and scored on their own terms.
  */
 export async function getLeaderboard(
   season = SEASON,
 ): Promise<LeaderboardRow[]> {
   const rows = await sql<LeaderboardQueryRow[]>`
     WITH shared_games AS (
+      -- The regular season only, and identical for everyone.
       SELECT COUNT(*) AS n
       FROM games
       WHERE season = ${season} AND user_id IS NULL AND week <> 16
-    ),
-    per_user_games AS (
-      SELECT
-        u.id AS user_id,
-        (SELECT n FROM shared_games) + COUNT(g.id) AS games_available
-      FROM users u
-      LEFT JOIN games g
-        ON g.user_id = u.id AND g.season = ${season}
-      GROUP BY u.id
     ),
     picks AS (
       SELECT p.user_id, COUNT(*) AS picks_made
       FROM predictions p
       JOIN games g ON g.id = p.game_id
-      WHERE g.season = ${season}
+      WHERE g.season = ${season} AND g.week <> 16
       GROUP BY p.user_id
+    ),
+    conf_champ AS (
+      SELECT
+        u.id AS user_id,
+        COUNT(g.id) AS conf_champ_available,
+        COUNT(p.id) AS conf_champ_picked
+      FROM users u
+      LEFT JOIN games g
+        ON g.user_id = u.id AND g.season = ${season} AND g.week = 16
+      LEFT JOIN predictions p
+        ON p.game_id = g.id AND p.user_id = u.id
+      GROUP BY u.id
     ),
     scored AS (
       SELECT
@@ -556,13 +596,15 @@ export async function getLeaderboard(
       u.name,
       u.email,
       COALESCE(pk.picks_made, 0) AS picks_made,
-      COALESCE(pug.games_available, 0) AS games_available,
+      (SELECT n FROM shared_games) AS games_available,
+      COALESCE(cc.conf_champ_picked, 0) AS conf_champ_picked,
+      COALESCE(cc.conf_champ_available, 0) AS conf_champ_available,
       COALESCE(sa.total_picks, 0) AS total_picks,
       COALESCE(sa.correct_picks, 0) AS correct_picks,
       COALESCE(sa.correct_margins, 0) AS correct_margins
     FROM users u
-    LEFT JOIN per_user_games pug ON pug.user_id = u.id
     LEFT JOIN picks pk ON pk.user_id = u.id
+    LEFT JOIN conf_champ cc ON cc.user_id = u.id
     LEFT JOIN scored_agg sa ON sa.user_id = u.id
   `;
 
@@ -572,12 +614,16 @@ export async function getLeaderboard(
     const correctMargins = Number(row.correct_margins);
     const picksMade = Number(row.picks_made);
     const gamesAvailable = Number(row.games_available);
+    const confChampPicked = Number(row.conf_champ_picked);
+    const confChampAvailable = Number(row.conf_champ_available);
     return {
       userId: row.user_id,
       displayName: formatDisplayName(row.name, row.email),
       picksMade,
       gamesAvailable,
       pickedPct: gamesAvailable > 0 ? picksMade / gamesAvailable : 0,
+      confChampPicked,
+      confChampAvailable,
       totalPicks,
       correctPicks,
       correctPct: totalPicks > 0 ? correctPicks / totalPicks : 0,

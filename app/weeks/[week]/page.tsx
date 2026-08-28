@@ -18,11 +18,7 @@ import {
 } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName, isDecided } from "@/lib/types";
-import {
-  clearPredictionAction,
-  savePredictionAction,
-  submitWeekAction,
-} from "./actions";
+import { clearPredictionAction, savePredictionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +51,8 @@ export default async function WeekPage({
     getWeekLocksAt(week),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
-  const allDecided = games.length > 0 && games.every(isDecided);
+  const picked = games.filter((g) => g.predictedWinnerTeamId !== null).length;
+  const allDecided = games.length > 0 && picked === games.length;
   // Picks freeze when the week's first game kicks off, the way a fantasy
   // lineup locks once the week starts.
   const weekLocked = weekLocksAt !== null && weekLocksAt.getTime() <= Date.now();
@@ -94,25 +91,19 @@ export default async function WeekPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           {getWeekLabel(week)}
-          <Tooltip text="The home team comes first -- on the left on a wide screen, on the top line on a phone. A neutral-site game is marked N and gets no home-field boost. Tap the margin you expect beside a team to pick that team to win by that much; it saves on the spot, and Clear removes the pick. Picks for a week freeze once that week's first game kicks off, so get them in beforehand. Once every game this week has a pick, Submit Week Results unlocks -- nothing counts toward Computer Rankings or the Bracket until you submit." />
+          <Tooltip text="The home team comes first -- on the left on a wide screen, on the top line on a phone. A neutral-site game is marked N and gets no home-field boost. Tap the margin you expect beside a team to pick that team to win by that much; it saves on the spot, and Clear removes the pick. Picks for a week freeze once that week's first game kicks off, so get them in beforehand. The week counts toward Computer Rankings and the Bracket automatically once every game has a pick -- there is no Submit button, and changing a pick in a finished week just re-counts it." />
         </h1>
-        {allDecided && (
-          <div className="flex items-center gap-3">
-            {submitted && (
-              <span className="text-sm font-medium text-win">
-                ✓ Submitted -- counted in Computer Rankings
-              </span>
-            )}
-            <form action={submitWeekAction}>
-              <input type="hidden" name="week" value={week} />
-              <button
-                type="submit"
-                className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
-              >
-                {submitted ? "Re-submit Week Results" : "Submit Week Results"}
-              </button>
-            </form>
-          </div>
+        {/* No Submit button: a week submits itself once every game has a
+            pick (see settleWeek in ./actions.ts), so this only reports
+            where the week stands. */}
+        {submitted ? (
+          <span className="text-sm font-medium text-win">
+            ✓ Complete -- counted in Computer Rankings
+          </span>
+        ) : (
+          <span className="text-sm text-ink-muted">
+            {picked} of {games.length} picked
+          </span>
         )}
       </div>
       {weekLocked ? (
@@ -138,9 +129,8 @@ export default async function WeekPage({
           )}
           {!allDecided && (
             <p className="text-sm text-ink-muted">
-              Predict every game this week to unlock{" "}
-              <span className="font-semibold text-ink">Submit Week Results</span>{" "}
-              -- nothing counts toward Computer Rankings until you submit.
+              Pick every game this week and it counts toward Computer Rankings
+              automatically -- there is nothing to submit.
             </p>
           )}
         </>
@@ -203,25 +193,6 @@ export default async function WeekPage({
               />
             );
           })}
-        </div>
-      )}
-
-      {allDecided && (
-        <div className="flex items-center justify-center gap-3">
-          {submitted && (
-            <span className="text-sm font-medium text-win">
-              ✓ Submitted -- counted in Computer Rankings
-            </span>
-          )}
-          <form action={submitWeekAction}>
-            <input type="hidden" name="week" value={week} />
-            <button
-              type="submit"
-              className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
-            >
-              {submitted ? "Re-submit Week Results" : "Submit Week Results"}
-            </button>
-          </form>
         </div>
       )}
 
