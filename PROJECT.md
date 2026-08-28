@@ -78,10 +78,15 @@ rating = recordComponent + squashed(quality) + confChampAdjustment
 
 Guarantees that must survive any change — verify, don't assume:
 
-1. **Within a conference, a strictly better record always ranks higher.**
-   The only exception is a conference champion, which is allowed to pass a
-   better record. This is arithmetic, not tuning: the non-record terms are
-   bounded to a fraction of one record step.
+1. **Within a conference, a strictly better record always ranks higher —
+   at season's end.** The only exception is a conference champion, which is
+   allowed to pass a better record. This is arithmetic, not tuning: the
+   non-record terms are bounded to a fraction of one record step. It holds
+   *once the prior has faded*; before then a 2-1 preseason top-10 team above
+   an unheralded 3-0 team is intended, and is what real polls do. When
+   auditing, expect roughly 65 such pairs at week 0 and 110 at week 2,
+   falling to 1 by week 4 and 0 at the end — measuring an early-season board
+   against end-of-season logic will look alarming and is not a bug.
 2. **No Group of Six team above a Power Four team that also has a better
    record.**
 3. **A bye week is neutral** — never advantage a team for having played
@@ -104,6 +109,18 @@ Guarantees that must survive any change — verify, don't assume:
   by the team's own headroom. Dividing by headroom re-introduced saturation:
   a MAC headroom of 3.3 makes `tanh(quality/3.3)` numerically 1.0 for any
   real input, tying every MAC team.
+- **The record/quality balance inverts across the season.** Late, record
+  dominates and quality is a tiebreak. Early, that is backwards — a win pays
+  a flat `55 × tier` whoever it came against, so week 1 only knew *that* you
+  played, not *who* you beat, and a preseason #14 jumped to 6th for handling
+  a mid-major. So `recordComponent` is scaled by `(1 - preseasonWeight)`,
+  and quality gets the room record is not using yet via `seasonHeadroom`
+  (`EARLY_QUALITY_BOOST = 8`) and `qualityScale` (tanh input scaled by
+  season progress, because after one game raw quality is a few points and
+  `tanh(5/150)` squashes every team to the same nothing). Both land on their
+  strict values at `preseasonWeight = 0`, so a completed season is
+  untouched. Check: USC beating a #123 should move ~1 spot; beating the #1
+  team should move them to the top.
 - `PRESEASON_PRIOR_PER_SIGMA = 165`, `PRIOR_FADE_GAMES = 6`. The preseason
   poll is the **starting** power level and fades to **exactly zero** by six
   games — exactly zero because the guarantees above are proved from the

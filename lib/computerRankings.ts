@@ -324,6 +324,49 @@ function nonRecordHeadroom(team: Team): number {
  */
 const NON_RECORD_SCALE = 150;
 
+/**
+ * Which way the rating leans, early season versus late.
+ *
+ * Late, record dominates and quality is a tiebreak -- that is the whole
+ * point of nonRecordHeadroom and it is what makes 12-1 reliably beat 11-2.
+ * Early, that balance is exactly backwards. A win pays a flat 55 * tier
+ * whoever it came against, so in week 1 the only thing the rating really
+ * knew was THAT you played, not WHO you beat, and a preseason #14 jumped to
+ * 6th for handling a mid-major.
+ *
+ * So the two terms trade places over the first six games. recordComponent
+ * is scaled by (1 - preseasonWeight) at the point of use, and quality gets
+ * the room the record term is not using yet:
+ *
+ *  - seasonHeadroom widens the quality bound while the prior is alive, so
+ *    beating someone genuinely good can move a team a real distance in
+ *    September instead of being capped at a sixth of a win.
+ *  - qualityScale keeps the tanh in its sensitive range against however
+ *    much quality has actually accumulated. A fixed 150 is right for a
+ *    finished season; after one game raw quality is only a few points, and
+ *    tanh(5 / 150) is 0.03 -- every team, whoever they played, squashed to
+ *    the same nothing. Scaling the input by season progress means the
+ *    difference between beating the #1 team and beating the #130 team is
+ *    legible in week 1 rather than rounding away.
+ *
+ * Both land on their strict end-of-season values once preseasonWeight hits
+ * zero, so nothing here touches a completed season.
+ */
+const EARLY_QUALITY_BOOST = 8;
+const FULL_SEASON_GAMES = 12;
+
+function seasonHeadroom(team: Team, preseasonWeight: number): number {
+  return nonRecordHeadroom(team) * (1 + EARLY_QUALITY_BOOST * preseasonWeight);
+}
+
+function qualityScale(seasonProgress: number): number {
+  const progress = Math.min(
+    1,
+    Math.max(seasonProgress, 1) / FULL_SEASON_GAMES,
+  );
+  return NON_RECORD_SCALE * progress;
+}
+
 /*
  * The three numbers above (headroom 0.2, champion 0.5) are chosen together
  * so two rules both hold, in every conference, by arithmetic rather than
@@ -737,16 +780,24 @@ export function computeComputerRankings(
       // on 95.2. tanh is strictly increasing, so two 10-2 teams always stay
       // ordered by the quality of their wins and losses no matter how far
       // out they are -- the gap just compresses as it approaches the bound.
-      const headroom = nonRecordHeadroom(team);
+      const headroom = seasonHeadroom(team, preseasonWeight);
       const rawNonRecord =
         (qualityRatings.get(team.id) ?? 0) + (qualityWinBonus.get(team.id) ?? 0);
-      const nonRecord = headroom * Math.tanh(rawNonRecord / NON_RECORD_SCALE);
+      const nonRecord =
+        headroom * Math.tanh(rawNonRecord / qualityScale(seasonProgress));
       const rating =
-        recordComponent(
-          team,
-          regularSeasonWins.get(team.id) ?? 0,
-          regularSeasonLosses.get(team.id) ?? 0,
-        ) +
+        // Record ramps in as the prior fades out. A win pays a FLAT
+        // 55 * tier no matter who it came against, so at full weight in
+        // week 1 it swamped everything that knows the opponent's name:
+        // a preseason #14 beat a mid-major and came out 6th. Nothing in
+        // that result deserved eight spots. At season's end the scale is
+        // 1 and every record guarantee below is exact again.
+        (1 - preseasonWeight) *
+          recordComponent(
+            team,
+            regularSeasonWins.get(team.id) ?? 0,
+            regularSeasonLosses.get(team.id) ?? 0,
+          ) +
         nonRecord +
         // Outside the clamp on purpose: a title has to beat any quality
         // difference at the same record, which it could not do from inside
