@@ -691,3 +691,40 @@ export function rankMovement(
   }
   return movement;
 }
+
+/**
+ * Each team's change in rank since the previous ranked week -- positive is
+ * climbing (12 -> 8 is +4), null for a team with no earlier week to
+ * compare against.
+ *
+ * Only two rankings are computed (now, and through the week before), not
+ * the whole season: replaying every week costs one full pass per week, and
+ * the rankings page runs on every request.
+ */
+export function computeRankMovement(
+  teams: Team[],
+  games: Game[],
+): { current: RankingRow[]; movement: Map<number, number | null> } {
+  const current = computeComputerRankings(teams, games);
+  const weeks = [...new Set(games.filter(isDecided).map((g) => g.week))].sort(
+    (a, b) => a - b,
+  );
+
+  const movement = new Map<number, number | null>();
+  if (weeks.length < 2) {
+    for (const row of current) movement.set(row.teamId, null);
+    return { current, movement };
+  }
+
+  const previousWeek = weeks[weeks.length - 2];
+  const previous = computeComputerRankings(
+    teams,
+    games.filter((g) => g.week <= previousWeek),
+  );
+  const previousRank = new Map(previous.map((r) => [r.teamId, r.rank]));
+  for (const row of current) {
+    const before = previousRank.get(row.teamId);
+    movement.set(row.teamId, before === undefined ? null : before - row.rank);
+  }
+  return { current, movement };
+}
