@@ -186,15 +186,27 @@ const QUALITY_WIN_THRESHOLD = 0.5;
  * more genuine résumé difference to express between two 10-2 SEC teams
  * than between two 8-4 MAC teams.
  */
-const NON_RECORD_HEADROOM_FRACTION = 0.45;
+const NON_RECORD_HEADROOM_FRACTION = 0.2;
 
 function nonRecordHeadroom(team: Team): number {
-  return (
-    NON_RECORD_HEADROOM_FRACTION *
-    RECORD_WEIGHT_BASE *
-    Math.min(conferenceTier(team), 1)
-  );
+  return NON_RECORD_HEADROOM_FRACTION * recordStep(team);
 }
+
+/*
+ * The three numbers above (headroom 0.2, champion 0.5) are chosen together
+ * so two rules both hold, in every conference, by arithmetic rather than
+ * by luck:
+ *
+ *   A conference champion always outranks a team with the SAME record that
+ *   didn't win a title. Worst-case champion is -0.2 + 0.5 = +0.3 steps;
+ *   best-case non-champion is +0.2. 0.3 > 0.2.
+ *
+ *   A better record always outranks a worse one, title or not. The largest
+ *   possible non-record swing between two teams is (0.2 + 0.5) - (-0.2) =
+ *   0.9 steps, and the smallest record advantage is a full 1.0 step. So an
+ *   8-4 conference champion still finishes below a 10-2 or 11-1 team --
+ *   winning your league breaks ties, it doesn't buy you two games.
+ */
 
 // A flat bonus added to the quality delta when the winner won on the
 // road -- not a pre-game expected-score adjustment. Home wins and
@@ -238,13 +250,38 @@ function lossToughness(winnerTier: number): number {
   return 1.55 - 0.55 * winnerTier;
 }
 
-// Conference Championship week: kept entirely separate from both the
-// record and quality terms -- a win is a small flat bonus, a loss barely
-// costs anything unless it was a real blowout.
-const CONFERENCE_CHAMPIONSHIP_WIN_BONUS = 8;
-const CONFERENCE_CHAMPIONSHIP_CLOSE_LOSS_PENALTY = 3;
-const CONFERENCE_CHAMPIONSHIP_BLOWOUT_LOSS_PENALTY = 20;
+/**
+ * Conference Championship week, expressed as fractions of one record step
+ * in the champion's own conference (see recordStep) rather than as flat
+ * point values.
+ *
+ * A flat +8 was worth almost nothing in the Group of Six, where a whole
+ * win is only 16.5 points and the non-record budget is smaller still, so a
+ * MAC champion could finish BELOW a team with the same record that hadn't
+ * even reached the title game. Scaling by conference keeps the title worth
+ * the same *relative* amount everywhere.
+ *
+ * The win fraction is deliberately larger than the entire non-record
+ * headroom below, so a champion always outranks a same-record team that
+ * didn't win the title, and deliberately small enough that champion plus
+ * best-case quality still can't bridge one extra win. See the invariants
+ * spelled out on NON_RECORD_HEADROOM_FRACTION.
+ */
+const CONF_CHAMP_WIN_FRACTION = 0.5;
+const CONF_CHAMP_CLOSE_LOSS_FRACTION = 0.1;
+const CONF_CHAMP_BLOWOUT_LOSS_FRACTION = 0.35;
 const BLOWOUT_MARGIN = 15;
+
+/**
+ * The smallest rating step a team's own conference can produce from one
+ * game of record: a win is worth `tier * 55`, a loss a flat 55, so the
+ * tighter of the two is `55 * min(tier, 1)`. Everything that is not record
+ * is sized against this so the comparisons stay proportional between a
+ * conference where a win is worth 70 and one where it's worth 16.5.
+ */
+function recordStep(team: Team): number {
+  return RECORD_WEIGHT_BASE * Math.min(conferenceTier(team), 1);
+}
 
 // If two teams are within this many points of each other ON THE DISPLAYED
 // 0-100 SCALE, a head-to-head result between them settles the order --
@@ -425,14 +462,16 @@ export function computeComputerRankings(
     if (game.isConferenceChampionship) {
       confChampAdjustments.set(
         winner.id,
-        (confChampAdjustments.get(winner.id) ?? 0) + CONFERENCE_CHAMPIONSHIP_WIN_BONUS,
+        (confChampAdjustments.get(winner.id) ?? 0) +
+          CONF_CHAMP_WIN_FRACTION * recordStep(winner),
       );
       confChampAdjustments.set(
         loser.id,
         (confChampAdjustments.get(loser.id) ?? 0) -
           (margin >= BLOWOUT_MARGIN
-            ? CONFERENCE_CHAMPIONSHIP_BLOWOUT_LOSS_PENALTY
-            : CONFERENCE_CHAMPIONSHIP_CLOSE_LOSS_PENALTY),
+            ? CONF_CHAMP_BLOWOUT_LOSS_FRACTION
+            : CONF_CHAMP_CLOSE_LOSS_FRACTION) *
+            recordStep(loser),
       );
       continue;
     }
@@ -535,34 +574,45 @@ export function computeComputerRankings(
   const byScore = teams
     .filter((t) => t.isFbs)
     .map((team) => {
-      // Everything that is not win-loss record is bounded together, so no
-      // combination of quality rating, quality wins and a conference
-      // championship can add up to more than one record step in this
-      // team's conference. See nonRecordHeadroom.
+      // Quality is bounded to the headroom so it can't overturn a record,
+      // but SQUASHED into it rather than clipped. A hard clamp destroyed
+      // exactly the comparison this term exists to make: once two teams
+      // both exceeded the headroom they pinned to the identical value and
+      // became tied, so three SEC teams with different résumés all landed
+      // on 95.2. tanh is strictly increasing, so two 10-2 teams always stay
+      // ordered by the quality of their wins and losses no matter how far
+      // out they are -- the gap just compresses as it approaches the bound.
       const headroom = nonRecordHeadroom(team);
-      const nonRecord = Math.max(
-        -headroom,
-        Math.min(
-          headroom,
-          (qualityRatings.get(team.id) ?? 0) +
-            (confChampAdjustments.get(team.id) ?? 0) +
-            (qualityWinBonus.get(team.id) ?? 0),
-        ),
-      );
+      const rawNonRecord =
+        (qualityRatings.get(team.id) ?? 0) + (qualityWinBonus.get(team.id) ?? 0);
+      const nonRecord = headroom * Math.tanh(rawNonRecord / headroom);
       const rating =
         recordComponent(
           team,
           regularSeasonWins.get(team.id) ?? 0,
           regularSeasonLosses.get(team.id) ?? 0,
-        ) + nonRecord;
+        ) +
+        nonRecord +
+        // Outside the clamp on purpose: a title has to beat any quality
+        // difference at the same record, which it could not do from inside
+        // the same budget quality is competing for.
+        (confChampAdjustments.get(team.id) ?? 0);
       return {
         team,
+        rating,
         score: toDisplayScore(rating),
         wins: wins.get(team.id) ?? 0,
         losses: losses.get(team.id) ?? 0,
       };
     })
     .sort((a, b) => {
+      // Sort on the exact rating, not the rounded display score. Rounding to
+      // one decimal collapses ratings that genuinely differ, and two 10-2
+      // teams that landed on the same rounded number were then ordered
+      // alphabetically -- throwing away the quality-of-wins comparison the
+      // rating had already made. tanh and the rounding are both monotonic,
+      // so ordering by rating never disagrees with the score shown.
+      if (b.rating !== a.rating) return b.rating - a.rating;
       if (b.score !== a.score) return b.score - a.score;
       // Two teams can land on the exact same rounded display score without
       // their underlying records being equal. When that happens, prefer
