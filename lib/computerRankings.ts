@@ -2,14 +2,23 @@ import type { Game, RankingRow, Team } from "./types";
 import { isDecided } from "./types";
 
 /**
- * "Computer Rankings" -- a 0-100 power score, starting every FBS team at a
- * neutral midpoint (50) and earned entirely from this season's results.
- * Nothing about preseason polls is baked in.
+ * "Computer Rankings" -- a 0-100 power score that STARTS from the preseason
+ * poll and is then earned away from it by results.
  *
- * The internal rating is explicitly two separate, additive parts, not one
+ * The preseason rank is a starting power level, not a permanent thumb on
+ * the scale: it fades linearly to exactly zero influence once a team has
+ * played PRIOR_FADE_GAMES games, so a finished season is decided purely by
+ * what happened on the field. Without it the rating had a bad failure mode
+ * early in the year -- every team began at 0 and the record term is
+ * cumulative, so a single 1-0 team sat a whole win above all 137 teams who
+ * simply had not kicked off yet. One submitted week was enough to put a
+ * 1-0 team at #1 on the strength of having played at all.
+ *
+ * The internal rating is explicitly separate, additive parts, not one
  * blended accumulator:
  *
- *   rating = recordWeight(team) * recordScore + qualityRating + confChampAdjustment
+ *   rating = recordWeight(team) * recordScore + qualityRating
+ *            + confChampAdjustment + priorWeight(gamesPlayed) * preseasonPrior
  *
  *  - recordScore is just wins minus losses (see below for the small
  *    Conference Championship exception) -- simple, transparent, and
@@ -119,7 +128,118 @@ function recordComponent(team: Team, regularWins: number, regularLosses: number)
   return RECORD_WEIGHT_BASE * (conferenceTier(team) * regularWins - regularLosses);
 }
 
-const FCS_QUALITY_BASELINE = -80;
+/**
+ * Where a team sits before it has played anybody, from the preseason poll.
+ *
+ * Two separate uses, deliberately at different strengths:
+ *
+ *  - PRESEASON_PRIOR_PER_SIGMA is the rating handed out per standard
+ *    deviation of preseason strength while a team has no results, so the
+ *    #1 team starts around +480 and the #138 around -480. It is set
+ *    relative to what a single game is worth: one SEC win is 70, so
+ *    winning your opener rather than losing it is a 125-point swing --
+ *    a few spots at the top of the board, where teams are genuinely far
+ *    apart, and more in the bunched middle. Much narrower and week 1
+ *    threw the whole board in the air; much wider and a month of football
+ *    couldn't move anyone.
+ *
+ *  - PRESEASON_ELO_PER_SIGMA seeds the Elo quality rating, which is a
+ *    different job: it is how good the OPPONENT looked at the moment you
+ *    played them. Starting everyone at 0 there meant a week-1 upset over
+ *    the preseason #1 earned exactly what beating the preseason #138
+ *    earned. It is much smaller than the display prior because Elo credit
+ *    compounds all season, and it stays bounded by nonRecordHeadroom
+ *    regardless, so it can never overturn a record.
+ *
+ * The prior fades LINEARLY TO EXACTLY ZERO at PRIOR_FADE_GAMES rather than
+ * decaying asymptotically. That matters: every record-dominance guarantee
+ * below is proved from the record term and the headroom bound, and a prior
+ * that never quite vanished would sit outside that proof and could flip a
+ * 12-1 team behind an 11-2 one on the strength of an August opinion. At
+ * six games it is gone and those guarantees are exact again.
+ */
+const PRESEASON_PRIOR_PER_SIGMA = 165;
+const PRESEASON_ELO_PER_SIGMA = 45;
+// The tails of a 138-team normal quantile land just inside +/-3 sigma.
+const MAX_PRESEASON_SIGMA = 3;
+const PRIOR_FADE_GAMES = 6;
+
+/**
+ * Inverse normal CDF (Acklam's rational approximation). Used to turn a
+ * poll POSITION into a strength, which is not the same shape at all.
+ */
+function probit(p: number): number {
+  const a = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2,
+    1.38357751867269e2, -3.066479806614716e1, 2.506628277459239];
+  const b = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2,
+    6.680131188771972e1, -1.328068155288572e1];
+  const c = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838,
+    -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996,
+    3.754408661907416];
+  const plow = 0.02425;
+  if (p < plow) {
+    const q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  }
+  if (p > 1 - plow) return -probit(1 - p);
+  const q = p - 0.5;
+  const r = q * q;
+  return ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) /
+    (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+}
+
+/**
+ * Poll rank -> strength in standard deviations, best team positive.
+ *
+ * NOT linear in rank, on purpose. Spacing the board evenly says the gap
+ * between the #1 and #14 teams is the same as between #100 and #113, which
+ * is plainly false and had a visible cost: one week-0 win was worth about
+ * eleven spots everywhere, so a preseason #14 went 1-0 and came out ranked
+ * first in the country. Team strength is roughly normally distributed, so
+ * mapping through the normal quantile stretches the ends and compresses the
+ * middle -- a win near the top now moves a team a few spots, because the
+ * teams up there really are far apart, while the same win moves a bunched
+ * mid-table team much further. That is also how actual polls behave.
+ *
+ * Unranked FBS teams land at 0 (dead average) rather than at the bottom --
+ * a missing poll entry is an absence of information, not evidence of being
+ * terrible.
+ */
+function preseasonStrengths(teams: Team[]): Map<number, number> {
+  const ranked = teams.filter((t) => t.isFbs && t.preseasonRank !== null);
+  const strengths = new Map<number, number>();
+  for (const team of teams) strengths.set(team.id, 0);
+  const n = ranked.length;
+  if (n < 2) return strengths;
+  // Order by rank rather than trusting the poll to be a dense 1..n with no
+  // gaps or ties, so the mapping stays well-defined either way.
+  const byRank = [...ranked].sort((x, y) => x.preseasonRank! - y.preseasonRank!);
+  byRank.forEach((team, i) => {
+    // Midpoint of this team's slice of the distribution.
+    strengths.set(team.id, probit(1 - (i + 0.5) / n));
+  });
+  return strengths;
+}
+
+/**
+ * How much of the preseason prior survives, given how deep into the season
+ * the board is. Deliberately ONE number for the whole ranking, derived from
+ * the furthest-along team, rather than each team fading on its own games
+ * played -- that version had teams punished for playing. Ohio State at 3-1
+ * ranked above USC at 4-1 in the same conference, not because of the poll
+ * but because USC had played a fifth game and so had faded more of its own
+ * prior away; the extra win gained less than the fade cost. Fading the
+ * whole board together makes a bye week neutral, which is what it is.
+ */
+function priorWeight(seasonProgress: number): number {
+  return Math.max(0, 1 - seasonProgress / PRIOR_FADE_GAMES);
+}
+
+// Below every seeded FBS team, so that beating the
+// worst team in the country still counts for more than beating an FCS one.
+const FCS_QUALITY_BASELINE = -(PRESEASON_ELO_PER_SIGMA * MAX_PRESEASON_SIGMA + 80);
 
 // Real-world relative conference strength, used to scale how much a WIN
 // is worth (in the quality component only) based on the OPPONENT's
@@ -191,6 +311,18 @@ const NON_RECORD_HEADROOM_FRACTION = 0.2;
 function nonRecordHeadroom(team: Team): number {
   return NON_RECORD_HEADROOM_FRACTION * recordStep(team);
 }
+
+/**
+ * The natural spread of raw quality ratings, used as the input scale of the
+ * squash. The squash used to divide by the team's own headroom, which
+ * quietly reintroduced the saturation tanh was brought in to remove: a MAC
+ * team's headroom is 0.2 * 55 * 0.3 = 3.3, so tanh(rawQuality / 3.3) is
+ * numerically 1.0 for any real quality rating, and every MAC team pinned to
+ * the same value and tied. Dividing by a FIXED scale instead keeps the
+ * squash in its sensitive range for every conference, so low-tier teams
+ * stay tightly packed (small headroom) but still strictly ORDERED.
+ */
+const NON_RECORD_SCALE = 150;
 
 /*
  * The three numbers above (headroom 0.2, champion 0.5) are chosen together
@@ -429,8 +561,15 @@ export function computeComputerRankings(
   /** FBS teams each team beat, for the end-of-season quality-win bonus. */
   const beatenOpponents = new Map<number, number[]>();
 
+  const strengths = preseasonStrengths(teams);
+
   for (const team of teams) {
-    qualityRatings.set(team.id, team.isFbs ? 0 : FCS_QUALITY_BASELINE);
+    qualityRatings.set(
+      team.id,
+      team.isFbs
+        ? PRESEASON_ELO_PER_SIGMA * (strengths.get(team.id) ?? 0)
+        : FCS_QUALITY_BASELINE,
+    );
     regularSeasonWins.set(team.id, 0);
     regularSeasonLosses.set(team.id, 0);
     confChampAdjustments.set(team.id, 0);
@@ -562,6 +701,16 @@ export function computeComputerRankings(
     );
   });
 
+  // One fade for the entire board, set by the team furthest into its
+  // schedule. See priorWeight -- per-team fading penalised playing.
+  const seasonProgress = Math.max(
+    0,
+    ...teams
+      .filter((t) => t.isFbs)
+      .map((t) => (wins.get(t.id) ?? 0) + (losses.get(t.id) ?? 0)),
+  );
+  const preseasonWeight = priorWeight(seasonProgress);
+
   const qualityWinBonus = new Map<number, number>();
   for (const team of teams) {
     if (!team.isFbs) continue;
@@ -591,7 +740,7 @@ export function computeComputerRankings(
       const headroom = nonRecordHeadroom(team);
       const rawNonRecord =
         (qualityRatings.get(team.id) ?? 0) + (qualityWinBonus.get(team.id) ?? 0);
-      const nonRecord = headroom * Math.tanh(rawNonRecord / headroom);
+      const nonRecord = headroom * Math.tanh(rawNonRecord / NON_RECORD_SCALE);
       const rating =
         recordComponent(
           team,
@@ -602,7 +751,14 @@ export function computeComputerRankings(
         // Outside the clamp on purpose: a title has to beat any quality
         // difference at the same record, which it could not do from inside
         // the same budget quality is competing for.
-        (confChampAdjustments.get(team.id) ?? 0);
+        (confChampAdjustments.get(team.id) ?? 0) +
+        // Where the team started, fading out entirely by PRIOR_FADE_GAMES.
+        // This is what an unplayed team's whole rating is, so a board with
+        // one week submitted reads as the preseason poll nudged by that
+        // week rather than as "everyone who played, then everyone else".
+        preseasonWeight *
+          PRESEASON_PRIOR_PER_SIGMA *
+          (strengths.get(team.id) ?? 0);
       return {
         team,
         rating,

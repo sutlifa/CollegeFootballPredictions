@@ -60,7 +60,10 @@ export default async function RankingsPage() {
           A 0-100 power score -- 50 is dead average, and it climbs toward
           100 for a genuinely exceptional season (high wins, low losses,
           quality wins, no bad losses, a tough schedule). Every team starts
-          at 50, no preseason poll baked in. Beating a team rated well
+          the year at its preseason poll position, and that starting point
+          fades out completely once teams are about six games in, so a
+          finished season is decided purely by what happened on the field.
+          Beating a team rated well
           above you swings your score up; beating an FCS team or an
           unranked patsy barely moves it. Losing costs a real, guaranteed
           amount every time, so a losing record can&apos;t hide behind a
@@ -73,7 +76,8 @@ export default async function RankingsPage() {
         </p>
         {submittedWeeks.length === 0 && (
           <p className="mt-2 text-sm text-ink-muted">
-            No completed weeks yet -- everyone starts even at 50.
+            No completed weeks yet -- this is the preseason poll, and it
+            starts moving as soon as a week is complete.
           </p>
         )}
       </div>
