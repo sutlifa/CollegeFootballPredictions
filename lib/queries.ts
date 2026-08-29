@@ -192,6 +192,7 @@ export async function getAllWeekLocks(
       MIN(kickoff_at) AS any_kickoff
     FROM games
     WHERE season = ${season} AND kickoff_at IS NOT NULL
+      AND user_id IS NULL -- shared schedule only; see getWeekLocksAt
     GROUP BY week
   `;
   // Whether a week is locked is resolved HERE rather than by the caller.
@@ -276,6 +277,11 @@ export async function getWeekLocksAt(
       MIN(kickoff_at) AS any_kickoff
     FROM games
     WHERE season = ${season} AND week = ${week} AND kickoff_at IS NOT NULL
+      -- Shared schedule only. Week 16 games are DERIVED per user, so
+      -- including them would let one person's board decide when the week
+      -- locks for everybody -- and a locked week rejects saves and clears
+      -- alike, which reads as a button that silently does nothing.
+      AND user_id IS NULL
   `;
   const locksAt = row?.confirmed ?? row?.any_kickoff ?? null;
   return locksAt ? new Date(locksAt) : null;
