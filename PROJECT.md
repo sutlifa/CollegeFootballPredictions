@@ -128,6 +128,10 @@ Guarantees that must survive any change — verify, don't assume:
   `EARLY_QUALITY_BOOST` of 8x was sized against the 0.2 bound, and against
   2.0 it produced a week-0 headroom of ~844 and sent a team to #1 for
   beating a preseason #120.
+- `QUALITY_K = 36` (was 12) — how much one game moves the quality term, so
+  *who* a team beat carries about 3× the weight in ordering. Bounded by
+  `NON_RECORD_HEADROOM_FRACTION`, so a larger K changes how quality ORDERS
+  teams, never how far it can carry them; no record guarantee moves.
 - `NON_RECORD_SCALE = 150` — the squash divides by this **fixed** scale, not
   by the team's own headroom. Dividing by headroom re-introduced saturation:
   a MAC headroom of 3.3 makes `tanh(quality/3.3)` numerically 1.0 for any
@@ -170,16 +174,16 @@ Guarantees that must survive any change — verify, don't assume:
   Everything below the SEC/Big Ten pair was moved 15% of its remaining
   distance to 1.28 at the user's request, then trimmed a flat 0.006.
 
-  **The Big 12 is held at 1.085 deliberately.** At 1.086 and above, a 13-0
-  Big 12 champion finishes ahead of a 12-1 SEC champion, which the user
-  does not want. This is NOT the record-term flip point of
-  `(1.28 × 11) / 13 = 1.0831` — at 1.085 the record term still favours the
-  13-0 team by 1.4 and the SEC team's quality edge covers it. Solving from
-  the arithmetic alone gets this wrong by two thousandths; it was found by
-  sweeping against the real boards. Note the same comparison in the other
-  completed season (13-0 Big 12 vs a 12-1 SEC champion with a weaker
-  résumé) does not flip until 1.070, so the rule holds in one season and
-  not the other at this value.
+  **Do not move a tier to settle one matchup.** The Big 12 was twice tuned
+  to push a 13-0 champion below a 12-1 SEC champion (1.085, then 1.070)
+  before that was recognised as the same mechanical forcing this rating is
+  meant to have stopped. A tier moves all sixteen of a conference's teams;
+  it is not a lever for one comparison. An undefeated Power Four champion
+  behind a one-loss team does happen (Florida State 2014, 2023) but it is
+  the exception voters argue about, decided on résumé. It now falls out of
+  who each team beat, and lands differently in the two completed seasons —
+  which is correct, not a defect. If it ever needs governing, write an
+  explicit rule about undefeated conference champions.
 
   Useful sense of scale, since this ladder invites small nudges: a flat
   0.006 trim across every tier moved exactly one team on two full seasons
@@ -192,6 +196,30 @@ Guarantees that must survive any change — verify, don't assume:
   tier, and tiers were adjusted wrongly first.
 
 Display score is `50 + 50*tanh(rating/500)` rounded to **3 decimals**.
+
+## An Elo model exists, and is off
+
+`lib/eloRankings.ts` is a full rank-driven Elo ledger, selected with
+`RANKING_MODEL=elo` via `lib/rankingModel.ts`. It is **off, and should stay
+off.** On two complete seasons it reintroduces 399 and 433 cases of a
+badly-losing team ranked above a much better record (against zero) and
+drops four conference champions below losing-record teams. Everything it
+promotes is a poor-record SEC/Big Ten team; everything it demotes is a
+good-record Group of Six team — the original complaint, at scale.
+
+That is what Elo *is*, not a tuning failure: it is a **predictive** rating,
+so a 3-9 SEC team losing close to good teams is genuinely strong by its
+measure because each loss was expected and nearly free. A poll ranks
+**résumés**. Keep it for the comparison; don't ship it.
+
+**Measuring rank movement — read this before trusting a number.** Average
+spots gained by opponent rank is *confounded*: teams that beat weak
+opponents are themselves mid-table, and the middle of the board is bunched,
+so a tiny rating change buys many places there. It appeared to show a
+severe inversion (2.91 spots for beating a top-10 team vs 8.24 for a
+#81-138 team) that largely vanished once controlled. Always measure within
+a winner rank band. Even then, band sizes are 20–70 games and strict
+monotonicity flips on a 0.015 tier change — do not tune toward it.
 
 ## Landmines
 

@@ -275,23 +275,26 @@ const FCS_QUALITY_BASELINE = -(PRESEASON_ELO_PER_SIGMA * MAX_PRESEASON_SIGMA + 8
 // the field.
 //
 //   Independent   1.100 -> 1.121     American        0.650 -> 0.739
-//   Big 12        1.060 -> 1.070     Pac 12          0.550 -> 0.654
+//   Big 12        1.060 -> 1.085     Pac 12          0.550 -> 0.654
 //   ACC           1.055 -> 1.083     Mountain West   0.450 -> 0.569
 //
-// The Big 12 is held at 1.070 for a specific reason: above it, a 13-0 Big
-// 12 champion finishes ahead of a 12-1 SEC champion, and it shouldn't.
+// The Big 12 sits at its natural place on the ladder and is NOT tuned to
+// force any particular head-to-head outcome. It was briefly cut to 1.070,
+// and before that 1.085 was chosen, to push a 13-0 Big 12 champion below a
+// 12-1 SEC champion. Both were mistakes of the same kind this rating is
+// supposed to have stopped making: bending a conference-wide constant --
+// which moves all sixteen of its teams -- to settle one comparison.
 //
-// This threshold is NOT the record-term flip point of (1.28 * 11) / 13 =
-// 1.0831, and it moves when other constants move -- it was 1.085 while
-// QUALITY_K was 12 and dropped to 1.070 when K rose to 36, because a
-// larger K let the 13-0 team's quality edge cover more of the record gap.
-// Solve it against the real boards after any change to K or the headroom;
-// deriving it from the record arithmetic alone gets it wrong.
+// A poll does not work that way. An undefeated Power Four champion behind
+// a one-loss team happens (Florida State in 2014 and again in 2023) but it
+// is the exception voters argue about, decided on resume, not the default.
+// Whether a 13-0 champion trails a 12-1 champion should therefore fall out
+// of who they each beat. Here it does, and it lands differently in the two
+// completed seasons, which is the correct behaviour rather than a defect.
 //
-// 1.062 would make the same rule hold on BOTH completed seasons rather
-// than one; it is left at 1.070 because that is the minimum that satisfies
-// the case actually raised, and cutting a whole conference further than
-// asked is not this comment's call to make.
+// If that comparison ever needs to be governed rather than earned, do it
+// with an explicit rule about undefeated conference champions. Do not do
+// it by moving a tier.
 //                                    Sun Belt        0.400 -> 0.526
 //                                    CUSA            0.350 -> 0.484
 //                                    MAC             0.300 -> 0.441
@@ -302,7 +305,7 @@ const CONFERENCE_TIER: Record<string, number> = {
   "Big Ten": 1.28,
   SEC: 1.28,
   Independent: 1.121,
-  "Big 12": 1.070,
+  "Big 12": 1.085,
   ACC: 1.083,
   "Pac 12": 0.654,
   American: 0.739,
