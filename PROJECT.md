@@ -242,6 +242,17 @@ monotonicity flips on a 0.015 tier change — do not tune toward it.
 - **React 19 resets a form after a server action completes**, wiping the DOM
   state of controlled radios. `GamePicker` therefore uses plain buttons
   writing to hidden inputs, which are immune. Do not "simplify" it back.
+- **Never defer a write behind `requestAnimationFrame`.** `GamePicker` used
+  to schedule its save that way (to let React commit the hidden inputs
+  first). rAF does not fire in a hidden or heavily throttled page, so on
+  mobile Chrome a pick's save could be dropped outright, or fire much later
+  against whatever the DOM held by then — clearing a pick and finding it
+  back after a refresh. Reproduced exactly: with the browser pane hidden the
+  old code never issued the save at all, while the current code writes
+  correctly under the same conditions. Writes now call the server action
+  directly with values taken from the click, never read back out of the DOM,
+  and are serialized through a promise chain so the server sees clicks in
+  click order even when the network would not.
 - **`prepare: false` is required** on the Neon pooled connection.
 - `{/* */}` is invalid in JSX ternary expression position — use bare `/* */`.
 - Absolutely-positioned tooltips contribute to a scroll container's

@@ -63,7 +63,6 @@ export function GamePicker({
   saveAction,
   clearAction,
 }: Props) {
-  const formRef = useRef<HTMLFormElement>(null);
   const [winnerTeamId, setWinnerTeamId] = useState<number | null>(initialWinnerTeamId);
   const [marginBucket, setMarginBucket] = useState<MarginBucketId | null>(initialMarginBucket);
   const [isPending, startTransition] = useTransition();
@@ -89,14 +88,69 @@ export function GamePicker({
 
   const frozen = locked || isFinal;
 
+  /**
+   * Every write goes through here, one at a time, in the order it was
+   * clicked.
+   *
+   * Picking used to defer a `form.requestSubmit()` by an animation frame
+   * and let the form serialize itself, while Clear was a submit button
+   * overriding the form's action. That made a pick and a clear two
+   * independent requests racing over one form, and the loser won: on a real
+   * mobile connection the deferred save could settle AFTER the clear and
+   * re-insert the row. It looked like the pick cleared and then re-selected
+   * itself, and it survived a refresh, because the database really had been
+   * written to again.
+   *
+   * So: no animation frame, no form submission, and the values are taken
+   * from the click rather than read back out of the DOM -- hidden inputs
+   * that have already been reset can't be serialized into a save. The
+   * promise chain guarantees the server sees the clicks in click order even
+   * when the network would not.
+   */
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  function send(
+    action: (formData: FormData) => void,
+    selection: { teamId: number; bucket: MarginBucketId } | null,
+  ) {
+    const data = new FormData();
+    data.set("gameId", String(gameId));
+    data.set("week", String(week));
+    if (selection) {
+      data.set("winnerTeamId", String(selection.teamId));
+      data.set("marginBucket", String(selection.bucket));
+    }
+    // Run after whatever is already in flight, whether it succeeded or not.
+    const run = queue.current.then(
+      () => action(data),
+      () => action(data),
+    );
+    queue.current = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    startTransition(async () => {
+      try {
+        await run;
+      } catch {
+        // Surfaced by the route's error boundary; nothing to do here beyond
+        // letting the row stop looking busy.
+      }
+    });
+  }
+
   function pick(teamId: number, bucket: MarginBucketId) {
     if (frozen) return;
     setWinnerTeamId(teamId);
     setMarginBucket(bucket);
-    // Let React commit the hidden inputs before the form serializes them.
-    startTransition(() => {
-      requestAnimationFrame(() => formRef.current?.requestSubmit());
-    });
+    send(saveAction, { teamId, bucket });
+  }
+
+  function clear() {
+    if (frozen) return;
+    setWinnerTeamId(null);
+    setMarginBucket(null);
+    send(clearAction, null);
   }
 
   const marginRow = (team: TeamInfo, side: "left" | "right") => (
@@ -184,8 +238,10 @@ export function GamePicker({
   };
 
   return (
+    /* Still a <form> so the hidden inputs describing this pick stay in the
+       markup, but nothing submits it any more -- every write is dispatched
+       directly by send() above, in click order. */
     <form
-      ref={formRef}
       action={saveAction}
       className={`rounded-lg border bg-surface px-3 py-3 transition-opacity ${
         isPending ? "opacity-60" : ""
@@ -240,16 +296,8 @@ export function GamePicker({
           <>
             <span className="ml-auto text-[11px] font-medium text-win">Saved</span>
             <button
-              type="submit"
-              formAction={clearAction}
-              formNoValidate
-              // Reset the visible selection too, not just the stored row --
-              // without this the buttons stayed highlighted after clearing,
-              // so it looked like nothing happened.
-              onClick={() => {
-                setWinnerTeamId(null);
-                setMarginBucket(null);
-              }}
+              type="button"
+              onClick={clear}
               // Roomier on touch screens: at py-0.5 this was a ~21px-tall
               // target, well under the ~44px a finger reliably hits, and it
               // sits inches from the margin buttons it is meant to undo.
