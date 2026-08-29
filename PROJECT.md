@@ -66,7 +66,12 @@ it is scored separately.
 
 ## Computer rankings — the invariants
 
-The rating is deliberately **additive, separate terms**, never one blended
+The rating reads like an AP poll: strength of schedule, quality wins and bad
+losses decide it, **not** record alone. A tough 6-6 Power Four team can
+finish above a soft 8-4 Group of Six team, and does. Record forcing survives
+in exactly one place — guarantee 1, within a conference, at season's end.
+
+It is deliberately **additive, separate terms**, never one blended
 accumulator. A single accumulator was tried and repeatedly failed the same
 way: enough quality credit let an 11-2 team out-rate a 12-1 team in the same
 conference, and no amount of retuning could make that impossible.
@@ -79,32 +84,50 @@ rating = recordComponent + squashed(quality) + confChampAdjustment
 Guarantees that must survive any change — verify, don't assume:
 
 1. **Within a conference, a strictly better record always ranks higher —
-   at season's end.** The only exception is a conference champion, which is
-   allowed to pass a better record. This is arithmetic, not tuning: the
-   non-record terms are bounded to a fraction of one record step. It holds
-   *once the prior has faded*; before then a 2-1 preseason top-10 team above
-   an unheralded 3-0 team is intended, and is what real polls do. When
-   auditing, expect roughly 65 such pairs at week 0 and 110 at week 2,
-   falling to 1 by week 4 and 0 at the end — measuring an early-season board
-   against end-of-season logic will look alarming and is not a bug.
-2. **No Group of Six team above a Power Four team that also has a better
-   record.**
+   at season's end only.** Enforced directly by
+   `enforceConferenceRecordOrder`, a post-sort pass, NOT by the arithmetic
+   any more. Teams keep the slots their conference already occupies and are
+   reordered within them, so it settles who is third in the Big Ten without
+   touching where the Big Ten sits relative to the SEC. Sorting is by
+   effective record (regular-season W−L, plus half a win for a title), so an
+   8-4 champion still stays behind an 11-1 rival. **Gated on
+   `preseasonWeight === 0`** — applied earlier it recreates the bug the
+   prior exists to prevent, hoisting a 1-0 team above every 0-0 conference
+   rival in week 0. Before the gate opens, early-season inversions are
+   expected and correct.
+2. **No badly-losing team above a much better record** (the 3-9 G6 vs 5-7 P4
+   complaint). Structural: sub-.500 games count flat for everyone.
 3. **A bye week is neutral** — never advantage a team for having played
    fewer games.
-4. Wins are scaled by conference tier; **losses are flat**. Scaling both
-   made a weak conference's own losses cheap, which put a 3-9 G6 team above
-   a 5-7 P4 team.
-5. Sorting uses the **exact rating**, never the rounded display score.
+4. **No conference champion below a team with a losing record.**
+5. **Conference tier scales how far a team is above .500; at or below .500
+   everything is flat.** A weak schedule discounts what winning *proves*,
+   never what losing *costs*. Two earlier versions each got half of this and
+   failed oppositely: tiering the whole win-minus-loss count made a weak
+   conference's own losses cheap (3-9 G6 above 5-7 P4), while tiering only
+   the wins meant a MAC win paid 16.5 against a flat 55-point loss, so
+   Toledo won the MAC at 9-4 and still sat below three 5-7 teams.
+6. Sorting uses the **exact rating**, never the rounded display score.
    Rounding collapsed genuinely different ratings into alphabetical order.
-6. The squash is `tanh`, never a hard clamp. A clamp pinned several teams to
+7. The squash is `tanh`, never a hard clamp. A clamp pinned several teams to
    an identical value and destroyed the comparison the term exists to make.
 
 ### Tuned constants and why they are what they are
 
-- `RECORD_WEIGHT_BASE = 55`, wins × conference tier, losses flat.
-- `NON_RECORD_HEADROOM_FRACTION = 0.2` of a record step — this is what makes
-  guarantee 1 true by arithmetic. Scaled per conference; a flat cap was not
-  enough because a MAC win is only worth 16.5.
+- `RECORD_WEIGHT_BASE = 55`; conference tier scales games above .500,
+  everything at or below .500 counts flat (see guarantee 5).
+- `NON_RECORD_HEADROOM_FRACTION = 2` — how far quality/SOS may move a team.
+  It was 0.2, sized so quality could never bridge one record step, which
+  made record dominance true by arithmetic *everywhere*. That did real work
+  inside a conference and real damage across conferences: the rating knew
+  about schedule, quality wins and bad losses and was then forbidden to act
+  on any of it, so the tier constants alone had to carry every
+  cross-conference judgement — which is why the board kept needing retuning.
+  Within-conference ordering moved to guarantee 1 instead. **Do not
+  reintroduce an early-season multiplier on this**: an older
+  `EARLY_QUALITY_BOOST` of 8x was sized against the 0.2 bound, and against
+  2.0 it produced a week-0 headroom of ~844 and sent a team to #1 for
+  beating a preseason #120.
 - `NON_RECORD_SCALE = 150` — the squash divides by this **fixed** scale, not
   by the team's own headroom. Dividing by headroom re-introduced saturation:
   a MAC headroom of 3.3 makes `tanh(quality/3.3)` numerically 1.0 for any
@@ -114,8 +137,8 @@ Guarantees that must survive any change — verify, don't assume:
   a flat `55 × tier` whoever it came against, so week 1 only knew *that* you
   played, not *who* you beat, and a preseason #14 jumped to 6th for handling
   a mid-major. So `recordComponent` is scaled by `(1 - preseasonWeight)`,
-  and quality gets the room record is not using yet via `seasonHeadroom`
-  (`EARLY_QUALITY_BOOST = 8`) and `qualityScale` (tanh input scaled by
+  and quality gets the room record is not using yet via the headroom
+  and `qualityScale` (tanh input scaled by
   season progress, because after one game raw quality is a few points and
   `tanh(5/150)` squashes every team to the same nothing). Both land on their
   strict values at `preseasonWeight = 0`, so a completed season is

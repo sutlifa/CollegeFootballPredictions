@@ -42,15 +42,17 @@ import { isDecided } from "./types";
  *    better record via a genuinely historic quality edge across an entire
  *    season, not from a handful of good performances.
  *
- *    recordWeight(team) itself is not flat -- it's scaled by the team's
- *    OWN conference tier, so a Power Four win/loss is worth substantially
- *    more than a Group of Six one. This is what keeps a two-loss Power
- *    team ahead of a one-loss Group of Six team by default: schedule
- *    strength suppresses the record term itself, not just the quality
- *    term, so a gaudy Group of Six record can't just out-weigh a tougher
- *    one on the strength of raw win count. Within any single conference
- *    every team shares the same weight, so record dominance there is
- *    exact and unaffected by this.
+ *    recordWeight(team) itself is not flat -- the team's OWN conference
+ *    tier scales how far it stands ABOVE .500, so a Power Four winning
+ *    record is worth substantially more than a Group of Six one. This is
+ *    what keeps a two-loss Power team ahead of a one-loss Group of Six
+ *    team by default: schedule strength suppresses the record term itself,
+ *    not just the quality term, so a gaudy Group of Six record can't just
+ *    out-weigh a tougher one on raw win count. Games at or below .500 are
+ *    counted flat for everyone -- a weak schedule discounts what winning
+ *    PROVES, never what losing COSTS. Within any single conference every
+ *    team shares the same tier, so record dominance there is exact and
+ *    unaffected by this.
  *
  *  - qualityRating is a much smaller-scale, secondary Elo-style number:
  *    strength of the specific opponent (their own current qualityRating
@@ -112,20 +114,35 @@ import { isDecided } from "./types";
 // season simply can't out-weigh a 10-2 Power season on the record term
 // alone.
 //
-// LOSSES are deliberately NOT scaled by tier. A first version scaled the
-// whole win-minus-loss count by the same tier multiplier, which had an
-// ugly side effect: a weak conference's low tier also made ITS OWN
-// losses cost less, and a strong conference's high tier made a mediocre
-// team's losses cost dramatically more -- so a 3-9 Group of Six team
-// could outrank a 5-7 Power team, the exact inverse of what a real
-// committee would ever do. A loss is a loss regardless of conference;
-// only the credit for winning should depend on how hard that was to do.
-// Within a single conference every team shares the same win-tier, so a
-// strictly better record (more wins, fewer-or-equal losses) still always
-// wins the record term outright.
+// The tier applies to how far a team is ABOVE .500, and games at or below
+// .500 are counted flat, at full value, for everybody.
+//
+// Two earlier versions each got half of this right and failed in opposite
+// directions. Scaling the whole win-minus-loss count by tier let a weak
+// conference's low tier make ITS OWN losses cheap, so a 3-9 Group of Six
+// team could outrank a 5-7 Power team. Scaling only the wins fixed that
+// but broke the other end: a MAC win was worth 16.5 against a flat 55-point
+// loss, so a MAC team needed 3.3 wins to cancel one loss and could never
+// climb. Toledo went 9-4 and won the MAC and still sat below three 5-7
+// teams, and even a hypothetical 12-0 MAC team (198) landed under a 7-5
+// Big Ten team (218). That is the same complaint as the 3-9 case, just
+// pointed the other way.
+//
+// Splitting at .500 keeps both ends honest, because a weak schedule should
+// discount what winning PROVES, not soften what losing COSTS:
+//
+//   12-0 MAC  0.3 * 12 =  3.6   >  7-5 Big Ten  1.28 * 2 =  2.56
+//    3-9 MAC        -6         <  5-7 Big Ten        -2
+//
+// Within a single conference every team shares the same tier, so a strictly
+// better record still always wins the record term outright.
 const RECORD_WEIGHT_BASE = 55;
 function recordComponent(team: Team, regularWins: number, regularLosses: number): number {
-  return RECORD_WEIGHT_BASE * (conferenceTier(team) * regularWins - regularLosses);
+  const aboveEven = regularWins - regularLosses;
+  return (
+    RECORD_WEIGHT_BASE *
+    (aboveEven >= 0 ? conferenceTier(team) * aboveEven : aboveEven)
+  );
 }
 
 /**
@@ -285,28 +302,34 @@ const QUALITY_WIN_WEIGHT = 40;
 const QUALITY_WIN_THRESHOLD = 0.5;
 
 /**
- * How much of the rating everything OTHER than win-loss record is allowed
- * to move -- the quality rating, the quality-win bonus and the conference
+ * How far everything OTHER than win-loss record is allowed to move a team
+ * -- the quality rating, the quality-win bonus and the conference
  * championship adjustment, taken together.
  *
- * This is what actually makes "a better record always ranks higher inside
- * a conference" true rather than merely likely. The record term is scaled
- * by conference tier, so one extra win is worth `tier * 55` -- 70 in the
- * SEC but only 16.5 in the MAC -- while one extra loss is a flat 55. The
- * smallest record step a conference can produce is therefore
- * `55 * min(tier, 1)`. Bounding the combined non-record contribution to
- * ±45% of that leaves a total possible swing of 90% of one record step,
- * which cannot bridge it.
+ * This used to be 0.2, sized so the non-record terms could not bridge a
+ * single record step, which made "a better record always ranks higher"
+ * true by arithmetic everywhere. That guarantee was doing real work inside
+ * a conference and real damage across conferences: the rating knew about
+ * strength of schedule, quality wins and bad losses, and then was forbidden
+ * from acting on any of it. Records decided everything and the tier
+ * constants alone had to carry every cross-conference judgement, which is
+ * why the board kept needing retuning and kept producing a result someone
+ * could point at -- 8-4 Group of Six teams mechanically above 6-6 Power
+ * Four teams, or mechanically below them, depending on which way the tier
+ * math happened to fall that week.
  *
- * Capping only the quality-win bonus was not enough: the Elo quality
- * rating alone can range far wider than 16.5, which is why Group of Six
- * conferences still had teams sitting above others with better records
- * (Miami (OH) 8-4 above Toledo 9-4, who never even played). Higher tiers
- * get proportionally more room, which is the intended effect -- there is
- * more genuine résumé difference to express between two 10-2 SEC teams
- * than between two 8-4 MAC teams.
+ * At this width a genuinely tough 6-6 schedule can finish above a soft 8-4
+ * one, and a 3-9 team cannot climb over a 5-7 team because nine losses
+ * cost nine losses. That is how an actual poll reads a season.
+ *
+ * Within a conference the ordering is no longer left to this at all --
+ * enforceConferenceRecordOrder applies it directly afterwards, so the old
+ * guarantee survives exactly where it was wanted without constraining the
+ * comparisons it was never meant to govern. Higher tiers still get
+ * proportionally more room: there is more genuine resume difference to
+ * express between two 10-2 SEC teams than two 8-4 MAC teams.
  */
-const NON_RECORD_HEADROOM_FRACTION = 0.2;
+const NON_RECORD_HEADROOM_FRACTION = 2;
 
 function nonRecordHeadroom(team: Team): number {
   return NON_RECORD_HEADROOM_FRACTION * recordStep(team);
@@ -338,9 +361,12 @@ const NON_RECORD_SCALE = 150;
  * is scaled by (1 - preseasonWeight) at the point of use, and quality gets
  * the room the record term is not using yet:
  *
- *  - seasonHeadroom widens the quality bound while the prior is alive, so
- *    beating someone genuinely good can move a team a real distance in
- *    September instead of being capped at a sixth of a win.
+ *  - The quality bound (nonRecordHeadroom) is already wide enough to say
+ *    something in September, so it needs no seasonal widening. An earlier
+ *    version multiplied it by up to 7.67x while the prior was alive, which
+ *    was sized against a bound a tenth of today's; carried over unchanged
+ *    it made a week-0 headroom of ~844 and sent a team to #1 for beating a
+ *    preseason #120.
  *  - qualityScale keeps the tanh in its sensitive range against however
  *    much quality has actually accumulated. A fixed 150 is right for a
  *    finished season; after one game raw quality is only a few points, and
@@ -352,12 +378,7 @@ const NON_RECORD_SCALE = 150;
  * Both land on their strict end-of-season values once preseasonWeight hits
  * zero, so nothing here touches a completed season.
  */
-const EARLY_QUALITY_BOOST = 8;
 const FULL_SEASON_GAMES = 12;
-
-function seasonHeadroom(team: Team, preseasonWeight: number): number {
-  return nonRecordHeadroom(team) * (1 + EARLY_QUALITY_BOOST * preseasonWeight);
-}
 
 function qualityScale(seasonProgress: number): number {
   const progress = Math.min(
@@ -579,6 +600,57 @@ function applyHeadToHeadTiebreak<
   return result;
 }
 
+/**
+ * Inside a single conference, a better record ranks higher. Full stop.
+ *
+ * This used to fall out of the arithmetic -- the non-record terms were
+ * bounded below one record step, so they could never bridge one. That bound
+ * also governed every cross-conference comparison, where it was actively
+ * wrong: it stopped strength of schedule from ever outweighing a win total,
+ * so a soft 8-4 always sat above a brutal 6-6 no matter what either team
+ * actually did. Stating the rule where it belongs frees the rating to judge
+ * everything else on merit.
+ *
+ * Teams keep the SLOTS their conference already occupies and are reordered
+ * within them, so this settles who is the third-best team in the Big Ten
+ * without disturbing where the Big Ten's teams sit relative to the SEC's.
+ * Sorting is by effective record -- regular-season wins minus losses, plus
+ * half a win for a conference title, which is what a title is worth in the
+ * rating too. So a champion passes a rival it is level with or half a win
+ * behind, and does not pass one a full win ahead: an 8-4 champion stays
+ * behind an 11-1 team, exactly as before. Ties fall through to the order
+ * the rating produced, which is where quality of wins does its work.
+ *
+ * Conference championship games are excluded from the record itself
+ * (regular-season totals only), so beating a team in the title game does
+ * not also count as passing them on record.
+ */
+function enforceConferenceRecordOrder<T extends { team: Team }>(
+  rows: T[],
+  effectiveRecord: (row: T) => number,
+): T[] {
+  const slotsByConference = new Map<string, number[]>();
+  rows.forEach((row, i) => {
+    const conference = row.team.conference;
+    if (!slotsByConference.has(conference)) slotsByConference.set(conference, []);
+    slotsByConference.get(conference)!.push(i);
+  });
+
+  const result = rows.slice();
+  for (const slots of slotsByConference.values()) {
+    if (slots.length < 2) continue;
+    // Array.prototype.sort is stable, so teams on the same effective record
+    // keep the order the rating gave them.
+    const members = slots
+      .map((i) => rows[i])
+      .sort((a, b) => effectiveRecord(b) - effectiveRecord(a));
+    slots.forEach((slot, k) => {
+      result[slot] = members[k];
+    });
+  }
+  return result;
+}
+
 // Squashes the unbounded internal rating into a 0-100 display score.
 const DISPLAY_SCALE = 500;
 
@@ -599,6 +671,8 @@ export function computeComputerRankings(
   const regularSeasonWins = new Map<number, number>();
   const regularSeasonLosses = new Map<number, number>();
   const confChampAdjustments = new Map<number, number>();
+  /** Teams that won a conference title, for the record-order rule. */
+  const conferenceChampions = new Set<number>();
   const wins = new Map<number, number>();
   const losses = new Map<number, number>();
   /** FBS teams each team beat, for the end-of-season quality-win bonus. */
@@ -648,6 +722,7 @@ export function computeComputerRankings(
     );
 
     if (game.isConferenceChampionship) {
+      conferenceChampions.add(winner.id);
       confChampAdjustments.set(
         winner.id,
         (confChampAdjustments.get(winner.id) ?? 0) +
@@ -780,7 +855,7 @@ export function computeComputerRankings(
       // on 95.2. tanh is strictly increasing, so two 10-2 teams always stay
       // ordered by the quality of their wins and losses no matter how far
       // out they are -- the gap just compresses as it approaches the bound.
-      const headroom = seasonHeadroom(team, preseasonWeight);
+      const headroom = nonRecordHeadroom(team);
       const rawNonRecord =
         (qualityRatings.get(team.id) ?? 0) + (qualityWinBonus.get(team.id) ?? 0);
       const nonRecord =
@@ -836,7 +911,18 @@ export function computeComputerRankings(
       return a.team.name.localeCompare(b.team.name);
     });
 
-  const sorted = applyHeadToHeadTiebreak(byScore, headToHead);
+  // Only once the preseason prior is spent. Applied earlier it recreates
+  // the exact bug the prior exists to prevent: in week 0 a 1-0 team has a
+  // better record than every 0-0 rival, so enforcement hoists it above the
+  // entire conference on one result.
+  const ranked = applyHeadToHeadTiebreak(byScore, headToHead);
+  const sorted = preseasonWeight > 0 ? ranked : enforceConferenceRecordOrder(
+    ranked,
+    (row) =>
+      (regularSeasonWins.get(row.team.id) ?? 0) -
+      (regularSeasonLosses.get(row.team.id) ?? 0) +
+      (conferenceChampions.has(row.team.id) ? CONF_CHAMP_WIN_FRACTION : 0),
+  );
 
   return sorted.map((row, i) => ({
     rank: i + 1,
