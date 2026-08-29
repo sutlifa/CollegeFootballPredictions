@@ -268,35 +268,36 @@ const FCS_QUALITY_BASELINE = -(PRESEASON_ELO_PER_SIGMA * MAX_PRESEASON_SIGMA + 8
 // the ACC/Big 12 (a notch below them, not tied with them). Independent
 // isn't part of that explicit ranking; kept between the two Power tiers.
 // Every tier except the SEC/Big Ten pair was moved 15% of its remaining
-// distance toward 1.28: the gap to the top closes without being erased, no
-// relative position changes, and the conferences furthest back gain most,
-// which is the point -- the complaint was the distance from the top to THE
-// REST OF THE FIELD, not the order of the field.
+// distance toward 1.28, then trimmed a flat 0.006 -- the gap to the top
+// closes without being erased, no relative position changes, and the
+// conferences furthest back gain most, which is the point: the complaint
+// was the distance from the top to THE REST OF THE FIELD, not the order of
+// the field.
 //
-//   Independent   1.100 -> 1.127     American        0.650 -> 0.745
-//   Big 12        1.060 -> 1.093     Pac 12          0.550 -> 0.660
-//   ACC           1.055 -> 1.089     Mountain West   0.450 -> 0.575
-//                                    Sun Belt        0.400 -> 0.532
-//                                    CUSA            0.350 -> 0.490
-//                                    MAC             0.300 -> 0.447
+//   Independent   1.100 -> 1.121     American        0.650 -> 0.739
+//   Big 12        1.060 -> 1.087     Pac 12          0.550 -> 0.654
+//   ACC           1.055 -> 1.083     Mountain West   0.450 -> 0.569
+//                                    Sun Belt        0.400 -> 0.526
+//                                    CUSA            0.350 -> 0.484
+//                                    MAC             0.300 -> 0.441
 //
 // FCS is deliberately left alone: it isn't a conference being judged
 // against the others, it's the floor they're all measured from.
 const CONFERENCE_TIER: Record<string, number> = {
   "Big Ten": 1.28,
   SEC: 1.28,
-  Independent: 1.127,
-  "Big 12": 1.093,
-  ACC: 1.089,
-  "Pac 12": 0.66,
-  American: 0.745,
-  "Mountain West": 0.575,
-  "Sun Belt": 0.532,
-  CUSA: 0.49,
-  MAC: 0.447,
+  Independent: 1.121,
+  "Big 12": 1.087,
+  ACC: 1.083,
+  "Pac 12": 0.654,
+  American: 0.739,
+  "Mountain West": 0.569,
+  "Sun Belt": 0.526,
+  CUSA: 0.484,
+  MAC: 0.441,
 };
 // Unrecognised FBS conference: kept level with the Sun Belt, as before.
-const DEFAULT_TIER = 0.532;
+const DEFAULT_TIER = 0.526;
 const FCS_TIER = 0.2;
 
 function conferenceTier(team: Team): number {

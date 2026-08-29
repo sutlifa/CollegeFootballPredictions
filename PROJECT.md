@@ -155,9 +155,9 @@ Guarantees that must survive any change — verify, don't assume:
 - Rank → strength goes through the **normal quantile**, not linearly. Linear
   spacing claims #1-to-#14 equals #100-to-#113; it made one week-0 win worth
   ~11 spots and put a preseason #14 at #1 after a single game.
-- `CONFERENCE_TIER` — SEC/Big Ten 1.28, Independent 1.127, Big 12 1.093,
-  ACC 1.089, American 0.745, Pac 12 0.66, Mountain West 0.575, Sun Belt
-  0.532, CUSA 0.49, MAC 0.447. FCS 0.2 and is not part of the ladder — it
+- `CONFERENCE_TIER` — SEC/Big Ten 1.28, Independent 1.121, Big 12 1.087,
+  ACC 1.083, American 0.739, Pac 12 0.654, Mountain West 0.569, Sun Belt
+  0.526, CUSA 0.484, MAC 0.441. FCS 0.2 and is not part of the ladder — it
   is the floor the others are measured from, and stays put.
 
   One number per conference drives everything conference-dependent: record
@@ -168,11 +168,16 @@ Guarantees that must survive any change — verify, don't assume:
   conference, never your own).
 
   Everything below the SEC/Big Ten pair was moved 15% of its remaining
-  distance to 1.28 at the user's request, to close the gap to the top
-  without erasing it. That flipped one comparison worth knowing about:
-  a 13-0 Big 12 champion now edges a 12-1 SEC champion on the record term
-  (781.5 vs 774.4), where it previously trailed. Big 12 above ~1.083 is
-  what does it.
+  distance to 1.28 at the user's request, then trimmed a flat 0.006. That
+  flipped one comparison worth knowing about: a 13-0 Big 12 champion now
+  edges a 12-1 SEC champion on the record term (777.2 vs 774.4), where it
+  previously trailed. The flip point is Big 12 = 1.0831, so the current
+  1.087 clears it by 0.004.
+
+  Useful sense of scale, since this ladder invites small nudges: a flat
+  0.006 trim across every tier moved exactly one team on two full seasons
+  (East Carolina, one spot). Tier changes below roughly 0.01 are noise at
+  138 teams — reach for 0.02+ to actually move a board.
 
   **Do not retune casually.** When a specific team looked wrong, the cause
   was usually a threshold elsewhere, not the tier — a 13-0 Texas Tech
