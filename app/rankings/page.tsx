@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
-import { computeRankMovement } from "@/lib/computerRankings";
+import { computeMovement } from "@/lib/rankingModel";
 import { getAllGames, getAllTeams, getSubmittedWeeks } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export default async function RankingsPage() {
   const countedGames = allGames.filter((g) => submitted.has(g.week));
   // Movement replays the season through the previous completed week and
   // diffs the two rankings -- two passes, not one per week.
-  const { current: rankings, movement } = computeRankMovement(
+  const { current: rankings, movement } = computeMovement(
     teams,
     countedGames,
   );

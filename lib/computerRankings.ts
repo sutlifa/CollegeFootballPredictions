@@ -224,7 +224,7 @@ function probit(p: number): number {
  * a missing poll entry is an absence of information, not evidence of being
  * terrible.
  */
-function preseasonStrengths(teams: Team[]): Map<number, number> {
+export function preseasonStrengths(teams: Team[]): Map<number, number> {
   const ranked = teams.filter((t) => t.isFbs && t.preseasonRank !== null);
   const strengths = new Map<number, number>();
   for (const team of teams) strengths.set(team.id, 0);
@@ -275,16 +275,23 @@ const FCS_QUALITY_BASELINE = -(PRESEASON_ELO_PER_SIGMA * MAX_PRESEASON_SIGMA + 8
 // the field.
 //
 //   Independent   1.100 -> 1.121     American        0.650 -> 0.739
-//   Big 12        1.060 -> 1.085     Pac 12          0.550 -> 0.654
+//   Big 12        1.060 -> 1.070     Pac 12          0.550 -> 0.654
 //   ACC           1.055 -> 1.083     Mountain West   0.450 -> 0.569
 //
-// The Big 12 is held at 1.085 rather than 1.087 for a specific reason: at
-// 1.086 and above, a 13-0 Big 12 champion finishes ahead of a 12-1 SEC
-// champion, and it shouldn't. Note this is NOT the record-term flip point,
-// which is (1.28 * 11) / 13 = 1.0831 -- at 1.085 the record term still
-// favours the 13-0 team by 1.4, and the SEC team's quality edge covers the
-// difference. Solved against the real board, not from the arithmetic
-// alone, because the arithmetic alone gets it wrong by two thousandths.
+// The Big 12 is held at 1.070 for a specific reason: above it, a 13-0 Big
+// 12 champion finishes ahead of a 12-1 SEC champion, and it shouldn't.
+//
+// This threshold is NOT the record-term flip point of (1.28 * 11) / 13 =
+// 1.0831, and it moves when other constants move -- it was 1.085 while
+// QUALITY_K was 12 and dropped to 1.070 when K rose to 36, because a
+// larger K let the 13-0 team's quality edge cover more of the record gap.
+// Solve it against the real boards after any change to K or the headroom;
+// deriving it from the record arithmetic alone gets it wrong.
+//
+// 1.062 would make the same rule hold on BOTH completed seasons rather
+// than one; it is left at 1.070 because that is the minimum that satisfies
+// the case actually raised, and cutting a whole conference further than
+// asked is not this comment's call to make.
 //                                    Sun Belt        0.400 -> 0.526
 //                                    CUSA            0.350 -> 0.484
 //                                    MAC             0.300 -> 0.441
@@ -295,7 +302,7 @@ const CONFERENCE_TIER: Record<string, number> = {
   "Big Ten": 1.28,
   SEC: 1.28,
   Independent: 1.121,
-  "Big 12": 1.085,
+  "Big 12": 1.070,
   ACC: 1.083,
   "Pac 12": 0.654,
   American: 0.739,
@@ -308,15 +315,46 @@ const CONFERENCE_TIER: Record<string, number> = {
 const DEFAULT_TIER = 0.526;
 const FCS_TIER = 0.2;
 
-function conferenceTier(team: Team): number {
+export function conferenceTier(team: Team): number {
   if (!team.isFbs) return FCS_TIER;
   return CONFERENCE_TIER[team.conference] ?? DEFAULT_TIER;
 }
 
-// Much smaller than the old single-accumulator K (90) -- this is now only
-// a secondary, tie-breaking signal layered on top of RECORD_WEIGHT, not
-// the primary driver of the rating.
-const QUALITY_K = 12;
+// Much smaller than the old single-accumulator K (90) -- this is a
+// secondary signal layered on top of RECORD_WEIGHT, not the primary driver
+// of the rating.
+//
+// Raised from 12 to 36 so that WHO a team beat carries about three times
+// the weight it did in ordering teams. This is bounded work, not a
+// rebalance: quality is still squashed into nonRecordHeadroom, so a larger
+// K changes how quality ORDERS teams, never how far it can carry them, and
+// every record guarantee is untouched.
+//
+// Two cautions for anyone re-tuning this, both learned the hard way.
+//
+// First, the statistic that motivated the change was confounded. Average
+// spots gained by opponent rank appeared to show beating a top-10 team
+// paying 2.91 spots against 8.24 for beating a team ranked 81-138 -- a
+// startling inversion. But teams that beat weak opponents are themselves
+// mid-table, and the middle of the board is bunched, so a tiny rating
+// change buys many places there. Controlling for the winner's own rank
+// band, the model was already close to ordered. Always measure spots
+// gained WITHIN a rank band.
+//
+// Second, even the controlled figure is noisy -- band sizes are 20 to 70
+// games -- and strict monotonicity across all five bands flips on changes
+// as small as 0.015 to a single conference tier. Do not tune toward it; it
+// is not a stable property and chasing it is fitting to noise.
+//
+//   spots gained by top-25 winners, by opponent rank
+//   opponent rank    1-10   11-25  26-50  51-80  81-138
+//   K = 12           2.38   2.03   2.16   1.84   1.04
+//   K = 36           2.43   1.97   2.14   1.80   1.21
+//
+// The honest summary is that this sharpens the top-versus-bottom spread a
+// little and is directionally right; it did not fix a broken model,
+// because the model was not as broken as the first measurement suggested.
+const QUALITY_K = 36;
 
 // Extra credit for a win over a team that was still strong at season's end,
 // on top of the Elo credit already banked when the game was played. Full
@@ -449,13 +487,13 @@ const BASELINE_MARGIN_NORMALIZER = Math.log(15);
  * credit (the denominator grows with the rating gap); a team blowing out a
  * genuinely comparable opponent (small rating gap) gets the full bonus.
  */
-function marginMultiplier(margin: number, winnerRating: number, loserRating: number): number {
+export function marginMultiplier(margin: number, winnerRating: number, loserRating: number): number {
   const ratingGap = winnerRating - loserRating; // can be negative -- an upset amplifies the bonus further
   const raw = Math.log(Math.max(1, Math.abs(margin)) + 1) * (2.2 / (0.001 * ratingGap + 2.2));
   return raw / BASELINE_MARGIN_NORMALIZER;
 }
 
-function expectedScore(ratingA: number, ratingB: number): number {
+export function expectedScore(ratingA: number, ratingB: number): number {
   return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
 }
 
@@ -467,7 +505,7 @@ function expectedScore(ratingA: number, ratingB: number): number {
 // (not instead of) the normal expected-score/MOV shrinkage for a truly
 // expected blowout loss -- this term reflects the OPPONENT'S conference
 // specifically, which the quality-rating gap alone doesn't capture.
-function lossToughness(winnerTier: number): number {
+export function lossToughness(winnerTier: number): number {
   return 1.55 - 0.55 * winnerTier;
 }
 
@@ -491,7 +529,7 @@ function lossToughness(winnerTier: number): number {
 const CONF_CHAMP_WIN_FRACTION = 0.5;
 const CONF_CHAMP_CLOSE_LOSS_FRACTION = 0.1;
 const CONF_CHAMP_BLOWOUT_LOSS_FRACTION = 0.35;
-const BLOWOUT_MARGIN = 15;
+export const BLOWOUT_MARGIN = 15;
 
 /**
  * The smallest rating step a team's own conference can produce from one
@@ -550,7 +588,7 @@ const RECORD_NOISE_THRESHOLD = 0.6;
  * has nothing to do with this specific violation -- the promotion is
  * blocked rather than silently overriding a real, unrelated result.
  */
-function applyHeadToHeadTiebreak<
+export function applyHeadToHeadTiebreak<
   T extends { team: Team; score: number; wins: number; losses: number },
 >(sorted: T[], headToHead: Map<string, number>): T[] {
   const result = [...sorted];
@@ -650,7 +688,7 @@ function applyHeadToHeadTiebreak<
  * (regular-season totals only), so beating a team in the title game does
  * not also count as passing them on record.
  */
-function enforceConferenceRecordOrder<T extends { team: Team }>(
+export function enforceConferenceRecordOrder<T extends { team: Team }>(
   rows: T[],
   effectiveRecord: (row: T) => number,
 ): T[] {

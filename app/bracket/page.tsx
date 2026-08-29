@@ -14,7 +14,7 @@ import {
   type BracketSlotGame,
   type Seed,
 } from "@/lib/bracket";
-import { computeComputerRankings } from "@/lib/computerRankings";
+import { computeRankings } from "@/lib/rankingModel";
 import {
   getAllGames,
   getAllTeams,
@@ -51,7 +51,7 @@ export default async function BracketPage({
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const submitted = new Set(submittedWeeks);
-  const rankings = computeComputerRankings(
+  const rankings = computeRankings(
     teams,
     games.filter((g) => submitted.has(g.week)),
   );
