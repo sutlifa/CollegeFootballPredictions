@@ -40,6 +40,13 @@ just hidden in the UI.
 a pick later and it re-submits. A week only counts toward standings and
 rankings once it's complete.
 
+**Or pick by team.** `/teams` lists all 138; open one and you get its whole
+season on a single page — every game from week 0 through the conference
+championship, your pick on each, and the real result once it's played. Picks
+made there are the same picks as on the week pages; change one in either
+place and it changes in both. Team names link through from the rankings and
+standings tables.
+
 **Then look at what you did.** `/standings` groups every conference with
 tiebreakers already resolved, `/rankings` is the computer poll, `/bracket`
 builds the playoff field, `/leaderboard` scores everyone once real games are

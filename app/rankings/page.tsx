@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { TeamLogo } from "@/components/TeamLogo";
 import { computeMovement } from "@/lib/rankingModel";
@@ -117,7 +118,12 @@ export default async function RankingsPage() {
                       size={20}
                     />
                     <span className="min-w-0">
-                      <span className="block leading-tight">{row.team}</span>
+                      <Link
+                        href={`/teams/${row.teamId}`}
+                        className="block leading-tight hover:text-accent-strong"
+                      >
+                        {row.team}
+                      </Link>
                       <span className="block text-xs leading-tight text-ink-muted sm:hidden">
                         {row.conference}
                       </span>

@@ -127,6 +127,87 @@ export async function getGamesForWeek(
   return rows.map(mapGame);
 }
 
+/**
+ * A team's whole season -- every week it appears in, week 0 through the
+ * conference championship, with this user's pick attached.
+ *
+ * The user_id filter matches getGamesForWeek: regular-season games are
+ * shared (user_id NULL), while week 16 is DERIVED per user from their own
+ * standings, so one person's title game is not another's.
+ */
+/**
+ * Whether this user's conference championship matchups have been derived
+ * yet. Cheap existence check, so a page that merely needs week 16 to be
+ * PRESENT doesn't have to pay for re-deriving it.
+ */
+export async function hasWeek16Games(
+  userId: number,
+  season = SEASON,
+): Promise<boolean> {
+  const [row] = await sql<{ any_game: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM games
+      WHERE season = ${season} AND week = 16 AND user_id = ${userId}
+    ) AS any_game
+  `;
+  return row?.any_game ?? false;
+}
+
+export async function getGamesForTeam(
+  teamId: number,
+  userId: number,
+  season = SEASON,
+): Promise<Game[]> {
+  const rows = await sql<GameRow[]>`
+    SELECT g.*, p.winner_team_id, p.margin_bucket
+    FROM games g
+    LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
+    WHERE g.season = ${season}
+      AND (g.team1_id = ${teamId} OR g.team2_id = ${teamId})
+      AND (g.user_id = ${userId} OR (g.user_id IS NULL AND g.week <> 16))
+    ORDER BY g.week, g.id
+  `;
+  return rows.map(mapGame);
+}
+
+/**
+ * Lock time for every week at once, keyed by week. The team page shows a
+ * whole season on one screen and needs the lock state of all seventeen
+ * weeks; asking getWeekLocksAt seventeen times would be seventeen
+ * round-trips for one page.
+ *
+ * Same rule as getWeekLocksAt: prefer the earliest CONFIRMED kickoff, and
+ * only fall back to a TBD placeholder when nothing in the week is timed
+ * yet, so a placeholder can't drag a week's lock to the start of the day.
+ */
+export async function getAllWeekLocks(
+  season = SEASON,
+): Promise<Map<number, { locksAt: Date; locked: boolean }>> {
+  const rows = await sql<
+    { week: number; confirmed: Date | null; any_kickoff: Date | null }[]
+  >`
+    SELECT
+      week,
+      MIN(kickoff_at) FILTER (WHERE NOT kickoff_tbd) AS confirmed,
+      MIN(kickoff_at) AS any_kickoff
+    FROM games
+    WHERE season = ${season} AND kickoff_at IS NOT NULL
+    GROUP BY week
+  `;
+  // Whether a week is locked is resolved HERE rather than by the caller.
+  // Reading the clock during a component's render is impure -- React's lint
+  // rules reject it -- and the page has no business doing time maths anyway.
+  const now = Date.now();
+  const locks = new Map<number, { locksAt: Date; locked: boolean }>();
+  for (const row of rows) {
+    const at = row.confirmed ?? row.any_kickoff;
+    if (!at) continue;
+    const locksAt = new Date(at);
+    locks.set(row.week, { locksAt, locked: locksAt.getTime() <= now });
+  }
+  return locks;
+}
+
 export async function getGamesForWeeks(
   weeks: number[],
   userId: number,

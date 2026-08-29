@@ -16,6 +16,9 @@ function revalidateAllAffected(week: number) {
   revalidatePath("/rankings");
   revalidatePath("/bracket");
   revalidatePath("/leaderboard");
+  // Both teams in the game have a season page showing this pick. The pick
+  // itself doesn't say which teams those are, so revalidate the segment.
+  revalidatePath("/teams/[teamId]", "page");
   revalidatePath("/");
 }
 

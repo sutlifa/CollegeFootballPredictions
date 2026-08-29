@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import Link from "next/link";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
 import { POWER_CONFERENCES } from "@/lib/bracket";
@@ -95,7 +96,12 @@ function StandingsTable({
                     name={row.team}
                     size={20}
                   />
-                  {row.team}
+                  <Link
+                    href={`/teams/${row.teamId}`}
+                    className="hover:text-accent-strong"
+                  >
+                    {row.team}
+                  </Link>
                   {explanations?.[i] ? <Tooltip text={explanations[i]!} /> : null}
                 </span>
               </td>
