@@ -64,6 +64,19 @@ in `mapGame`, so nothing below the query layer had to change.
 Week 16 is conference championships and is **excluded from pick totals** —
 it is scored separately.
 
+Week 16 is **derived per user, and only once that user's regular season is
+complete** (every week through Army-Navy submitted). Deriving it earlier
+builds matchups from a part-finished table, which describes which weeks
+happen to be filled in rather than who is going to the title game — a user
+one week into the season was handed nine pickable championship games, and a
+stray pick put a team at 1-0 having played nobody. `syncWeek16Games` now
+returns early when the season isn't finished.
+
+**Never bulk-delete incomplete users' week-16 rows.** A user can be one week
+short and still have a full, picked championship slate behind it — one has
+everything except Army-Navy — and dropping it would destroy their bracket.
+`deleteUnpickedWeek16Games` spares any row carrying a prediction.
+
 ## Computer rankings — the invariants
 
 The rating reads like an AP poll: strength of schedule, quality wins and bad

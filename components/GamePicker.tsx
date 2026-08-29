@@ -250,7 +250,10 @@ export function GamePicker({
                 setWinnerTeamId(null);
                 setMarginBucket(null);
               }}
-              className="rounded border border-line-strong px-2 py-0.5 text-[11px] text-ink-soft hover:border-accent hover:text-accent-strong"
+              // Roomier on touch screens: at py-0.5 this was a ~21px-tall
+              // target, well under the ~44px a finger reliably hits, and it
+              // sits inches from the margin buttons it is meant to undo.
+              className="rounded border border-line-strong px-3 py-1.5 text-[11px] text-ink-soft hover:border-accent hover:text-accent-strong sm:px-2 sm:py-0.5"
             >
               Clear
             </button>

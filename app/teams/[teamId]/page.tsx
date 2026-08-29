@@ -14,6 +14,7 @@ import {
   getGamesForTeam,
   getSubmittedWeeks,
   hasWeek16Games,
+  isRegularSeasonComplete,
 } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName, type Game, type Team } from "@/lib/types";
@@ -52,16 +53,21 @@ export default async function TeamPage({
   const session = await auth();
   const userId = session!.user.id; // proxy.ts guarantees a session here
 
-  // Week 16 is derived rather than seeded, so a team's title game only
-  // exists once it has been generated -- generate it if this user has none.
+  // Championship games appear here only once they are real: the regular
+  // season is finished and the matchups have actually been decided. Before
+  // that a team's schedule ends at Army-Navy, which is the honest picture --
+  // a title game derived from a part-finished season put teams on a
+  // schedule they had no business being on.
   //
-  // Deliberately NOT re-derived on every visit the way /weeks/16 does it.
-  // That costs about 1.1s, which is a lot to add to a page people click
-  // through from a list of 138, and it buys nothing here: saving a pick
-  // never re-derives week 16 either, so the matchups only ever change when
-  // /weeks/16 is opened. Skipping it introduces no staleness that the rest
-  // of the app doesn't already have.
-  if (!(await hasWeek16Games(userId))) {
+  // Generated here only if this user has finished and simply hasn't opened
+  // /weeks/16 yet. Deliberately NOT re-derived on every visit the way that
+  // page does it: it costs about 1.1s, which is a lot for a page reached
+  // from a list of 138, and buys nothing, since saving a pick never
+  // re-derives week 16 either.
+  if (
+    (await isRegularSeasonComplete(userId)) &&
+    !(await hasWeek16Games(userId))
+  ) {
     await syncWeek16Games(userId);
   }
 

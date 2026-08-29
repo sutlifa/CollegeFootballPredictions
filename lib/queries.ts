@@ -1,5 +1,6 @@
 import { conferenceDivisionKey } from "./conferences";
 import { sql } from "./db";
+import { REGULAR_SEASON_WEEKS } from "./format";
 import { formatDisplayName, type LeaderboardRow } from "./leaderboard";
 import {
   isMarginBucketId,
@@ -140,6 +141,50 @@ export async function getGamesForWeek(
  * yet. Cheap existence check, so a page that merely needs week 16 to be
  * PRESENT doesn't have to pay for re-deriving it.
  */
+/**
+ * Whether this user has finished the regular season -- every week from 0
+ * through Army-Navy submitted. Conference championship matchups are only
+ * real once this is true; before it, they are derived from a part-finished
+ * season and say more about which weeks happen to be filled in than about
+ * who is actually going to the title game.
+ */
+export async function isRegularSeasonComplete(userId: number): Promise<boolean> {
+  const submitted = new Set(await getSubmittedWeeks(userId));
+  return REGULAR_SEASON_WEEKS.every((w) => submitted.has(w));
+}
+
+/** Which regular-season weeks are still outstanding, in order. */
+export async function missingRegularSeasonWeeks(
+  userId: number,
+): Promise<number[]> {
+  const submitted = new Set(await getSubmittedWeeks(userId));
+  return REGULAR_SEASON_WEEKS.filter((w) => !submitted.has(w));
+}
+
+/**
+ * Drop this user's week-16 rows that nobody has picked.
+ *
+ * Deliberately spares any game carrying a prediction. Users can reach week
+ * 16 with the regular season not quite finished -- one has every week but
+ * Army-Navy and a full, picked championship slate behind it -- and deleting
+ * that would destroy real work and take their bracket with it. An unpicked
+ * row is just a matchup we should not have generated yet.
+ */
+export async function deleteUnpickedWeek16Games(
+  userId: number,
+  season = SEASON,
+): Promise<number> {
+  const rows = await sql<{ id: number }[]>`
+    DELETE FROM games g
+    WHERE g.season = ${season} AND g.week = 16 AND g.user_id = ${userId}
+      AND NOT EXISTS (
+        SELECT 1 FROM predictions p WHERE p.game_id = g.id
+      )
+    RETURNING g.id
+  `;
+  return rows.length;
+}
+
 export async function hasWeek16Games(
   userId: number,
   season = SEASON,

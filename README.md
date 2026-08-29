@@ -54,7 +54,10 @@ played.
 
 **Week 15** is Army–Navy. **Week 16** is conference championship week, and is
 never fetched from an API — it's derived from your own standings, so the
-title games are whoever *your* season put there.
+title games are whoever *your* season put there. It stays empty until the
+whole regular season is in, since matchups built from a half-finished table
+tell you which weeks you've filled in rather than who's playing for a
+title.
 
 ---
 

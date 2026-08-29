@@ -15,6 +15,7 @@ import {
   getGamesForWeek,
   getWeekLocksAt,
   isWeekSubmitted,
+  missingRegularSeasonWeeks,
 } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName, isDecided } from "@/lib/types";
@@ -45,10 +46,11 @@ export default async function WeekPage({
     await syncWeek16Games(userId);
   }
 
-  const [teams, games, weekLocksAt] = await Promise.all([
+  const [teams, games, weekLocksAt, missingWeeks] = await Promise.all([
     getAllTeams(),
     getGamesForWeek(week, userId),
     getWeekLocksAt(week),
+    week === 16 ? missingRegularSeasonWeeks(userId) : Promise.resolve([]),
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const picked = games.filter((g) => g.predictedWinnerTeamId !== null).length;
@@ -136,11 +138,24 @@ export default async function WeekPage({
         </>
       )}
 
-      {week === 16 && (
+      {week === 16 && missingWeeks.length > 0 && (
+        <p className="rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink-soft">
+          <span className="font-bold text-ink">
+            Championship matchups aren&apos;t set yet.
+          </span>{" "}
+          They&apos;re decided by your own final standings, so they only
+          appear once the whole regular season is in. Still to pick:{" "}
+          <span className="font-semibold text-ink">
+            {missingWeeks.map((w) => getWeekLabel(w)).join(", ")}
+          </span>
+          .
+        </p>
+      )}
+      {week === 16 && missingWeeks.length === 0 && (
         <p className="text-sm text-ink-muted">
-          Matchups here are derived from your Weeks 1-15 predicted standings
-          (each conference&apos;s top two teams), not pulled from an API. If an
-          earlier prediction changes who&apos;s in it, a matchup&apos;s score
+          Matchups here are derived from your own final standings (each
+          conference&apos;s top two teams), not pulled from an API. If an
+          earlier prediction changes who&apos;s in it, a matchup&apos;s pick
           resets. Championship games are treated as neutral site.
         </p>
       )}
@@ -149,7 +164,7 @@ export default async function WeekPage({
         <p className="text-ink-muted">
           {week <= 15
             ? "No games seeded yet for this week. Run the schedule sync first."
-            : "No conference has a decided top two yet -- predict more of weeks 1-15."}
+            : "Nothing here yet -- finish the regular season and each conference's top two will appear."}
         </p>
       ) : (
         /* Each game is a tap-to-pick card (components/GamePicker.tsx):
