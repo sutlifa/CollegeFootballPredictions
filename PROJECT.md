@@ -155,11 +155,27 @@ Guarantees that must survive any change — verify, don't assume:
 - Rank → strength goes through the **normal quantile**, not linearly. Linear
   spacing claims #1-to-#14 equals #100-to-#113; it made one week-0 win worth
   ~11 spots and put a preseason #14 at #1 after a single game.
-- `CONFERENCE_TIER` — SEC/Big Ten 1.28, Independent 1.1, Big 12 1.06, ACC
-  1.055 … MAC 0.3. These were tuned against the user's judgment over many
-  rounds (Miami too low, Texas Tech too high, American needed a small
-  boost). **Do not retune casually.** When a specific team looked wrong, the
-  cause was usually a threshold elsewhere, not the tier — a 13-0 Texas Tech
+- `CONFERENCE_TIER` — SEC/Big Ten 1.28, Independent 1.127, Big 12 1.093,
+  ACC 1.089, American 0.745, Pac 12 0.66, Mountain West 0.575, Sun Belt
+  0.532, CUSA 0.49, MAC 0.447. FCS 0.2 and is not part of the ladder — it
+  is the floor the others are measured from, and stays put.
+
+  One number per conference drives everything conference-dependent: record
+  value above .500 (`55 × tier`), record step (`55 × min(tier, 1)`),
+  headroom (`2 × step`), the conference-title bonus (`0.5 × step`), the
+  quality credit for beating that conference (`× tier`), and the penalty
+  for losing to it (`1.55 − 0.55 × tier`, keyed to the OPPONENT's
+  conference, never your own).
+
+  Everything below the SEC/Big Ten pair was moved 15% of its remaining
+  distance to 1.28 at the user's request, to close the gap to the top
+  without erasing it. That flipped one comparison worth knowing about:
+  a 13-0 Big 12 champion now edges a 12-1 SEC champion on the record term
+  (781.5 vs 774.4), where it previously trailed. Big 12 above ~1.083 is
+  what does it.
+
+  **Do not retune casually.** When a specific team looked wrong, the cause
+  was usually a threshold elsewhere, not the tier — a 13-0 Texas Tech
   ranking too high turned out to be `RECORD_NOISE_THRESHOLD`, not the Big 12
   tier, and tiers were adjusted wrongly first.
 
