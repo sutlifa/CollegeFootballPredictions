@@ -155,7 +155,7 @@ Guarantees that must survive any change — verify, don't assume:
 - Rank → strength goes through the **normal quantile**, not linearly. Linear
   spacing claims #1-to-#14 equals #100-to-#113; it made one week-0 win worth
   ~11 spots and put a preseason #14 at #1 after a single game.
-- `CONFERENCE_TIER` — SEC/Big Ten 1.28, Independent 1.121, Big 12 1.087,
+- `CONFERENCE_TIER` — SEC/Big Ten 1.28, Independent 1.121, Big 12 1.085,
   ACC 1.083, American 0.739, Pac 12 0.654, Mountain West 0.569, Sun Belt
   0.526, CUSA 0.484, MAC 0.441. FCS 0.2 and is not part of the ladder — it
   is the floor the others are measured from, and stays put.
@@ -168,11 +168,18 @@ Guarantees that must survive any change — verify, don't assume:
   conference, never your own).
 
   Everything below the SEC/Big Ten pair was moved 15% of its remaining
-  distance to 1.28 at the user's request, then trimmed a flat 0.006. That
-  flipped one comparison worth knowing about: a 13-0 Big 12 champion now
-  edges a 12-1 SEC champion on the record term (777.2 vs 774.4), where it
-  previously trailed. The flip point is Big 12 = 1.0831, so the current
-  1.087 clears it by 0.004.
+  distance to 1.28 at the user's request, then trimmed a flat 0.006.
+
+  **The Big 12 is held at 1.085 deliberately.** At 1.086 and above, a 13-0
+  Big 12 champion finishes ahead of a 12-1 SEC champion, which the user
+  does not want. This is NOT the record-term flip point of
+  `(1.28 × 11) / 13 = 1.0831` — at 1.085 the record term still favours the
+  13-0 team by 1.4 and the SEC team's quality edge covers it. Solving from
+  the arithmetic alone gets this wrong by two thousandths; it was found by
+  sweeping against the real boards. Note the same comparison in the other
+  completed season (13-0 Big 12 vs a 12-1 SEC champion with a weaker
+  résumé) does not flip until 1.070, so the rule holds in one season and
+  not the other at this value.
 
   Useful sense of scale, since this ladder invites small nudges: a flat
   0.006 trim across every tier moved exactly one team on two full seasons

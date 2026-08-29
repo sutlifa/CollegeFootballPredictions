@@ -275,8 +275,16 @@ const FCS_QUALITY_BASELINE = -(PRESEASON_ELO_PER_SIGMA * MAX_PRESEASON_SIGMA + 8
 // the field.
 //
 //   Independent   1.100 -> 1.121     American        0.650 -> 0.739
-//   Big 12        1.060 -> 1.087     Pac 12          0.550 -> 0.654
+//   Big 12        1.060 -> 1.085     Pac 12          0.550 -> 0.654
 //   ACC           1.055 -> 1.083     Mountain West   0.450 -> 0.569
+//
+// The Big 12 is held at 1.085 rather than 1.087 for a specific reason: at
+// 1.086 and above, a 13-0 Big 12 champion finishes ahead of a 12-1 SEC
+// champion, and it shouldn't. Note this is NOT the record-term flip point,
+// which is (1.28 * 11) / 13 = 1.0831 -- at 1.085 the record term still
+// favours the 13-0 team by 1.4, and the SEC team's quality edge covers the
+// difference. Solved against the real board, not from the arithmetic
+// alone, because the arithmetic alone gets it wrong by two thousandths.
 //                                    Sun Belt        0.400 -> 0.526
 //                                    CUSA            0.350 -> 0.484
 //                                    MAC             0.300 -> 0.441
@@ -287,7 +295,7 @@ const CONFERENCE_TIER: Record<string, number> = {
   "Big Ten": 1.28,
   SEC: 1.28,
   Independent: 1.121,
-  "Big 12": 1.087,
+  "Big 12": 1.085,
   ACC: 1.083,
   "Pac 12": 0.654,
   American: 0.739,
