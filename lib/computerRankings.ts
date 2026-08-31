@@ -172,14 +172,30 @@ function recordComponent(team: Team, regularWins: number, regularLosses: number)
  * decaying asymptotically. That matters: every record-dominance guarantee
  * below is proved from the record term and the headroom bound, and a prior
  * that never quite vanished would sit outside that proof and could flip a
- * 12-1 team behind an 11-2 one on the strength of an August opinion. At
- * six games it is gone and those guarantees are exact again.
+ * 12-1 team behind an 11-2 one on the strength of an August opinion. Once
+ * it reaches zero those guarantees are exact again.
+ *
+ * Twelve games, not six. At six the board was violent in September: results
+ * carried two thirds of their weight by week 3, when every team is 3-0 or
+ * 2-1 and the whole field is a few points apart, so a single flat loss
+ * penalty moved a team twenty places. A preseason #14 went 4-0 against
+ * nobody in particular and came out first in the country, partly just for
+ * having played a fourth game while the teams above it had played three.
+ * A top-ten team lost one close game to a ranked opponent and fell to 33rd.
+ * No poll behaves like that.
+ *
+ * Fourteen was tried and is wrong for a different reason: at thirteen games
+ * played the weight never reaches zero, so the end-of-season guarantees stop
+ * holding -- it put real record-order violations back on both completed
+ * seasons. Twelve is the longest fade that still expires within a season.
+ * Both completed seasons are bit-for-bit unchanged, since the prior was
+ * already spent by then either way; only September moves.
  */
 const PRESEASON_PRIOR_PER_SIGMA = 165;
 const PRESEASON_ELO_PER_SIGMA = 45;
 // The tails of a 138-team normal quantile land just inside +/-3 sigma.
 const MAX_PRESEASON_SIGMA = 3;
-const PRIOR_FADE_GAMES = 6;
+const PRIOR_FADE_GAMES = 12;
 
 /**
  * Inverse normal CDF (Acklam's rational approximation). Used to turn a

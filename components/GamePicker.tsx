@@ -204,6 +204,33 @@ export function GamePicker({
     </div>
   );
 
+  /**
+   * Home or away, said out loud.
+   *
+   * The home team has always been listed first, but that is a convention
+   * nobody can see -- on a phone the two teams simply stack, and on desktop
+   * they sit either side of a VS with nothing to say which is which. The
+   * neutral badge covers the case where neither is home; this covers the
+   * other 98% of the schedule. Marking the away side rather than the home
+   * side keeps it to one mark per game, and "@" is how a schedule reads.
+   */
+  const venueTag = (team: TeamInfo) => {
+    if (isNeutral) return null;
+    const isHome = team.id === team1.id;
+    return (
+      <span
+        title={isHome ? "Home team" : "Away team"}
+        className={`shrink-0 rounded px-1 text-[10px] font-bold tracking-wide ${
+          isHome
+            ? "bg-surface-2 text-ink-muted"
+            : "bg-surface-2 text-ink-soft"
+        }`}
+      >
+        {isHome ? "H" : "@"}
+      </span>
+    );
+  };
+
   const teamLabel = (team: TeamInfo, align: "left" | "right") => {
     const isPicked = winnerTeamId === team.id;
     const won = isFinal && actualWinnerTeamId === team.id;
@@ -223,6 +250,7 @@ export function GamePicker({
         }`}
       >
         <TeamLogo logoUrl={team.logoUrl} name={team.displayName} size={20} />
+        {venueTag(team)}
         <span className="truncate">{team.displayName}</span>
         {isFinal && (
           <span

@@ -161,9 +161,17 @@ Guarantees that must survive any change — verify, don't assume:
   strict values at `preseasonWeight = 0`, so a completed season is
   untouched. Check: USC beating a #123 should move ~1 spot; beating the #1
   team should move them to the top.
-- `PRESEASON_PRIOR_PER_SIGMA = 165`, `PRIOR_FADE_GAMES = 6`. The preseason
-  poll is the **starting** power level and fades to **exactly zero** by six
-  games — exactly zero because the guarantees above are proved from the
+- `PRESEASON_PRIOR_PER_SIGMA = 165`, `PRIOR_FADE_GAMES = 12`. The preseason
+  poll is the **starting** power level and fades to **exactly zero** by
+  twelve games. It was six, which made September violent: results carried
+  two thirds of their weight by week 3, when the whole field is 3-0 or 2-1
+  and a few points apart, so one flat loss penalty moved a team twenty
+  places (a top-ten team lost one close game to a ranked opponent and fell
+  to 33rd) and a preseason #14 reached #1 at 4-0 partly just for having
+  played a fourth game. **14 is too far** — at 13 games played the weight
+  never reaches zero, so the end-of-season guarantees stop holding and real
+  violations reappear. 12 is the longest fade that still expires within a
+  season; completed seasons are unchanged either way — exactly zero because the guarantees above are proved from the
   record term, and a prior that never quite vanished would sit outside that
   proof.
 - The fade is driven by **season progress across the whole board**, not
