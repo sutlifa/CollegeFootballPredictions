@@ -26,6 +26,7 @@ const NAV_LINKS = [
   { href: "/rankings", label: "Rankings" },
   { href: "/bracket", label: "Bracket" },
   { href: "/teams", label: "Teams" },
+  { href: "/compare", label: "Compare" },
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 

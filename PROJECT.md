@@ -306,6 +306,27 @@ staging a week-16 result. Always confirm the restore explicitly rather than
 trusting the `finally` ran — and prefer a user with partial data (34, 42,
 43) over users 1 and 27, whose complete seasons back most invariants.
 
+## Compare Picks (/compare)
+
+Week grid of everyone's picks. **Not gated on the week lock** — the user
+decided picks need not be secret before kickoff, so don't reintroduce a
+gate without asking. Selection lives in the URL (`?week=&who=&who=`) via a
+plain GET form, so the page stays server-rendered and a comparison is
+shareable.
+
+- Columns are the people you tick; **consensus counts the whole pool**, so
+  "8 of 9 took Oregon" means the same thing however you filter.
+- Exactly two selected adds a head-to-head agreement rate; more or fewer
+  hides it, because it only reads as a comparison between two.
+- **Week 16 is excluded and must stay so**: those games are derived per
+  user, so two people's title games are different matchups with nothing to
+  line up.
+- Team abbreviations: initials for multi-word names, first four letters for
+  single-word ones. Pure initials turned "Rutgers" into "R".
+- This is the one table allowed to scroll horizontally (in its own box, never
+  the page) — with several columns it is genuinely wide and squeezing it
+  makes every cell unreadable.
+
 ## Landmines
 
 - **Never run `next build` while `next dev` is running.** It corrupts

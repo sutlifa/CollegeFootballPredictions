@@ -853,6 +853,57 @@ export async function unsubscribeByToken(token: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+// ---------------------------------------------------------------------
+// Picks comparison (/compare)
+// ---------------------------------------------------------------------
+
+export type ComparePick = {
+  userId: number;
+  gameId: number;
+  winnerTeamId: number;
+  marginBucket: number;
+};
+
+/**
+ * Every user's picks for one week's SHARED games.
+ *
+ * Week 16 is excluded by the caller and cannot be compared: those games are
+ * derived per user, so two people's championship slates are different
+ * matchups entirely and there is nothing to line up column by column.
+ */
+export async function getWeekPicksForCompare(
+  week: number,
+  season = SEASON,
+): Promise<ComparePick[]> {
+  const rows = await sql<
+    { user_id: number; game_id: number; winner_team_id: number; margin_bucket: number }[]
+  >`
+    SELECT p.user_id, p.game_id, p.winner_team_id, p.margin_bucket
+    FROM predictions p
+    JOIN games g ON g.id = p.game_id
+    WHERE g.season = ${season} AND g.week = ${week} AND g.user_id IS NULL
+  `;
+  return rows.map((r) => ({
+    userId: r.user_id,
+    gameId: r.game_id,
+    winnerTeamId: r.winner_team_id,
+    marginBucket: r.margin_bucket,
+  }));
+}
+
+/** Everyone who could appear in a comparison, with a display name. */
+export async function getCompareUsers(): Promise<
+  { userId: number; displayName: string }[]
+> {
+  const rows = await sql<{ id: number; name: string | null; email: string }[]>`
+    SELECT id, name, email FROM users ORDER BY id
+  `;
+  return rows.map((r) => ({
+    userId: r.id,
+    displayName: formatDisplayName(r.name, r.email),
+  }));
+}
+
 export async function getLeaderboard(
   season = SEASON,
 ): Promise<LeaderboardRow[]> {
