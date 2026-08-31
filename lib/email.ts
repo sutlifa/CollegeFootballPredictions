@@ -95,10 +95,13 @@ export function renderReminder(
           timeZoneName: "short",
         });
 
+  // Subjects read like a note from a person, not a campaign. "Picks are
+  // open -- 91 left" is a promotion; "your picks aren't in yet" is a
+  // reminder, and Gmail sorts on exactly that kind of difference.
   const subject =
     decision.kind === "last_call"
-      ? `Last call: ${label} picks lock ${when}`
-      : `${label} picks are open — ${decision.missing} left`;
+      ? `${label} picks lock ${when}`
+      : `Your ${label} picks aren't in yet`;
 
   const url = `${appUrl()}/weeks/${decision.week}`;
   const unsub = decision.unsubscribeToken
@@ -120,18 +123,20 @@ export function renderReminder(
     ...(unsub ? [``, `Stop these reminders: ${unsub}`] : []),
   ].join("\n");
 
+  // Deliberately plain. The previous version had a big green
+  // display:inline-block CTA button, a custom font stack and a styled
+  // footer -- the exact shape of a marketing template, and it landed in
+  // Gmail's Promotions tab. A reminder nobody sees is a reminder that
+  // failed, so this is now an ordinary link in an ordinary sentence, with
+  // no colours, no button and no font overrides. It should look like
+  // something a person typed.
   const html = [
-    `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.5;color:#16281c">`,
     `<p>Hi ${escapeHtml(firstName(decision.name))},</p>`,
-    `<p><strong>${escapeHtml(label)}</strong> locks ${escapeHtml(when)}, and picks freeze once the first game kicks off.</p>`,
-    `<p>${escapeHtml(madeLine)}</p>`,
-    `<p><a href="${url}" style="display:inline-block;background:#1f7a45;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">Make your picks</a></p>`,
+    `<p>${escapeHtml(label)} locks ${escapeHtml(when)}, and picks freeze once the first game kicks off. ${escapeHtml(madeLine)}</p>`,
+    `<p><a href="${url}">Make your picks</a></p>`,
     ...(unsub
-      ? [
-          `<p style="font-size:12px;color:#6b7d70">Don't want these? <a href="${unsub}" style="color:#6b7d70">Turn off reminders</a>.</p>`,
-        ]
+      ? [`<p>To stop these reminders, <a href="${unsub}">use this link</a>.</p>`]
       : []),
-    `</div>`,
   ].join("");
 
   return { subject, text, html };
@@ -172,6 +177,9 @@ export async function sendReminder(
             },
             body: JSON.stringify({
               sender: from,
+              // A working reply-to reads as correspondence rather than a
+              // broadcast, and means a confused reply reaches a human.
+              replyTo: from,
               to: [{ email: decision.email, name: decision.name ?? undefined }],
               subject,
               textContent: text,
@@ -186,6 +194,7 @@ export async function sendReminder(
             },
             body: JSON.stringify({
               from: `${from.name} <${from.email}>`,
+              reply_to: from.email,
               to: [decision.email],
               subject,
               text,
