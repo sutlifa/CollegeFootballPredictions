@@ -323,9 +323,13 @@ shareable.
   line up.
 - Team abbreviations: initials for multi-word names, first four letters for
   single-word ones. Pure initials turned "Rutgers" into "R".
-- This is the one table allowed to scroll horizontally (in its own box, never
-  the page) — with several columns it is genuinely wide and squeezing it
-  makes every cell unreadable.
+- **Two layouts, one row model.** Phones get a card per game (matchup,
+  consensus, then each person's pick stacked); `sm:` and up get the table.
+  A single `rows` array feeds both so the numbers cannot drift. The table
+  alone was wrong on a phone: the Game column is wider than the screen, so
+  the pick columns sat entirely offscreen and you lost the matchup while
+  scrolling to them. The table still scrolls in its own box on desktop,
+  never the page.
 
 ## Landmines
 

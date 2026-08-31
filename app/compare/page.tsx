@@ -93,6 +93,55 @@ export default async function ComparePage({
     agreement = { same, both };
   }
 
+  // Built once and rendered twice -- as cards on a phone, as a table on
+  // anything wider. Two layouts, one set of numbers, so they cannot drift.
+  const rows = games.map((game) => {
+    const t1 = teamById.get(game.team1Id);
+    const t2 = teamById.get(game.team2Id);
+    const counts = consensus.get(game.id) ?? new Map<number, number>();
+    const c1 = counts.get(game.team1Id) ?? 0;
+    const c2 = counts.get(game.team2Id) ?? 0;
+    const leaderId = c1 === c2 ? null : c1 > c2 ? game.team1Id : game.team2Id;
+    return {
+      game,
+      t1,
+      t2,
+      name1: displayTeamName(t1),
+      name2: displayTeamName(t2),
+      c1,
+      c2,
+      total: c1 + c2,
+      lead: Math.max(c1, c2),
+      leaderId,
+      leaderTeam: leaderId === null ? null : teamById.get(leaderId),
+      cells: shown.map((u) => {
+        const p = pickFor.get(`${u.userId}:${game.id}`);
+        if (!p) {
+          return {
+            userId: u.userId,
+            displayName: u.displayName,
+            label: null as string | null,
+            title: undefined as string | undefined,
+            withCrowd: false,
+          };
+        }
+        const team = teamById.get(p.winnerTeamId);
+        const bucket = isMarginBucketId(p.marginBucket)
+          ? MARGIN_BUCKETS[p.marginBucket].label
+          : "?";
+        return {
+          userId: u.userId,
+          displayName: u.displayName,
+          label: pickLabel(displayTeamName(team), p.marginBucket) as string | null,
+          title: `${displayTeamName(team)} by ${bucket}` as string | undefined,
+          // Going against the crowd is the interesting case, so it is the
+          // one that gets colour.
+          withCrowd: leaderId !== null && leaderId === p.winnerTeamId,
+        };
+      }),
+    };
+  });
+
   const linkFor = (targetWeek: number) => {
     const q = new URLSearchParams();
     q.set("week", String(targetWeek));
@@ -184,105 +233,134 @@ export default async function ComparePage({
       ) : games.length === 0 ? (
         <p className="text-ink-muted">No games seeded for this week yet.</p>
       ) : (
-        /* The one place a horizontal scroll is right: with several people
-           selected this genuinely is a wide table, and squeezing it would
-           make every cell unreadable. It scrolls inside its own box, so the
-           page itself never moves sideways. */
-        <div className="overflow-x-auto rounded-lg border border-line">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-2 text-ink-muted">
-              <tr>
-                <th className="px-2 py-2 text-left sm:px-3">Game</th>
-                <th className="px-2 py-2 text-left sm:px-3">Consensus</th>
-                {shown.map((u) => (
-                  <th
-                    key={u.userId}
-                    className="whitespace-nowrap px-2 py-2 text-left sm:px-3"
-                  >
-                    {u.displayName}
-                    {u.userId === userId && " (you)"}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {games.map((game) => {
-                const t1 = teamById.get(game.team1Id);
-                const t2 = teamById.get(game.team2Id);
-                const counts = consensus.get(game.id) ?? new Map();
-                const c1 = counts.get(game.team1Id) ?? 0;
-                const c2 = counts.get(game.team2Id) ?? 0;
-                const total = c1 + c2;
-                const leaderId =
-                  c1 === c2 ? null : c1 > c2 ? game.team1Id : game.team2Id;
-                const leaderTeam = leaderId === null ? null : teamById.get(leaderId);
-                const lead = Math.max(c1, c2);
-                return (
-                  <tr key={game.id} className="border-t border-line bg-surface">
-                    <td className="px-2 py-2 sm:px-3">
+        <>
+          {/* PHONES: one card per game.
+              A table was the wrong shape here. The Game column alone is
+              wider than a phone, so the pick columns sat entirely offscreen
+              -- you scrolled right and lost the matchup you were reading
+              about. Stacking each game with its people underneath needs no
+              sideways movement at all. */}
+          <div className="space-y-2 sm:hidden">
+            {rows.map((row) => (
+              <div
+                key={row.game.id}
+                className="rounded-lg border border-line bg-surface px-3 py-2.5"
+              >
+                <div className="flex items-center gap-1.5 text-sm text-ink">
+                  <TeamLogo logoUrl={row.t1?.logoUrl} name={row.name1} size={16} />
+                  <span className="min-w-0 truncate">{row.name1}</span>
+                  <span className="shrink-0 text-[10px] text-ink-muted">vs</span>
+                  <TeamLogo logoUrl={row.t2?.logoUrl} name={row.name2} size={16} />
+                  <span className="min-w-0 truncate">{row.name2}</span>
+                </div>
+                <div className="mt-0.5 text-xs text-ink-soft">
+                  {row.total === 0 ? (
+                    <span className="text-ink-muted">nobody has picked this</span>
+                  ) : row.leaderId === null ? (
+                    <span className="text-ink-muted">
+                      split {row.c1}-{row.c2}
+                    </span>
+                  ) : (
+                    <>
+                      {row.lead} of {row.total} took{" "}
+                      <span className="font-semibold text-ink">
+                        {displayTeamName(row.leaderTeam ?? undefined)}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="mt-2 space-y-1 border-t border-line pt-2">
+                  {row.cells.map((cell) => (
+                    <div
+                      key={cell.userId}
+                      className="flex items-baseline justify-between gap-3 text-xs"
+                    >
+                      <span className="min-w-0 truncate text-ink-muted">
+                        {cell.displayName}
+                        {cell.userId === userId && " (you)"}
+                      </span>
+                      <span
+                        className={`shrink-0 ${
+                          !cell.label
+                            ? "text-ink-muted"
+                            : cell.withCrowd
+                              ? "text-ink"
+                              : "font-semibold text-accent-strong"
+                        }`}
+                      >
+                        {cell.label ?? "no pick"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Wider screens: the grid, where columns genuinely read better. */}
+          <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-2 text-ink-muted">
+                <tr>
+                  <th className="px-3 py-2 text-left">Game</th>
+                  <th className="px-3 py-2 text-left">Consensus</th>
+                  {shown.map((u) => (
+                    <th key={u.userId} className="whitespace-nowrap px-3 py-2 text-left">
+                      {u.displayName}
+                      {u.userId === userId && " (you)"}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.game.id} className="border-t border-line bg-surface">
+                    <td className="px-3 py-2">
                       <span className="flex items-center gap-1.5 whitespace-nowrap text-ink">
-                        <TeamLogo logoUrl={t1?.logoUrl} name={displayTeamName(t1)} size={16} />
-                        <span className="text-xs">{displayTeamName(t1)}</span>
+                        <TeamLogo logoUrl={row.t1?.logoUrl} name={row.name1} size={16} />
+                        <span className="text-xs">{row.name1}</span>
                         <span className="text-[10px] text-ink-muted">vs</span>
-                        <TeamLogo logoUrl={t2?.logoUrl} name={displayTeamName(t2)} size={16} />
-                        <span className="text-xs">{displayTeamName(t2)}</span>
+                        <TeamLogo logoUrl={row.t2?.logoUrl} name={row.name2} size={16} />
+                        <span className="text-xs">{row.name2}</span>
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-xs text-ink-soft sm:px-3">
-                      {total === 0 ? (
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-soft">
+                      {row.total === 0 ? (
                         <span className="text-ink-muted">nobody yet</span>
-                      ) : leaderId === null ? (
+                      ) : row.leaderId === null ? (
                         <span className="text-ink-muted">
-                          split {c1}-{c2}
+                          split {row.c1}-{row.c2}
                         </span>
                       ) : (
                         <>
-                          {lead} of {total} took{" "}
+                          {row.lead} of {row.total} took{" "}
                           <span className="font-semibold text-ink">
-                            {displayTeamName(leaderTeam ?? undefined)}
+                            {displayTeamName(row.leaderTeam ?? undefined)}
                           </span>
                         </>
                       )}
                     </td>
-                    {shown.map((u) => {
-                      const p = pickFor.get(`${u.userId}:${game.id}`);
-                      if (!p) {
-                        return (
-                          <td
-                            key={u.userId}
-                            className="px-2 py-2 text-xs text-ink-muted sm:px-3"
-                          >
-                            —
-                          </td>
-                        );
-                      }
-                      const team = teamById.get(p.winnerTeamId);
-                      // Against the crowd is the interesting case, so it is
-                      // the one that gets colour.
-                      const withCrowd =
-                        leaderId !== null && leaderId === p.winnerTeamId;
-                      return (
-                        <td
-                          key={u.userId}
-                          className={`whitespace-nowrap px-2 py-2 text-xs sm:px-3 ${
-                            withCrowd ? "text-ink" : "font-semibold text-accent-strong"
-                          }`}
-                          title={`${displayTeamName(team)} by ${
-                            isMarginBucketId(p.marginBucket)
-                              ? MARGIN_BUCKETS[p.marginBucket].label
-                              : "?"
-                          }`}
-                        >
-                          {pickLabel(displayTeamName(team), p.marginBucket)}
-                        </td>
-                      );
-                    })}
+                    {row.cells.map((cell) => (
+                      <td
+                        key={cell.userId}
+                        title={cell.title}
+                        className={`whitespace-nowrap px-3 py-2 text-xs ${
+                          !cell.label
+                            ? "text-ink-muted"
+                            : cell.withCrowd
+                              ? "text-ink"
+                              : "font-semibold text-accent-strong"
+                        }`}
+                      >
+                        {cell.label ?? "—"}
+                      </td>
+                    ))}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
