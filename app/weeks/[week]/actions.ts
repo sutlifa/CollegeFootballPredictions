@@ -6,6 +6,7 @@ import { finalizeConferenceStandingsIfReady } from "@/lib/conferenceTiebreakers"
 import { isMarginBucketId } from "@/lib/margin";
 import {
   clearPrediction,
+  clearWeekPredictions,
   savePrediction,
   syncWeekSubmission,
 } from "@/lib/queries";
@@ -69,5 +70,19 @@ export async function clearPredictionAction(formData: FormData) {
   }
 
   await clearPrediction(userId, gameId);
+  await settleWeek(userId, week);
+}
+
+/**
+ * Wipe a whole week. The lock is enforced in clearWeekPredictions, not
+ * here, so a stale page or a hand-rolled post can't get round it either.
+ */
+export async function clearWeekAction(formData: FormData) {
+  const userId = await requireUserId();
+  const week = Number(formData.get("week"));
+  if (!Number.isInteger(week)) {
+    throw new Error("Invalid week");
+  }
+  await clearWeekPredictions(userId, week);
   await settleWeek(userId, week);
 }

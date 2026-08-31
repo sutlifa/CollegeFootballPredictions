@@ -395,6 +395,43 @@ export async function clearPrediction(
   await unsubmitWeekForGame(userId, gameId);
 }
 
+/**
+ * Clear every pick in one week. Same lock rule as a single game -- once the
+ * week's first game has kicked off nothing in it can be changed, or you
+ * could wipe and re-pick a week whose results you already know.
+ *
+ * Returns how many predictions were removed, so the UI can say what
+ * happened rather than silently appearing to do nothing on an empty week.
+ */
+export async function clearWeekPredictions(
+  userId: number,
+  week: number,
+  season = SEASON,
+): Promise<number> {
+  if (await isWeekLocked(week, season)) {
+    throw new Error(
+      "This week is locked -- its first game has already kicked off, so picks can no longer be changed.",
+    );
+  }
+  const rows = await sql<{ game_id: number }[]>`
+    DELETE FROM predictions p
+    USING games g
+    WHERE p.game_id = g.id
+      AND p.user_id = ${userId}
+      AND g.season = ${season}
+      AND g.week = ${week}
+    RETURNING p.game_id
+  `;
+  // A week is only "submitted" while it is complete; emptying it plainly
+  // is not, so drop the submission rather than leaving a stale one behind
+  // that would keep counting the week toward the rankings.
+  await sql`
+    DELETE FROM week_submissions
+    WHERE user_id = ${userId} AND season = ${season} AND week = ${week}
+  `;
+  return rows.length;
+}
+
 export async function isWeekSubmitted(
   userId: number,
   week: number,

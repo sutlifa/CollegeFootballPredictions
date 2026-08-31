@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { ClearWeekButton } from "@/components/ClearWeekButton";
 import { GamePicker } from "@/components/GamePicker";
 import { Tooltip } from "@/components/Tooltip";
 import {
@@ -19,7 +20,11 @@ import {
 } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName, isDecided } from "@/lib/types";
-import { clearPredictionAction, savePredictionAction } from "./actions";
+import {
+  clearPredictionAction,
+  clearWeekAction,
+  savePredictionAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -98,15 +103,27 @@ export default async function WeekPage({
         {/* No Submit button: a week submits itself once every game has a
             pick (see settleWeek in ./actions.ts), so this only reports
             where the week stands. */}
-        {submitted ? (
-          <span className="text-sm font-medium text-win">
-            ✓ Complete -- counted in Computer Rankings
-          </span>
-        ) : (
-          <span className="text-sm text-ink-muted">
-            {picked} of {games.length} picked
-          </span>
-        )}
+        <span className="flex flex-wrap items-center gap-3">
+          {submitted ? (
+            <span className="text-sm font-medium text-win">
+              ✓ Complete -- counted in Computer Rankings
+            </span>
+          ) : (
+            <span className="text-sm text-ink-muted">
+              {picked} of {games.length} picked
+            </span>
+          )}
+          {/* Only while the week is still open -- the server refuses a
+              locked week, and a button that can only fail is worse than
+              no button. */}
+          {!weekLocked && (
+            <ClearWeekButton
+              week={week}
+              pickedCount={picked}
+              clearAction={clearWeekAction}
+            />
+          )}
+        </span>
       </div>
       {weekLocked ? (
         <p className="rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink-soft">

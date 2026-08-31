@@ -283,6 +283,29 @@ who *would* be mailed — that is the test harness.
 - `backfillUnsubscribeTokens` generates in Node: `gen_random_bytes` needs
   pgcrypto, which this database does not have.
 
+## Clearing picks
+
+One game: the Clear button on `GamePicker`. A whole week:
+`ClearWeekButton` in the week header, behind a confirm step naming how many
+picks are at risk (it can destroy 91, and there is no cheap way back).
+
+**The lock is enforced in `clearWeekPredictions`, not in the UI** — a
+locked week refuses server-side, so a stale page or hand-rolled post cannot
+wipe and re-pick a week whose results are already known. The button is also
+hidden on a locked week, because a control that can only fail is worse than
+no control. Clearing a week drops its `week_submissions` row too; an empty
+week is not a complete one and must stop counting toward the rankings.
+
+## Testing something destructive against the real database
+
+There is no seed/test database — verification runs against real user data.
+The pattern that works: **snapshot, act, assert, restore in a `finally`**,
+then assert the restore. Used for clear-week (71 picks removed and put
+back), for injected real scores when checking leaderboard margins, and for
+staging a week-16 result. Always confirm the restore explicitly rather than
+trusting the `finally` ran — and prefer a user with partial data (34, 42,
+43) over users 1 and 27, whose complete seasons back most invariants.
+
 ## Landmines
 
 - **Never run `next build` while `next dev` is running.** It corrupts
