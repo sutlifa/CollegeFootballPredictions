@@ -252,6 +252,30 @@ severe inversion (2.91 spots for beating a top-10 team vs 8.24 for a
 a winner rank band. Even then, band sizes are 20–70 games and strict
 monotonicity flips on a 0.015 tier change — do not tune toward it.
 
+## Weekly pick reminders
+
+`lib/reminders.ts` (pure decision logic), `lib/email.ts` (Resend REST +
+templates), `lib/sendReminders.ts` (the run), folded into the existing
+`/api/cron/sync-results` rather than taking a second Hobby cron slot.
+
+**Sending requires TWO switches**: `RESEND_API_KEY` *and*
+`EMAIL_REMINDERS_ENABLED === "true"`. A key alone is exactly what gets
+pasted in to "see if it works", and would otherwise immediately mail every
+real person in the database. Without both, the path runs fully and reports
+who *would* be mailed — that is the test harness.
+
+- `email_sends` is unique on (user, season, week, kind); only rows with
+  `error IS NULL` count as sent, so failures retry and successes never
+  repeat. This is the real double-send guard, not the app logic.
+- Timing is shaped by the cron, not preference: **Hobby cron is daily**, so
+  a literal "6 hours before" reminder would never fire for most weeks. "Last
+  call" means the last scheduled run before lock (within 24h).
+- Every mail carries a no-sign-in unsubscribe link (`/api/unsubscribe`).
+  There is **no re-subscribe UI** — the unsubscribe page says so rather than
+  promising one. Adding a toggle is the obvious follow-up.
+- `backfillUnsubscribeTokens` generates in Node: `gen_random_bytes` needs
+  pgcrypto, which this database does not have.
+
 ## Landmines
 
 - **Never run `next build` while `next dev` is running.** It corrupts

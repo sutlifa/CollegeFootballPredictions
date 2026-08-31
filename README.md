@@ -174,6 +174,29 @@ derived from your predictions and needs no seeding.
 static list, so re-run it whenever realignment happens or a program moves in
 or out of FBS.
 
+### Weekly pick reminders (optional)
+
+The daily cron can email anyone whose picks for the upcoming week aren't
+finished: a nudge when the week is two-to-three days from locking, and a last
+call on the final run before it locks. It rides the existing cron rather than
+taking a second slot, since Hobby caps how many a project gets.
+
+**It sends nothing until you set two variables.** `RESEND_API_KEY` alone is
+not enough — `EMAIL_REMINDERS_ENABLED` must also be exactly `true`. Until
+then the whole path runs and reports who *would* have been mailed, which is
+also how you test it. Set `APP_URL` so links point at your deployment, and
+`EMAIL_FROM` once you've verified a domain in Resend (their
+`onboarding@resend.dev` only delivers to the account owner's own address).
+
+Every send is recorded in `email_sends`, unique on (user, season, week,
+kind), so a retried or double-fired cron can't mail the same person twice.
+Every mail carries an unsubscribe link that needs no sign-in.
+
+A note on timing: Hobby cron runs once a day, which can't hit a narrow
+window — a week locking at 23:00 UTC is ten hours away at the 13:00 run and
+already locked by the next one. "Last call" therefore means *the last
+scheduled run before lock*, which is the tightest promise a daily job keeps.
+
 ### Scripts
 
 | command | what it does |

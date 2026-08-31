@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { conferenceDivisionKey } from "./conferences";
 import { sql } from "./db";
 import { REGULAR_SEASON_WEEKS } from "./format";
@@ -684,6 +685,135 @@ function marginBucketSqlCase(marginExpr: string): string {
   if (!open) throw new Error("MARGIN_BUCKETS has no open-ended top bucket");
   arms.push(`ELSE ${open.id}`);
   return arms.join(" ");
+}
+
+// ---------------------------------------------------------------------
+// Weekly pick reminders (lib/reminders.ts decides; this only fetches).
+// ---------------------------------------------------------------------
+
+export async function getReminderUsers(): Promise<
+  import("./reminders").ReminderUser[]
+> {
+  const rows = await sql<
+    {
+      id: number;
+      email: string;
+      name: string | null;
+      email_reminders: boolean;
+      unsubscribe_token: string | null;
+    }[]
+  >`SELECT id, email, name, email_reminders, unsubscribe_token FROM users ORDER BY id`;
+  return rows.map((r) => ({
+    userId: r.id,
+    email: r.email,
+    name: r.name,
+    emailReminders: r.email_reminders,
+    unsubscribeToken: r.unsubscribe_token,
+  }));
+}
+
+/**
+ * Lock time and game count for every shared week. Week 16 is excluded: it
+ * is derived per user, so there is no single slate to be reminded about.
+ */
+export async function getWeekStates(
+  season = SEASON,
+): Promise<import("./reminders").WeekState[]> {
+  const rows = await sql<
+    { week: number; confirmed: Date | null; any_kickoff: Date | null; n: number }[]
+  >`
+    SELECT week,
+           MIN(kickoff_at) FILTER (WHERE NOT kickoff_tbd) AS confirmed,
+           MIN(kickoff_at) AS any_kickoff,
+           COUNT(*)::int AS n
+    FROM games
+    WHERE season = ${season} AND user_id IS NULL AND week <> 16
+    GROUP BY week
+  `;
+  const states: import("./reminders").WeekState[] = [];
+  for (const row of rows) {
+    const at = row.confirmed ?? row.any_kickoff;
+    if (!at) continue; // a week with no kickoff time can't be reminded about
+    states.push({ week: row.week, locksAt: new Date(at), totalGames: row.n });
+  }
+  return states;
+}
+
+/** How many games each user has picked in one week. */
+export async function getWeekProgress(
+  week: number,
+  season = SEASON,
+): Promise<import("./reminders").UserWeekProgress[]> {
+  const rows = await sql<{ user_id: number; picks_made: number }[]>`
+    SELECT p.user_id, COUNT(*)::int AS picks_made
+    FROM predictions p
+    JOIN games g ON g.id = p.game_id
+    WHERE g.season = ${season} AND g.week = ${week} AND g.user_id IS NULL
+    GROUP BY p.user_id
+  `;
+  return rows.map((r) => ({ userId: r.user_id, week, picksMade: r.picks_made }));
+}
+
+/** The (user, week, kind) reminders already sent, as sendKey strings. */
+export async function getSentReminders(
+  week: number,
+  season = SEASON,
+): Promise<Set<string>> {
+  const rows = await sql<{ user_id: number; week: number; kind: string }[]>`
+    SELECT user_id, week, kind FROM email_sends
+    WHERE season = ${season} AND week = ${week} AND error IS NULL
+  `;
+  return new Set(rows.map((r) => `${r.user_id}:${r.week}:${r.kind}`));
+}
+
+/**
+ * Record an attempt. The unique index on (user_id, season, week, kind) is
+ * the real guard against double-sending; ON CONFLICT DO NOTHING means a
+ * concurrent or retried run loses the race harmlessly instead of erroring.
+ */
+export async function recordReminderSent(
+  userId: number,
+  week: number,
+  kind: string,
+  error: string | null,
+  season = SEASON,
+): Promise<void> {
+  await sql`
+    INSERT INTO email_sends (user_id, season, week, kind, error)
+    VALUES (${userId}, ${season}, ${week}, ${kind}, ${error})
+    ON CONFLICT (user_id, season, week, kind) DO NOTHING
+  `;
+}
+
+/**
+ * Give every user without one a token, so unsubscribe links can be built.
+ *
+ * Generated in Node rather than by the database: `gen_random_bytes` lives in
+ * the pgcrypto extension, which this database does not have installed, and
+ * requiring an extension for one column is a worse trade than a few extra
+ * round trips for a handful of users.
+ */
+export async function backfillUnsubscribeTokens(): Promise<number> {
+  const pending = await sql<{ id: number }[]>`
+    SELECT id FROM users WHERE unsubscribe_token IS NULL
+  `;
+  for (const row of pending) {
+    await sql`
+      UPDATE users SET unsubscribe_token = ${randomBytes(24).toString("hex")}
+      WHERE id = ${row.id}
+    `;
+  }
+  return pending.length;
+}
+
+/** Opt out. Returns false when the token matches nobody. */
+export async function unsubscribeByToken(token: string): Promise<boolean> {
+  const rows = await sql<{ id: number }[]>`
+    UPDATE users SET email_reminders = FALSE
+    WHERE unsubscribe_token = ${token}
+    RETURNING id
+  `;
+  return rows.length > 0;
 }
 
 export async function getLeaderboard(

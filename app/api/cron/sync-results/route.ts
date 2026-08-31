@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 import { fetchSeasonGames, type CfbdGame } from "@/lib/cfbd";
 import { VALID_WEEKS } from "@/lib/format";
 import { seedSeasonFromCfbd } from "@/lib/ingest";
+import { runWeeklyReminders, type ReminderRunResult } from "@/lib/sendReminders";
 
 export const maxDuration = 60;
 
@@ -82,10 +83,29 @@ export async function GET(request: NextRequest) {
     console.error("[sync-results]", error);
   }
 
+  // Reminders ride along on this job rather than taking a cron slot of
+  // their own -- the Hobby plan caps how many a project gets. Kept out of
+  // the try above so a CFBD outage doesn't also silence the reminder, and
+  // wrapped separately so a mail failure can't lose the sync's own record.
+  let reminders: ReminderRunResult | null = null;
+  let reminderError: string | null = null;
+  try {
+    reminders = await runWeeklyReminders();
+  } catch (err) {
+    reminderError = err instanceof Error ? err.message : String(err);
+    console.error("[sync-results:reminders]", reminderError);
+  }
+
   await sql`
     INSERT INTO sync_runs (weeks_checked, games_updated, error)
     VALUES (${weeksChecked}, ${gamesUpdated}, ${error})
   `;
 
-  return NextResponse.json({ gamesUpdated, gamesUpserted, error });
+  return NextResponse.json({
+    gamesUpdated,
+    gamesUpserted,
+    error,
+    reminders,
+    reminderError,
+  });
 }

@@ -175,3 +175,22 @@ CREATE TABLE IF NOT EXISTS conference_final_standings (
   computed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (season, user_id, conference, division)
 );
+
+-- Weekly pick reminders. Opt-out lives on the user; email_sends is the
+-- at-most-once ledger, so a cron that runs twice or retries after a partial
+-- failure can never mail the same person about the same week twice.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_reminders BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT UNIQUE;
+
+CREATE TABLE IF NOT EXISTS email_sends (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  season     INTEGER NOT NULL,
+  week       INTEGER NOT NULL,
+  -- 'nudge' (a couple of days out) or 'last_call' (final run before lock).
+  kind       TEXT NOT NULL,
+  sent_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Null on success; the provider's message for a failed attempt.
+  error      TEXT,
+  UNIQUE (user_id, season, week, kind)
+);
