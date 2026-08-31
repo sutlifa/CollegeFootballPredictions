@@ -61,8 +61,18 @@ Close/Medium/Large/Blowout) with representative margins 4/11/18/28 and a
 nominal losing score of 21. Downstream math still sees a score pair, derived
 in `mapGame`, so nothing below the query layer had to change.
 
-Week 16 is conference championships and is **excluded from pick totals** —
-it is scored separately.
+Week 16 is conference championships and is **excluded from pick totals AND
+from leaderboard grading** — it is scored separately as an end-of-season
+bonus (`lib/seasonScore.ts`). Grading it alongside regular-season picks put
+two numbers on one leaderboard row that described different slates: a hit
+rate measured over more games than the "picked" column counted.
+
+Leaderboard margin accuracy is `correctMargins / correctPicks`, not out of
+all picks — getting the margin "right" on a game you picked the wrong way
+isn't credited. The bucket boundaries used to grade real results are
+**generated from `MARGIN_BUCKETS`** by `marginBucketSqlCase`, not
+transcribed into the SQL; a hand-kept copy of a constant is a bug waiting
+for someone to edit one side.
 
 Week 16 is **derived per user, and only once that user's regular season is
 complete** (every week through Army-Navy submitted). Deriving it earlier

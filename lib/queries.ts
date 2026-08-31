@@ -4,6 +4,7 @@ import { REGULAR_SEASON_WEEKS } from "./format";
 import { formatDisplayName, type LeaderboardRow } from "./leaderboard";
 import {
   isMarginBucketId,
+  MARGIN_BUCKETS,
   representativeScores,
   type MarginBucketId,
 } from "./margin";
@@ -661,6 +662,30 @@ type LeaderboardQueryRow = {
  * someone who hadn't -- which made the Picked column look broken. They're
  * counted separately (conf_champ_*) and scored on their own terms.
  */
+/**
+ * The margin-bucket CASE arms, built from MARGIN_BUCKETS so SQL and
+ * TypeScript cannot disagree about where 7 ends and 8 begins. Every value
+ * interpolated is a number from that frozen table, checked below, so this
+ * is safe to pass through sql.unsafe.
+ */
+function marginBucketSqlCase(marginExpr: string): string {
+  const arms: string[] = [];
+  for (const bucket of MARGIN_BUCKETS) {
+    if (!Number.isInteger(bucket.id)) {
+      throw new Error(`Non-integer margin bucket id: ${bucket.id}`);
+    }
+    if (bucket.max === Infinity) continue; // the open-ended top bucket is ELSE
+    if (!Number.isInteger(bucket.max)) {
+      throw new Error(`Non-integer margin bucket max: ${bucket.max}`);
+    }
+    arms.push(`WHEN ${marginExpr} <= ${bucket.max} THEN ${bucket.id}`);
+  }
+  const open = MARGIN_BUCKETS.find((b) => b.max === Infinity);
+  if (!open) throw new Error("MARGIN_BUCKETS has no open-ended top bucket");
+  arms.push(`ELSE ${open.id}`);
+  return arms.join(" ");
+}
+
 export async function getLeaderboard(
   season = SEASON,
 ): Promise<LeaderboardRow[]> {
@@ -697,16 +722,23 @@ export async function getLeaderboard(
           WHEN g.actual_score_team1 > g.actual_score_team2 THEN g.team1_id
           ELSE g.team2_id
         END AS winner_correct,
-        -- Same four buckets as lib/margin.ts, applied to the real margin.
+        -- Bucket boundaries are GENERATED from lib/margin.ts rather than
+        -- written out here, so the two can never drift apart. They were
+        -- transcribed by hand once and did agree, but a hand-kept copy of a
+        -- constant is a bug waiting for someone to edit one side.
         p.margin_bucket = CASE
-          WHEN ABS(g.actual_score_team1 - g.actual_score_team2) <= 7 THEN 0
-          WHEN ABS(g.actual_score_team1 - g.actual_score_team2) <= 14 THEN 1
-          WHEN ABS(g.actual_score_team1 - g.actual_score_team2) <= 21 THEN 2
-          ELSE 3
+          ${sql.unsafe(marginBucketSqlCase("ABS(g.actual_score_team1 - g.actual_score_team2)"))}
         END AS margin_correct
       FROM predictions p
       JOIN games g ON g.id = p.game_id
       WHERE g.season = ${season}
+        -- Regular season only. Conference championships are excluded from
+        -- picks_made and games_available above, so grading them here too
+        -- would report a hit rate over a bigger set of games than the one
+        -- the "picked" column counts -- two numbers on one row silently
+        -- describing different slates. Titles are scored separately, as
+        -- their own end-of-season bonus (lib/seasonScore.ts).
+        AND g.week <> 16
         AND g.actual_score_team1 IS NOT NULL
         AND g.actual_score_team2 IS NOT NULL
         AND g.actual_score_team1 <> g.actual_score_team2
