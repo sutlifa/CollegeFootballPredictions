@@ -181,12 +181,18 @@ finished: a nudge when the week is two-to-three days from locking, and a last
 call on the final run before it locks. It rides the existing cron rather than
 taking a second slot, since Hobby caps how many a project gets.
 
-**It sends nothing until you set two variables.** `RESEND_API_KEY` alone is
+**It sends nothing until you set two variables.** A provider key alone is
 not enough — `EMAIL_REMINDERS_ENABLED` must also be exactly `true`. Until
 then the whole path runs and reports who *would* have been mailed, which is
-also how you test it. Set `APP_URL` so links point at your deployment, and
-`EMAIL_FROM` once you've verified a domain in Resend (their
-`onboarding@resend.dev` only delivers to the account owner's own address).
+also how you test it. Set `APP_URL` so links point at your deployment.
+
+Two providers are supported, and they differ on the one thing that matters:
+**who you're allowed to email.** Resend won't deliver to anyone but the
+account owner until you verify a **domain** you control. Brevo verifies a
+single **sender address** instead — confirm a link sent to your own inbox
+and you can mail anyone, 300/day free, no domain. Set `BREVO_API_KEY` (it
+wins if both are present) or `RESEND_API_KEY`, and `EMAIL_FROM` to the
+address you verified.
 
 Every send is recorded in `email_sends`, unique on (user, season, week,
 kind), so a retried or double-fired cron can't mail the same person twice.

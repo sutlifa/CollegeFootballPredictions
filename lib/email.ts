@@ -2,9 +2,22 @@ import { getWeekLabel } from "./format";
 import type { ReminderDecision } from "./reminders";
 
 /**
- * Sending mail, via Resend's REST API. No SDK -- it is one POST.
+ * Sending mail. One POST, no SDK, and deliberately not tied to one vendor.
  *
- * SENDING IS OFF UNLESS TWO SEPARATE THINGS ARE TRUE: a RESEND_API_KEY is
+ * TWO PROVIDERS, BECAUSE THEY DIFFER ON THE ONE THING THAT MATTERS HERE:
+ * who you are allowed to email.
+ *
+ *  - Resend will only deliver to the account owner's own address until you
+ *    verify a DOMAIN you control. Fine if you own one; a hard stop if you
+ *    don't, and not worth buying a domain over for a pool of ten people.
+ *  - Brevo verifies a single SENDER ADDRESS instead -- click a link in a
+ *    confirmation mail sent to, say, your Gmail, and you can then mail
+ *    anyone. Free tier is 300/day, against the ~20 a week this needs.
+ *
+ * Whichever key is present wins, Brevo first. Everything above this layer
+ * is unchanged: the same decision logic, ledger and templates feed both.
+ *
+ * SENDING IS OFF UNLESS TWO SEPARATE THINGS ARE TRUE: some provider key is
  * present AND EMAIL_REMINDERS_ENABLED is exactly "true". Two switches on
  * purpose. A key alone is the sort of thing that gets pasted into an
  * environment to "see if it works" and would otherwise immediately mail
@@ -13,6 +26,22 @@ import type { ReminderDecision } from "./reminders";
  * also how you test it.
  */
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
+
+export type EmailProvider = "brevo" | "resend" | null;
+
+export function activeProvider(): EmailProvider {
+  if (process.env.BREVO_API_KEY) return "brevo";
+  if (process.env.RESEND_API_KEY) return "resend";
+  return null;
+}
+
+/** "CFB Predictions <picks@example.com>" -> its two halves. */
+export function parseFrom(value: string): { name: string; email: string } {
+  const match = value.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  if (match) return { name: match[1] || "CFB Predictions", email: match[2] };
+  return { name: "CFB Predictions", email: value.trim() };
+}
 
 export type SendOutcome = {
   email: string;
@@ -24,7 +53,7 @@ export type SendOutcome = {
 
 export function emailEnabled(): boolean {
   return (
-    Boolean(process.env.RESEND_API_KEY) &&
+    activeProvider() !== null &&
     process.env.EMAIL_REMINDERS_ENABLED === "true"
   );
 }
@@ -126,21 +155,43 @@ export async function sendReminder(
     return { email: decision.email, ok: true, dryRun: true };
   }
 
+  const provider = activeProvider();
+  const from = parseFrom(
+    process.env.EMAIL_FROM ?? "CFB Predictions <onboarding@resend.dev>",
+  );
+
   try {
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM ?? "CFB Predictions <onboarding@resend.dev>",
-        to: [decision.email],
-        subject,
-        text,
-        html,
-      }),
-    });
+    const response =
+      provider === "brevo"
+        ? await fetch(BREVO_ENDPOINT, {
+            method: "POST",
+            headers: {
+              "api-key": process.env.BREVO_API_KEY!,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              sender: from,
+              to: [{ email: decision.email, name: decision.name ?? undefined }],
+              subject,
+              textContent: text,
+              htmlContent: html,
+            }),
+          })
+        : await fetch(RESEND_ENDPOINT, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: `${from.name} <${from.email}>`,
+              to: [decision.email],
+              subject,
+              text,
+              html,
+            }),
+          });
     if (!response.ok) {
       const body = await response.text();
       return {

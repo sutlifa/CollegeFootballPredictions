@@ -258,7 +258,14 @@ monotonicity flips on a 0.015 tier change — do not tune toward it.
 templates), `lib/sendReminders.ts` (the run), folded into the existing
 `/api/cron/sync-results` rather than taking a second Hobby cron slot.
 
-**Sending requires TWO switches**: `RESEND_API_KEY` *and*
+**Two providers**, chosen by whichever key is set (`BREVO_API_KEY` wins over
+`RESEND_API_KEY`). They differ on who may be emailed: Resend needs a
+verified **domain** before it will deliver to anyone but the account owner —
+a hard stop without one — while Brevo verifies a single **sender address**.
+That distinction is the whole reason the layer is provider-agnostic; don't
+collapse it back to one vendor.
+
+**Sending requires TWO switches**: a provider key *and*
 `EMAIL_REMINDERS_ENABLED === "true"`. A key alone is exactly what gets
 pasted in to "see if it works", and would otherwise immediately mail every
 real person in the database. Without both, the path runs fully and reports
