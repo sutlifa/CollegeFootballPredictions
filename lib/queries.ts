@@ -367,10 +367,15 @@ export async function savePrediction(
   // a stale page or a hand-rolled form post could still write after lock.
   await assertWeekOpen(gameId);
 
-  // The winner has to be one of the two teams actually in this game --
-  // guards against a tampered form post writing a nonsense pick.
+  // The game has to be one this user can actually see, and the winner one
+  // of the two teams in it. Both guard a tampered form post: week 16 rows
+  // are per-user (games.user_id), so without the ownership half of this a
+  // crafted request could attach a pick to somebody else's derived
+  // championship game.
   const [game] = await sql<{ team1_id: number; team2_id: number }[]>`
-    SELECT team1_id, team2_id FROM games WHERE id = ${gameId}
+    SELECT team1_id, team2_id FROM games
+    WHERE id = ${gameId}
+      AND (user_id IS NULL OR user_id = ${userId})
   `;
   if (!game) throw new Error("Unknown game");
   if (winnerTeamId !== game.team1_id && winnerTeamId !== game.team2_id) {

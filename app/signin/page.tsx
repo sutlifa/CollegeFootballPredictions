@@ -4,10 +4,16 @@ export default async function SignInPage({
   searchParams,
 }: PageProps<"/signin">) {
   const { callbackUrl } = await searchParams;
-  const redirectTo =
-    typeof callbackUrl === "string" && callbackUrl.startsWith("/")
-      ? callbackUrl
-      : "/";
+  // A single leading slash is not enough: "//evil.com" also starts with "/"
+  // and browsers read it as a protocol-relative URL, so that check alone
+  // would send someone off-site straight after signing in. Require a second
+  // character that is not a slash or backslash.
+  const isSafeInternalPath =
+    typeof callbackUrl === "string" &&
+    callbackUrl.startsWith("/") &&
+    !callbackUrl.startsWith("//") &&
+    !callbackUrl.startsWith("/\\");
+  const redirectTo = isSafeInternalPath ? (callbackUrl as string) : "/";
 
   return (
     <div className="mx-auto mt-16 max-w-sm space-y-6 text-center">

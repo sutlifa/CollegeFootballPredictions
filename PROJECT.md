@@ -443,6 +443,21 @@ worse than none, because it is a confident statement that happens to be false.
 Reports email `REPORT_TO` (falling back to `EMAIL_FROM`) through the same
 provider layer as reminders, with reply-to set to the reporter.
 
+## Security rules that must not regress
+
+- **Service-route guards fail CLOSED.** `if (!process.env.SECRET || mismatch)`,
+  never `if (process.env.SECRET && mismatch)`. The second form means an
+  environment *without* the secret has no guard at all — and Vercel env vars
+  are scoped per environment, so Preview had neither `ADMIN_SECRET` nor
+  `CRON_SECRET`. `/api/admin/test-email` sends mail to any address it is
+  given, which made that an open relay rather than a missing check.
+- **`savePrediction` scopes the game to the caller** (`user_id IS NULL OR
+  user_id = $user`). Week 16 rows are per-user, so without it a crafted post
+  could attach a pick to someone else's derived championship game.
+- **`callbackUrl` needs more than `startsWith("/")`.** `//evil.com` starts
+  with a slash and browsers read it as protocol-relative, so that check alone
+  is an open redirect straight off the sign-in page.
+
 ## Landmines
 
 - **Never run `next build` while `next dev` is running.** It corrupts

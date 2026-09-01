@@ -52,8 +52,12 @@ async function syncGame(game: CfbdGame): Promise<number> {
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
+  // Fails CLOSED: an unset CRON_SECRET must break the cron loudly rather
+  // than quietly leave this callable by anyone. It writes real scores and
+  // sends reminder email, so an open version is worth more to an abuser
+  // than a broken one is to us.
   if (
-    process.env.CRON_SECRET &&
+    !process.env.CRON_SECRET ||
     authHeader !== `Bearer ${process.env.CRON_SECRET}`
   ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

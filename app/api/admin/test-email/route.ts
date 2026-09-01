@@ -14,8 +14,13 @@ import { activeProvider, emailEnabled, parseFrom, sendReminder } from "@/lib/ema
  *     "https://<app>/api/admin/test-email?to=you@example.com"
  */
 export async function POST(request: NextRequest) {
+  // Fails CLOSED. Written the other way round this reads "if a secret is
+  // configured, check it" -- so an environment without ADMIN_SECRET (a
+  // preview deployment, which is scoped separately from production) would
+  // have left this wide open, and it sends mail to any address given to it.
+  // That is an open relay, not a missing guard.
   if (
-    process.env.ADMIN_SECRET &&
+    !process.env.ADMIN_SECRET ||
     request.headers.get("x-admin-secret") !== process.env.ADMIN_SECRET
   ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
