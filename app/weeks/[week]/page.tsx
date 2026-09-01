@@ -11,11 +11,14 @@ import {
   isValidWeek,
   VALID_WEEKS,
 } from "@/lib/format";
+import { computeRankings } from "@/lib/rankingModel";
 import { defaultPickFor } from "@/lib/defaultPick";
 import { isMarginBucketId } from "@/lib/margin";
 import {
+  getAllGames,
   getAllTeams,
   getGamesForWeek,
+  getSubmittedWeeks,
   getWeekLocksAt,
   isWeekSubmitted,
   missingRegularSeasonWeeks,
@@ -54,12 +57,27 @@ export default async function WeekPage({
     await syncWeek16Games(userId);
   }
 
-  const [teams, games, weekLocksAt, missingWeeks] = await Promise.all([
-    getAllTeams(),
-    getGamesForWeek(week, userId),
-    getWeekLocksAt(week),
-    week === 16 ? missingRegularSeasonWeeks(userId) : Promise.resolve([]),
-  ]);
+  const [teams, games, weekLocksAt, missingWeeks, allGames, submittedWeeks] =
+    await Promise.all([
+      getAllTeams(),
+      getGamesForWeek(week, userId),
+      getWeekLocksAt(week),
+      week === 16 ? missingRegularSeasonWeeks(userId) : Promise.resolve([]),
+      getAllGames(userId),
+      getSubmittedWeeks(userId),
+    ]);
+
+  // Ranks come from this user's own Computer Rankings, so they move as the
+  // season they predicted unfolds. Nothing to schedule: the board is
+  // computed on read from the latest picks and results, so it is already as
+  // live as the data behind it.
+  const submittedSet = new Set(submittedWeeks);
+  const rankByTeam = new Map(
+    computeRankings(
+      teams,
+      allGames.filter((g) => submittedSet.has(g.week)),
+    ).map((r) => [r.teamId, r.rank]),
+  );
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const picked = games.filter((g) => g.predictedWinnerTeamId !== null).length;
   // Of the games still unpicked, how many does the preseason gap consider
@@ -173,7 +191,23 @@ export default async function WeekPage({
           {!allDecided && (
             <p className="text-sm text-ink-muted">
               Pick every game this week and it counts toward Computer Rankings
-              automatically -- there is nothing to submit.
+              automatically -- there is nothing to submit.{" "}
+              <span className="text-ink-soft">
+                <span className="font-semibold text-ink">
+                  Fill with favorites
+                </span>{" "}
+                takes the games you haven&apos;t picked and gives them to the
+                better-ranked team, by a margin based on how far apart the two
+                are. It exists because a season is nearly 900 games and most
+                of them aren&apos;t really a decision -- a top-10 side hosting
+                an FCS team isn&apos;t an opinion. Checked against this
+                group&apos;s own picks, that favorite is the one most people
+                chose 93% of the time, and effectively always when the two
+                teams are far apart. The margin is a rougher guess than the
+                winner, so treat a filled game as a starting point: it never
+                overwrites a pick you made, and you can change any of them
+                until the week locks.
+              </span>
             </p>
           )}
         </>
@@ -228,11 +262,13 @@ export default async function WeekPage({
                   id: game.team1Id,
                   displayName: displayTeamName(team1),
                   logoUrl: team1?.logoUrl ?? null,
+                  rank: rankByTeam.get(game.team1Id) ?? null,
                 }}
                 team2={{
                   id: game.team2Id,
                   displayName: displayTeamName(team2),
                   logoUrl: team2?.logoUrl ?? null,
+                  rank: rankByTeam.get(game.team2Id) ?? null,
                 }}
                 locked={weekLocked}
                 actualScoreTeam1={game.actualScoreTeam1}

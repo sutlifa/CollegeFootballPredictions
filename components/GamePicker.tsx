@@ -4,10 +4,19 @@ import { useRef, useState, useTransition } from "react";
 import { TeamLogo } from "./TeamLogo";
 import { bucketForMargin, MARGIN_BUCKETS, type MarginBucketId } from "@/lib/margin";
 
+/** Ranks are only worth showing this deep; below it they are just noise. */
+const RANKED_CUTOFF = 25;
+
 type TeamInfo = {
   id: number;
   displayName: string;
   logoUrl: string | null;
+  /**
+   * Current computer-ranking position, or null. Only shown inside the top
+   * 25 -- that is the convention everywhere football is written down, and
+   * "#131" beside a name is noise rather than information.
+   */
+  rank?: number | null;
 };
 
 type Props = {
@@ -223,6 +232,14 @@ export function GamePicker({
         }`}
       >
         <TeamLogo logoUrl={team.logoUrl} name={team.displayName} size={20} />
+        {typeof team.rank === "number" && team.rank <= RANKED_CUTOFF && (
+          <span
+            className="shrink-0 font-mono text-[11px] text-ink-muted"
+            title={`Ranked #${team.rank} in your Computer Rankings`}
+          >
+            {team.rank}
+          </span>
+        )}
         <span className="truncate">{team.displayName}</span>
         {isFinal && (
           <span

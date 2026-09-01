@@ -283,6 +283,17 @@ who *would* be mailed — that is the test harness.
 - `backfillUnsubscribeTokens` generates in Node: `gen_random_bytes` needs
   pgcrypto, which this database does not have.
 
+## Rankings are already live — there is nothing to schedule
+
+Standings and rankings are **computed on read** from the latest picks and
+results, so they reflect the current state on every page load. A cron to
+"update the rankings" would have nothing to do. The daily cron's job is
+pulling real scores from CFBD; the rankings follow from that automatically.
+
+Ranks shown beside team names on the week page come from that user's own
+Computer Rankings, and only inside the top 25 (`RANKED_CUTOFF`) — "#131"
+beside a name is noise. Cost is ~10ms for the ranking itself.
+
 ## Default picks (`lib/defaultPick.ts`)
 
 "Fill N with favorites" on the week page. Fills only games with **no** pick;
