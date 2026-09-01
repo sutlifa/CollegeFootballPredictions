@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { conferenceDivisionKey } from "./conferences";
 import { sql } from "./db";
+import { defaultPickFor } from "./defaultPick";
 import { REGULAR_SEASON_WEEKS } from "./format";
 import { formatDisplayName, type LeaderboardRow } from "./leaderboard";
 import {
@@ -429,6 +430,55 @@ export async function clearWeekPredictions(
     DELETE FROM week_submissions
     WHERE user_id = ${userId} AND season = ${season} AND week = ${week}
   `;
+  return rows.length;
+}
+
+/**
+ * Fill every game in a week that this user has NOT picked with the default
+ * favourite (lib/defaultPick.ts). Games already picked are left alone --
+ * this only ever adds, never overwrites an opinion someone actually held.
+ *
+ * Same lock rule as everything else that writes a pick.
+ */
+export async function fillWeekDefaults(
+  userId: number,
+  week: number,
+  season = SEASON,
+): Promise<number> {
+  if (await isWeekLocked(week, season)) {
+    throw new Error(
+      "This week is locked -- its first game has already kicked off, so picks can no longer be changed.",
+    );
+  }
+  const rows = await sql<
+    { id: number; team1_id: number; team2_id: number }[]
+  >`
+    SELECT g.id, g.team1_id, g.team2_id
+    FROM games g
+    WHERE g.season = ${season} AND g.week = ${week}
+      AND (g.user_id = ${userId} OR (g.user_id IS NULL AND g.week <> 16))
+      AND NOT EXISTS (
+        SELECT 1 FROM predictions p
+        WHERE p.game_id = g.id AND p.user_id = ${userId}
+      )
+  `;
+  if (rows.length === 0) return 0;
+
+  const teams = await getAllTeams();
+  const byId = new Map(teams.map((t) => [t.id, t]));
+  for (const row of rows) {
+    const pick = defaultPickFor(
+      byId.get(row.team1_id),
+      byId.get(row.team2_id),
+      row.team1_id,
+      row.team2_id,
+    );
+    await sql`
+      INSERT INTO predictions (user_id, game_id, winner_team_id, margin_bucket)
+      VALUES (${userId}, ${row.id}, ${pick.winnerTeamId}, ${pick.marginBucket})
+      ON CONFLICT (user_id, game_id) DO NOTHING
+    `;
+  }
   return rows.length;
 }
 

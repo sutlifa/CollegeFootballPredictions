@@ -7,6 +7,7 @@ import { isMarginBucketId } from "@/lib/margin";
 import {
   clearPrediction,
   clearWeekPredictions,
+  fillWeekDefaults,
   savePrediction,
   syncWeekSubmission,
 } from "@/lib/queries";
@@ -84,5 +85,20 @@ export async function clearWeekAction(formData: FormData) {
     throw new Error("Invalid week");
   }
   await clearWeekPredictions(userId, week);
+  await settleWeek(userId, week);
+}
+
+/**
+ * Fill the games this user hasn't picked with the favourite. Adds only --
+ * an existing pick is never overwritten -- and refuses a locked week in
+ * fillWeekDefaults rather than here.
+ */
+export async function fillWeekDefaultsAction(formData: FormData) {
+  const userId = await requireUserId();
+  const week = Number(formData.get("week"));
+  if (!Number.isInteger(week)) {
+    throw new Error("Invalid week");
+  }
+  await fillWeekDefaults(userId, week);
   await settleWeek(userId, week);
 }

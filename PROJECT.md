@@ -283,6 +283,37 @@ who *would* be mailed — that is the test harness.
 - `backfillUnsubscribeTokens` generates in Node: `gen_random_bytes` needs
   pgcrypto, which this database does not have.
 
+## Default picks (`lib/defaultPick.ts`)
+
+"Fill N with favorites" on the week page. Fills only games with **no** pick;
+an existing pick is never overwritten, and Clear week undoes it.
+
+**Use the preseason RANK GAP, not "is this an important game".** Measured
+against 260 real games with 4+ pickers, the favourite by preseason rank
+matched the pool majority 93% of the time, and agreement tracks the gap:
+
+| gap | games | matched majority |
+| --- | --- | --- |
+| 70+ | 133 | 100% |
+| 35-69 | 54 | 96% |
+| 15-34 | 44 | 84% |
+| 0-14 | 29 | 72% |
+
+`SETTLED_GAP = 35` comes from that table. "Top-50 involved" was the obvious
+filter and is worse — it proxies *interest*, while the gap proxies *how
+settled the answer is*, which is what decides whether a pick is worth
+making.
+
+**The margin default is much weaker than the winner** — it matched the
+modal bucket only 44% of the time (chance is 25%). Fine as a starting point,
+not an answer. That asymmetry is why filling is something a person asks for
+rather than something that happens automatically.
+
+Counterintuitive finding worth keeping: **the "boring" games are where this
+pool disagrees most.** G6-vs-G6 games were unanimous only 22% of the time
+against 60% for top-25 matchups, so filtering by apparent importance would
+remove the games that actually separate people on the leaderboard.
+
 ## Clearing picks
 
 One game: the Clear button on `GamePicker`. A whole week:

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { ClearWeekButton } from "@/components/ClearWeekButton";
+import { FillWeekButton } from "@/components/FillWeekButton";
 import { GamePicker } from "@/components/GamePicker";
 import { Tooltip } from "@/components/Tooltip";
 import {
@@ -10,6 +11,7 @@ import {
   isValidWeek,
   VALID_WEEKS,
 } from "@/lib/format";
+import { defaultPickFor } from "@/lib/defaultPick";
 import { isMarginBucketId } from "@/lib/margin";
 import {
   getAllTeams,
@@ -23,6 +25,7 @@ import { displayTeamName, isDecided } from "@/lib/types";
 import {
   clearPredictionAction,
   clearWeekAction,
+  fillWeekDefaultsAction,
   savePredictionAction,
 } from "./actions";
 
@@ -59,6 +62,19 @@ export default async function WeekPage({
   ]);
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const picked = games.filter((g) => g.predictedWinnerTeamId !== null).length;
+  // Of the games still unpicked, how many does the preseason gap consider
+  // settled? Fill offers a different bargain for 40 formalities than for a
+  // dozen real decisions, so it says which it is before doing anything.
+  const unpicked = games.filter((g) => g.predictedWinnerTeamId === null);
+  const settledRemaining = unpicked.filter(
+    (g) =>
+      defaultPickFor(
+        teamById.get(g.team1Id),
+        teamById.get(g.team2Id),
+        g.team1Id,
+        g.team2Id,
+      ).settled,
+  ).length;
   const allDecided = games.length > 0 && picked === games.length;
   // Picks freeze when the week's first game kicks off, the way a fantasy
   // lineup locks once the week starts.
@@ -117,11 +133,19 @@ export default async function WeekPage({
               locked week, and a button that can only fail is worse than
               no button. */}
           {!weekLocked && (
-            <ClearWeekButton
-              week={week}
-              pickedCount={picked}
-              clearAction={clearWeekAction}
-            />
+            <>
+              <FillWeekButton
+                week={week}
+                remaining={unpicked.length}
+                settled={settledRemaining}
+                fillAction={fillWeekDefaultsAction}
+              />
+              <ClearWeekButton
+                week={week}
+                pickedCount={picked}
+                clearAction={clearWeekAction}
+              />
+            </>
           )}
         </span>
       </div>
