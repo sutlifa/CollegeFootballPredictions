@@ -84,7 +84,10 @@ export async function clearWeekAction(formData: FormData) {
   if (!Number.isInteger(week)) {
     throw new Error("Invalid week");
   }
-  await clearWeekPredictions(userId, week);
+  // "keep" leaves the filled defaults in place and removes only the picks
+  // this person actually made.
+  const keepDefaults = formData.get("keepDefaults") === "1";
+  await clearWeekPredictions(userId, week, { keepDefaults });
   await settleWeek(userId, week);
 }
 

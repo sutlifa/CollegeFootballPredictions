@@ -20,6 +20,7 @@ import {
   getGamesForWeek,
   getSubmittedWeeks,
   getWeekLocksAt,
+  getWeekPickBreakdown,
   isWeekSubmitted,
   missingRegularSeasonWeeks,
 } from "@/lib/queries";
@@ -66,6 +67,7 @@ export default async function WeekPage({
       getAllGames(userId),
       getSubmittedWeeks(userId),
     ]);
+  const breakdown = await getWeekPickBreakdown(userId, week);
 
   // Ranks come from this user's own Computer Rankings, so they move as the
   // season they predicted unfolds. Nothing to schedule: the board is
@@ -147,6 +149,17 @@ export default async function WeekPage({
               {picked} of {games.length} picked
             </span>
           )}
+          {/* A filled default is a pick nobody has looked at, so a week can
+              read as finished while most of it is untouched. Saying so is
+              the difference between a shortcut and a blind spot. */}
+          {breakdown.defaults > 0 && (
+            <span
+              className="text-xs text-ink-muted"
+              title="Filled by 'Fill with favorites'. Change any of them, or use Clear week to remove only the ones you picked yourself."
+            >
+              {breakdown.defaults} still filled by default
+            </span>
+          )}
           {/* Only while the week is still open -- the server refuses a
               locked week, and a button that can only fail is worse than
               no button. */}
@@ -160,7 +173,8 @@ export default async function WeekPage({
               />
               <ClearWeekButton
                 week={week}
-                pickedCount={picked}
+                chosen={breakdown.chosen}
+                defaults={breakdown.defaults}
                 clearAction={clearWeekAction}
               />
             </>

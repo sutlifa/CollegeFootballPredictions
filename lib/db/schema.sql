@@ -194,3 +194,9 @@ CREATE TABLE IF NOT EXISTS email_sends (
   error      TEXT,
   UNIQUE (user_id, season, week, kind)
 );
+
+-- Whether a pick was filled in by "Fill with favorites" rather than chosen.
+-- Without this a default and a decision are identical rows, so nothing can
+-- tell them apart -- which is what Clear week needs in order to leave the
+-- formalities behind and only remove the picks you actually made.
+ALTER TABLE predictions ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;

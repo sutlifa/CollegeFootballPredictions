@@ -327,6 +327,25 @@ remove the games that actually separate people on the leaderboard.
 
 ## Clearing picks
 
+`predictions.is_default` records where a pick came from. Without it a filled
+default and a decision are identical rows and nothing can tell them apart.
+
+- `fillWeekDefaults` writes `is_default = TRUE`; `savePrediction` always
+  writes `FALSE`, **including on conflict** — choosing a game by hand
+  promotes it out of "default" even when the value is unchanged, because the
+  point is that someone looked at it.
+- Clear week offers both when a week holds each kind: "Just my N" keeps the
+  filled defaults, "All N" takes everything. With no defaults present it is
+  the single question it always was.
+- The header says how many picks are still untouched defaults. A week can
+  otherwise read as finished while most of it was never considered.
+- Existing picks all backfilled to `FALSE`, so nobody's real work is
+  mislabelled as a formality.
+
+One game: the Clear button on `GamePicker`. A whole week:
+`ClearWeekButton`, behind a confirm naming how many picks are at risk (it
+can destroy 91, and there is no cheap way back).
+
 One game: the Clear button on `GamePicker`. A whole week:
 `ClearWeekButton` in the week header, behind a confirm step naming how many
 picks are at risk (it can destroy 91, and there is no cheap way back).

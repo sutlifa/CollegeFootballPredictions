@@ -376,12 +376,16 @@ export async function savePrediction(
     throw new Error("Winner must be one of the two teams in this game");
   }
 
+  // is_default = FALSE on the way in and on conflict: choosing a game by
+  // hand promotes it out of "filled default" even if the value is
+  // unchanged, because the point is that you looked at it.
   await sql`
-    INSERT INTO predictions (user_id, game_id, winner_team_id, margin_bucket)
-    VALUES (${userId}, ${gameId}, ${winnerTeamId}, ${marginBucket})
+    INSERT INTO predictions (user_id, game_id, winner_team_id, margin_bucket, is_default)
+    VALUES (${userId}, ${gameId}, ${winnerTeamId}, ${marginBucket}, FALSE)
     ON CONFLICT (user_id, game_id) DO UPDATE SET
       winner_team_id = EXCLUDED.winner_team_id,
       margin_bucket = EXCLUDED.margin_bucket,
+      is_default = FALSE,
       updated_at = now()
   `;
   await unsubmitWeekForGame(userId, gameId);
@@ -407,6 +411,7 @@ export async function clearPrediction(
 export async function clearWeekPredictions(
   userId: number,
   week: number,
+  { keepDefaults = false }: { keepDefaults?: boolean } = {},
   season = SEASON,
 ): Promise<number> {
   if (await isWeekLocked(week, season)) {
@@ -421,6 +426,7 @@ export async function clearWeekPredictions(
       AND p.user_id = ${userId}
       AND g.season = ${season}
       AND g.week = ${week}
+      AND (${!keepDefaults} OR p.is_default = FALSE)
     RETURNING p.game_id
   `;
   // A week is only "submitted" while it is complete; emptying it plainly
@@ -474,12 +480,34 @@ export async function fillWeekDefaults(
       row.team2_id,
     );
     await sql`
-      INSERT INTO predictions (user_id, game_id, winner_team_id, margin_bucket)
-      VALUES (${userId}, ${row.id}, ${pick.winnerTeamId}, ${pick.marginBucket})
+      INSERT INTO predictions (user_id, game_id, winner_team_id, margin_bucket, is_default)
+      VALUES (${userId}, ${row.id}, ${pick.winnerTeamId}, ${pick.marginBucket}, TRUE)
       ON CONFLICT (user_id, game_id) DO NOTHING
     `;
   }
   return rows.length;
+}
+
+/**
+ * How many of this user's picks in a week were filled by "Fill with
+ * favorites" versus chosen by hand. Drives what Clear week offers: with
+ * defaults present it can leave the formalities and take only the
+ * decisions.
+ */
+export async function getWeekPickBreakdown(
+  userId: number,
+  week: number,
+  season = SEASON,
+): Promise<{ chosen: number; defaults: number }> {
+  const [row] = await sql<{ chosen: number; defaults: number }[]>`
+    SELECT
+      COUNT(*) FILTER (WHERE NOT p.is_default)::int AS chosen,
+      COUNT(*) FILTER (WHERE p.is_default)::int AS defaults
+    FROM predictions p
+    JOIN games g ON g.id = p.game_id
+    WHERE p.user_id = ${userId} AND g.season = ${season} AND g.week = ${week}
+  `;
+  return { chosen: row?.chosen ?? 0, defaults: row?.defaults ?? 0 };
 }
 
 export async function isWeekSubmitted(
