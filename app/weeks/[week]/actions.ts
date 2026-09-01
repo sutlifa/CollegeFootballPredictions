@@ -102,6 +102,6 @@ export async function fillWeekDefaultsAction(formData: FormData) {
   if (!Number.isInteger(week)) {
     throw new Error("Invalid week");
   }
-  await fillWeekDefaults(userId, week);
+  await fillWeekDefaults(userId, week, { settledOnly: false });
   await settleWeek(userId, week);
 }

@@ -296,8 +296,20 @@ beside a name is noise. Cost is ~10ms for the ranking itself.
 
 ## Default picks (`lib/defaultPick.ts`)
 
-"Fill N with favorites" on the week page. Fills only games with **no** pick;
-an existing pick is never overwritten, and Clear week undoes it.
+**Two passes, and the automatic one is the point.**
+
+1. **Automatic, on opening a week**: games the rank gap calls *settled*
+   (`SETTLED_GAP = 35`) fill themselves, so you land on a week with the
+   blowouts already decided and only real decisions left. Roughly 64% of a
+   week — week 1 goes from 91 picks to 15. Never in a locked week, never
+   over an existing pick, and a no-op on re-open. Wrapped in try/catch: a
+   failure here must not stop someone reaching their picks.
+2. **"Fill N with favorites"**, on request, for the close games that remain.
+
+Close games are never decided for someone without them asking — that is the
+whole difference between the two passes. A banner on the week page explains
+why games arrive pre-filled; without it this is just picks appearing from
+nowhere.
 
 **Fills from LIVE Computer Rankings, falling back to the preseason poll.**
 It must agree with what the page shows — the week page prints live ranks

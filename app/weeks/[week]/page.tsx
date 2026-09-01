@@ -15,12 +15,14 @@ import { computeRankings } from "@/lib/rankingModel";
 import { defaultPickFor } from "@/lib/defaultPick";
 import { isMarginBucketId } from "@/lib/margin";
 import {
+  fillWeekDefaults,
   getAllGames,
   getAllTeams,
   getGamesForWeek,
   getSubmittedWeeks,
   getWeekLocksAt,
   getWeekPickBreakdown,
+  isWeekLocked,
   isWeekSubmitted,
   missingRegularSeasonWeeks,
 } from "@/lib/queries";
@@ -56,6 +58,19 @@ export default async function WeekPage({
   // out the games the user already predicted/submitted against.
   if (week === 16 && !submitted) {
     await syncWeek16Games(userId);
+  }
+
+  // Settled games fill themselves the first time a week is opened, so the
+  // page you land on already has the blowouts decided and only the real
+  // decisions left. Only games nobody has picked, only ones the rank gap
+  // calls settled, and never in a locked week -- fillWeekDefaults refuses
+  // those, so this is wrapped rather than allowed to blow up the page.
+  if (!(await isWeekLocked(week))) {
+    try {
+      await fillWeekDefaults(userId, week, { settledOnly: true });
+    } catch {
+      // A failure here must not stop someone reaching their picks.
+    }
   }
 
   const [teams, games, weekLocksAt, missingWeeks, allGames, submittedWeeks] =
@@ -226,6 +241,23 @@ export default async function WeekPage({
             </p>
           )}
         </>
+      )}
+
+      {breakdown.defaults > 0 && !weekLocked && (
+        <p className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-ink-soft">
+          <span className="font-bold text-accent-strong">
+            {breakdown.defaults} game{breakdown.defaults === 1 ? " is" : "s are"}{" "}
+            already filled in for you.
+          </span>{" "}
+          These are the lopsided ones -- a top-ten side hosting an FCS team
+          isn&apos;t really a decision, and there are nearly 900 games in a
+          season. They&apos;re given to the better-ranked team, by a margin
+          based on how far apart the two are, using the same ranks shown
+          beside each name. Checked against this group&apos;s own picks, that
+          favorite is the one most people chose 93% of the time. Change any of
+          them like a normal pick -- doing so marks it as yours -- or use
+          Clear week to remove only the ones you chose yourself.
+        </p>
       )}
 
       {week === 16 && missingWeeks.length > 0 && (

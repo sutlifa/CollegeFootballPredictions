@@ -450,6 +450,7 @@ export async function clearWeekPredictions(
 export async function fillWeekDefaults(
   userId: number,
   week: number,
+  { settledOnly = false }: { settledOnly?: boolean } = {},
   season = SEASON,
 ): Promise<number> {
   if (await isWeekLocked(week, season)) {
@@ -482,22 +483,29 @@ export async function fillWeekDefaults(
       allGames.filter((g) => submitted.has(g.week)),
     ).map((r) => [r.teamId, r.rank]),
   );
-  const values = rows.map((row) => {
-    const pick = defaultPickFor(
-      byId.get(row.team1_id),
-      byId.get(row.team2_id),
-      row.team1_id,
-      row.team2_id,
-      liveRanks,
-    );
-    return {
+  const values = rows
+    .map((row) => ({
+      row,
+      pick: defaultPickFor(
+        byId.get(row.team1_id),
+        byId.get(row.team2_id),
+        row.team1_id,
+        row.team2_id,
+        liveRanks,
+      ),
+    }))
+    // settledOnly is the automatic pass: only games the rank gap calls
+    // settled, which are the ones nobody was going to deliberate over.
+    // Close games are never decided for someone without them asking.
+    .filter(({ pick }) => !settledOnly || pick.settled)
+    .map(({ row, pick }) => ({
       user_id: userId,
       game_id: row.id,
       winner_team_id: pick.winnerTeamId,
       margin_bucket: pick.marginBucket,
       is_default: true,
-    };
-  });
+    }));
+  if (values.length === 0) return 0;
 
   // One statement, not one per game. A week is up to 91 rows, and 91
   // sequential round trips to a pooled database is both slow and a real
@@ -513,7 +521,7 @@ export async function fillWeekDefaults(
     )}
     ON CONFLICT (user_id, game_id) DO NOTHING
   `;
-  return rows.length;
+  return values.length;
 }
 
 /**
