@@ -103,6 +103,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         </main>
         {/* No top border -- the footer sits flush against the page. */}
         <footer className="mx-auto w-full max-w-5xl space-y-1 px-4 py-4 text-center text-xs text-ink-muted">
+          <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            <Link href="/about" className="hover:text-ink-soft">
+              About
+            </Link>
+            <span aria-hidden>&middot;</span>
+            <Link href="/privacy" className="hover:text-ink-soft">
+              Privacy
+            </Link>
+            <span aria-hidden>&middot;</span>
+            <Link href="/report" className="hover:text-ink-soft">
+              Report a problem
+            </Link>
+          </p>
           <p>&copy; {new Date().getFullYear()} Sutlifa. All rights reserved.</p>
           <p className="text-[11px] leading-relaxed">
             Not affiliated with or endorsed by the NCAA, the College Football

@@ -220,3 +220,80 @@ export async function sendReminder(
     };
   }
 }
+
+/**
+ * Send one plain message to the person who runs the app. Used by the
+ * problem reporter, which is the only path here that a user triggers
+ * directly, so it says who sent it and sets reply-to to them rather than to
+ * the app -- a bug report you cannot reply to is half a bug report.
+ *
+ * Falls back to the from-address when REPORT_TO is unset, on the assumption
+ * that whoever configured sending is the person who wants the reports.
+ */
+export async function sendReport(options: {
+  fromName: string;
+  fromEmail: string;
+  subject: string;
+  body: string;
+}): Promise<SendOutcome> {
+  const to =
+    process.env.REPORT_TO ??
+    parseFrom(process.env.EMAIL_FROM ?? "").email ??
+    "";
+  if (!to) {
+    return { email: "", ok: false, dryRun: false, error: "No REPORT_TO or EMAIL_FROM configured" };
+  }
+  if (!emailEnabled()) {
+    return { email: to, ok: true, dryRun: true };
+  }
+
+  const provider = activeProvider();
+  const from = parseFrom(process.env.EMAIL_FROM ?? "");
+  const text = [
+    options.body,
+    "",
+    "---",
+    `Sent by ${options.fromName} <${options.fromEmail}> via the in-app reporter.`,
+  ].join("\n");
+
+  try {
+    const response =
+      provider === "brevo"
+        ? await fetch(BREVO_ENDPOINT, {
+            method: "POST",
+            headers: {
+              "api-key": process.env.BREVO_API_KEY!,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              sender: from,
+              replyTo: { email: options.fromEmail, name: options.fromName },
+              to: [{ email: to }],
+              subject: options.subject,
+              textContent: text,
+            }),
+          })
+        : await fetch(RESEND_ENDPOINT, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: `${from.name} <${from.email}>`,
+              reply_to: options.fromEmail,
+              to: [to],
+              subject: options.subject,
+              text,
+            }),
+          });
+    if (!response.ok) {
+      const body = await response.text();
+      return { email: to, ok: false, dryRun: false, error: `${response.status} ${body.slice(0, 200)}` };
+    }
+    return { email: to, ok: true, dryRun: false };
+  } catch (error) {
+    return { email: to, ok: false, dryRun: false, error: (error as Error).message };
+  }
+}

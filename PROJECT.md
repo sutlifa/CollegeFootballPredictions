@@ -411,6 +411,22 @@ shareable.
   scrolling to them. The table still scrolls in its own box on desktop,
   never the page.
 
+## About / Privacy / Report
+
+Footer links on every page. `/about` and `/privacy` are **public** (see the
+`isPublicPage` check in `proxy.ts`) — a privacy policy you must hand over an
+account to read is not a disclosure, and Google's OAuth consent screen wants
+a reachable link. `/report` stays behind auth so the sender's identity comes
+from the session.
+
+**The privacy policy describes what the code actually does** — the tables in
+`lib/db/schema.sql` and the services in `lib/`. If storage or third parties
+change, that page changes with it. A policy that has drifted from the code is
+worse than none, because it is a confident statement that happens to be false.
+
+Reports email `REPORT_TO` (falling back to `EMAIL_FROM`) through the same
+provider layer as reminders, with reply-to set to the reporter.
+
 ## Landmines
 
 - **Never run `next build` while `next dev` is running.** It corrupts
