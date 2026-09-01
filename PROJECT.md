@@ -397,6 +397,15 @@ shareable.
 - **Never run `next build` while `next dev` is running.** It corrupts
   `.next/dev/types`, producing 404s and hydration failures. Fix:
   `rm -rf .next`, then run them sequentially.
+- **`GamePicker` must re-sync when the SERVER's pick changes underneath it.**
+  `useState(initialWinnerTeamId)` reads its argument only at mount, which is
+  fine while a picker is the only thing editing its own game — and wrong the
+  moment "Fill with favorites" writes picks for dozens of already-mounted
+  pickers. They kept rendering their mount-time `null` while the database
+  said otherwise: the week counted complete, Clear week appeared, and not one
+  button looked selected. Fixed with React's adjust-state-during-render
+  pattern (not an effect, not a changing `key`, which would remount every
+  picker on every save). Don't remove it.
 - **React 19 resets a form after a server action completes**, wiping the DOM
   state of controlled radios. `GamePicker` therefore uses plain buttons
   writing to hidden inputs, which are immune. Do not "simplify" it back.

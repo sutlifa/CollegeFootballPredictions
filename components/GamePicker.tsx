@@ -76,6 +76,36 @@ export function GamePicker({
   const [marginBucket, setMarginBucket] = useState<MarginBucketId | null>(initialMarginBucket);
   const [isPending, startTransition] = useTransition();
 
+  /**
+   * Re-sync when the SERVER's idea of this pick changes underneath us.
+   *
+   * useState reads its argument once, at mount. That is fine while this
+   * component is the only thing that edits its own game -- but "Fill with
+   * favorites" writes picks for dozens of games at once, and those pickers
+   * are already mounted. They kept rendering their mount-time null while
+   * the database said otherwise: the week counted as complete, Clear week
+   * appeared, and not one button looked selected.
+   *
+   * This is React's documented adjust-state-during-render pattern rather
+   * than an effect (no extra paint) or a changing `key` on the parent
+   * (which would remount every picker on every save and throw away the
+   * pending state). It only fires when the incoming props actually differ
+   * from the ones last synced, so a local pick is never clobbered while its
+   * own save is still in flight.
+   */
+  const [syncedFrom, setSyncedFrom] = useState({
+    winner: initialWinnerTeamId,
+    bucket: initialMarginBucket,
+  });
+  if (
+    syncedFrom.winner !== initialWinnerTeamId ||
+    syncedFrom.bucket !== initialMarginBucket
+  ) {
+    setSyncedFrom({ winner: initialWinnerTeamId, bucket: initialMarginBucket });
+    setWinnerTeamId(initialWinnerTeamId);
+    setMarginBucket(initialMarginBucket);
+  }
+
   const complete = winnerTeamId !== null && marginBucket !== null;
 
   const isFinal =

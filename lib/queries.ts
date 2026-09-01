@@ -472,19 +472,36 @@ export async function fillWeekDefaults(
 
   const teams = await getAllTeams();
   const byId = new Map(teams.map((t) => [t.id, t]));
-  for (const row of rows) {
+  const values = rows.map((row) => {
     const pick = defaultPickFor(
       byId.get(row.team1_id),
       byId.get(row.team2_id),
       row.team1_id,
       row.team2_id,
     );
-    await sql`
-      INSERT INTO predictions (user_id, game_id, winner_team_id, margin_bucket, is_default)
-      VALUES (${userId}, ${row.id}, ${pick.winnerTeamId}, ${pick.marginBucket}, TRUE)
-      ON CONFLICT (user_id, game_id) DO NOTHING
-    `;
-  }
+    return {
+      user_id: userId,
+      game_id: row.id,
+      winner_team_id: pick.winnerTeamId,
+      margin_bucket: pick.marginBucket,
+      is_default: true,
+    };
+  });
+
+  // One statement, not one per game. A week is up to 91 rows, and 91
+  // sequential round trips to a pooled database is both slow and a real
+  // chance of landing only part of a week if the request is cut short.
+  await sql`
+    INSERT INTO predictions ${sql(
+      values,
+      "user_id",
+      "game_id",
+      "winner_team_id",
+      "margin_bucket",
+      "is_default",
+    )}
+    ON CONFLICT (user_id, game_id) DO NOTHING
+  `;
   return rows.length;
 }
 
