@@ -111,7 +111,6 @@ export default async function WeekPage({
         rankByTeam,
       ).settled,
   ).length;
-  const allDecided = games.length > 0 && picked === games.length;
   // Picks freeze when the week's first game kicks off, the way a fantasy
   // lineup locks once the week starts.
   const weekLocked = weekLocksAt !== null && weekLocksAt.getTime() <= Date.now();
@@ -165,17 +164,6 @@ export default async function WeekPage({
               {picked} of {games.length} picked
             </span>
           )}
-          {/* A filled default is a pick nobody has looked at, so a week can
-              read as finished while most of it is untouched. Saying so is
-              the difference between a shortcut and a blind spot. */}
-          {breakdown.defaults > 0 && (
-            <span
-              className="text-xs text-ink-muted"
-              title="Filled by 'Fill with favorites'. Change any of them, or use Clear week to remove only the ones you picked yourself."
-            >
-              {breakdown.defaults} still filled by default
-            </span>
-          )}
           {/* Only while the week is still open -- the server refuses a
               locked week, and a button that can only fail is worse than
               no button. */}
@@ -218,46 +206,35 @@ export default async function WeekPage({
               , when this week&apos;s first game kicks off.
             </p>
           )}
-          {!allDecided && (
-            <p className="text-sm text-ink-muted">
-              Pick every game this week and it counts toward Computer Rankings
-              automatically -- there is nothing to submit.{" "}
-              <span className="text-ink-soft">
-                <span className="font-semibold text-ink">
-                  Fill with favorites
-                </span>{" "}
-                takes the games you haven&apos;t picked and gives them to the
-                better-ranked team, by a margin based on how far apart the two
-                are. It exists because a season is nearly 900 games and most
-                of them aren&apos;t really a decision -- a top-10 side hosting
-                an FCS team isn&apos;t an opinion. Checked against this
-                group&apos;s own picks, that favorite is the one most people
-                chose 93% of the time, and effectively always when the two
-                teams are far apart. The margin is a rougher guess than the
-                winner, so treat a filled game as a starting point: it never
-                overwrites a pick you made, and you can change any of them
-                until the week locks.
-              </span>
-            </p>
-          )}
         </>
       )}
 
       {breakdown.defaults > 0 && !weekLocked && (
-        <p className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-ink-soft">
-          <span className="font-bold text-accent-strong">
-            {breakdown.defaults} game{breakdown.defaults === 1 ? " is" : "s are"}{" "}
-            already filled in for you.
-          </span>{" "}
-          These are the lopsided ones -- a top-ten side hosting an FCS team
-          isn&apos;t really a decision, and there are nearly 900 games in a
-          season. They&apos;re given to the better-ranked team, by a margin
-          based on how far apart the two are, using the same ranks shown
-          beside each name. Checked against this group&apos;s own picks, that
-          favorite is the one most people chose 93% of the time. Change any of
-          them like a normal pick -- doing so marks it as yours -- or use
-          Clear week to remove only the ones you chose yourself.
-        </p>
+        /* One line by default. The reasoning matters the first time and is
+           clutter every time after, and on a phone it pushed the actual
+           games below the fold -- so it lives behind a disclosure rather
+           than being duplicated at two widths. */
+        <details className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-ink-soft">
+          <summary className="cursor-pointer list-none">
+            <span className="font-bold text-accent-strong">
+              {breakdown.defaults} lopsided game
+              {breakdown.defaults === 1 ? "" : "s"} filled in for you.
+            </span>{" "}
+            <span className="text-ink-muted underline decoration-dotted">
+              Why?
+            </span>
+          </summary>
+          <p className="mt-2">
+            A season is nearly 900 games and most aren&apos;t a decision -- a
+            top-ten side hosting an FCS team isn&apos;t an opinion. These went
+            to the better-ranked team, by a margin based on how far apart the
+            two are, using the ranks shown beside each name. Against this
+            group&apos;s own picks that favorite is the one most people chose
+            93% of the time. Change any of them like a normal pick, which
+            marks it as yours -- or use Clear week to remove only the ones you
+            picked yourself. Closer games are left for you.
+          </p>
+        </details>
       )}
 
       {week === 16 && missingWeeks.length > 0 && (
