@@ -93,6 +93,7 @@ export default async function WeekPage({
         teamById.get(g.team2Id),
         g.team1Id,
         g.team2Id,
+        rankByTeam,
       ).settled,
   ).length;
   const allDecided = games.length > 0 && picked === games.length;

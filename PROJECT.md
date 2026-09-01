@@ -299,7 +299,14 @@ beside a name is noise. Cost is ~10ms for the ranking itself.
 "Fill N with favorites" on the week page. Fills only games with **no** pick;
 an existing pick is never overwritten, and Clear week undoes it.
 
-**Use the preseason RANK GAP, not "is this an important game".** Measured
+**Fills from LIVE Computer Rankings, falling back to the preseason poll.**
+It must agree with what the page shows — the week page prints live ranks
+beside team names, and filling from the August poll made the suggestion
+contradict the number next to it (LSU shown #17 against Texas A&M #11, fill
+choosing LSU; nine games in one week disagreed). A default that argues with
+the screen is worse than none, because now you have to check its work.
+
+**Use the RANK GAP, not "is this an important game".** Measured
 against 260 real games with 4+ pickers, the favourite by preseason rank
 matched the pool majority 93% of the time, and agreement tracks the gap:
 

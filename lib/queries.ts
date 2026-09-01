@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { conferenceDivisionKey } from "./conferences";
 import { sql } from "./db";
+import { computeComputerRankings } from "./computerRankings";
 import { defaultPickFor } from "./defaultPick";
 import { REGULAR_SEASON_WEEKS } from "./format";
 import { formatDisplayName, type LeaderboardRow } from "./leaderboard";
@@ -472,12 +473,22 @@ export async function fillWeekDefaults(
 
   const teams = await getAllTeams();
   const byId = new Map(teams.map((t) => [t.id, t]));
+  // Fill from the same ranks the page is showing, not the August poll.
+  const submitted = new Set(await getSubmittedWeeks(userId));
+  const allGames = await getAllGames(userId, season);
+  const liveRanks = new Map(
+    computeComputerRankings(
+      teams,
+      allGames.filter((g) => submitted.has(g.week)),
+    ).map((r) => [r.teamId, r.rank]),
+  );
   const values = rows.map((row) => {
     const pick = defaultPickFor(
       byId.get(row.team1_id),
       byId.get(row.team2_id),
       row.team1_id,
       row.team2_id,
+      liveRanks,
     );
     return {
       user_id: userId,

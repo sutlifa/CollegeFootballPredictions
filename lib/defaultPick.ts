@@ -49,9 +49,28 @@ const MEDIUM_GAP = 15;
  */
 export const SETTLED_GAP = 35;
 
-export function rankValue(team: Team | undefined): number {
+/**
+ * Where a team sits, preferring the CURRENT Computer Rankings over the
+ * preseason poll when they are available.
+ *
+ * This has to agree with what the page shows. The week page prints live
+ * ranks beside team names, so filling from the preseason poll made the
+ * suggestion contradict the number right next to it -- LSU shown at #17
+ * against Texas A&M at #11, and the fill choosing LSU because the August
+ * poll had them a place apart the other way. Nine games in a single week
+ * disagreed. A default that argues with the screen is worse than no
+ * default, because now you have to check its work.
+ *
+ * Non-FBS teams are never ranked, so they keep the FCS floor either way.
+ */
+export function rankValue(
+  team: Team | undefined,
+  liveRanks?: Map<number, number>,
+): number {
   if (!team) return UNRANKED_FBS;
   if (!team.isFbs) return FCS_RANK;
+  const live = liveRanks?.get(team.id);
+  if (typeof live === "number") return live;
   return team.preseasonRank ?? UNRANKED_FBS;
 }
 
@@ -68,9 +87,10 @@ export function defaultPickFor(
   team2: Team | undefined,
   team1Id: number,
   team2Id: number,
+  liveRanks?: Map<number, number>,
 ): DefaultPick {
-  const r1 = rankValue(team1);
-  const r2 = rankValue(team2);
+  const r1 = rankValue(team1, liveRanks);
+  const r2 = rankValue(team2, liveRanks);
   const gap = Math.abs(r1 - r2);
   // Ties go to team1, which is the home side everywhere in this schedule.
   const winnerTeamId = r1 <= r2 ? team1Id : team2Id;
