@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="CFB Predictions app icon, simplified for small sizes">
+  <rect width="512" height="512" rx="112" ry="112" fill="#0B1F14"/>
+
+  <!-- stand -->
+  <rect x="206" y="360" width="100" height="34" rx="12" fill="#D8A53D"/>
+  <path d="M176 390 h160 a14 14 0 0 1 13.7 16.9 l-6 28 a18 18 0 0 1 -17.6 14.1 h-140.2 a18 18 0 0 1 -17.6 -14.1 l-6 -28 a14 14 0 0 1 13.7 -16.9 z" fill="#D8A53D"/>
+
+  <!-- orb ring -->
+  <circle cx="256" cy="222" r="154" fill="#D8A53D"/>
+  <circle cx="256" cy="222" r="126" fill="#0B1F14"/>
+
+  <!-- football -->
+  <g transform="rotate(-24 256 222)">
+    <ellipse cx="256" cy="222" rx="94" ry="58" fill="#D8A53D"/>
+    <g stroke="#0B1F14" stroke-width="14" stroke-linecap="round">
+      <path d="M212 222 H300"/>
+      <path d="M240 204 V240"/>
+      <path d="M272 204 V240"/>
+    </g>
+  </g>
+</svg>

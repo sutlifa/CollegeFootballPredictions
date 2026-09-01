@@ -9,7 +9,18 @@ export const metadata = {
 export default function AboutPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 text-sm leading-relaxed text-ink-soft">
-      <div>
+      <div className="flex items-start gap-4">
+        {/* The full artwork, at a size where the highlight and sparkle
+            actually read. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.svg"
+          alt=""
+          width={64}
+          height={64}
+          className="hidden shrink-0 rounded-xl sm:block"
+        />
+        <div>
         <h1 className="text-2xl font-bold text-ink">About</h1>
         <p className="mt-2">
           College Football Predictions is a season-long pick&apos;em for people
@@ -20,6 +31,7 @@ export default function AboutPage() {
           championship matchups your results create, and a 12-team playoff
           field.
         </p>
+        </div>
       </div>
 
       <section className="space-y-2">

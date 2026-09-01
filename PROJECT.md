@@ -411,6 +411,22 @@ shareable.
   scrolling to them. The table still scrolls in its own box on desktop,
   never the page.
 
+## Logo and favicon
+
+- `app/icon.svg` — the tab icon. Next generates the `<link rel="icon">` from
+  the filename; there is no config. The old default `app/favicon.ico` was
+  **deleted**, because leaving it meant anything preferring `.ico` kept
+  showing the stale Next placeholder.
+- `public/logo-mark.svg` — the **simplified** mark, used in the header at
+  22px. Use this anywhere small.
+- `public/logo.svg` — the **detailed** artwork (gradients, glass highlight,
+  sparkle), used on the sign-in page at 72px and About at 64px. Its details
+  are roughly one pixel at tab size and turn to mush, which is why the tab
+  and header use the simplified file instead.
+
+Plain `<img>` with a documented eslint disable, matching `TeamLogo`: a local
+static SVG gives the image optimiser nothing to do and costs a function call.
+
 ## About / Privacy / Report
 
 Footer links on every page. `/about` and `/privacy` are **public** (see the

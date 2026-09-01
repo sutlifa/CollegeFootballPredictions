@@ -44,7 +44,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <header className="relative border-b-2 border-accent/70 bg-surface shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
           <nav className="mx-auto flex max-w-5xl items-center gap-5 px-4 py-3 text-sm">
             <span className="flex items-center gap-2 text-base font-bold tracking-wide text-accent-strong">
-              <span aria-hidden>🏈</span> CFB Predictions
+              {/* The simplified mark, not the detailed one: at 22px the
+                  sparkle and glass highlight are barely a pixel each and
+                  turn to mush. Plain <img> rather than next/image -- it is a
+                  fixed-size static SVG, so there is nothing to optimise. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo-mark.svg"
+                alt=""
+                width={22}
+                height={22}
+                className="shrink-0 rounded-[5px]"
+              />{" "}
+              CFB Predictions
             </span>
 
             {/* Inline nav is `sm` and up only -- below that these links and

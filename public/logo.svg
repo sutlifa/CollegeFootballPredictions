@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="CFB Predictions logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#173B27"/>
+      <stop offset="1" stop-color="#0B1F14"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="0.34" cy="0.28" r="0.88">
+      <stop offset="0" stop-color="#26543A"/>
+      <stop offset="0.55" stop-color="#143020"/>
+      <stop offset="1" stop-color="#0A1C12"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F0C669"/>
+      <stop offset="1" stop-color="#C89229"/>
+    </linearGradient>
+    <linearGradient id="goldBase" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E4B04A"/>
+      <stop offset="1" stop-color="#A87A1C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <!-- crystal ball stand -->
+  <rect x="212" y="366" width="88" height="30" rx="12" fill="#D8A53D"/>
+  <path d="M186 392 h140 a12 12 0 0 1 11.7 14.7 l-6.6 29 a16 16 0 0 1 -15.6 12.3 h-119 a16 16 0 0 1 -15.6 -12.3 l-6.6 -29 a12 12 0 0 1 11.7 -14.7 z" fill="url(#goldBase)"/>
+
+  <!-- orb -->
+  <circle cx="256" cy="226" r="150" fill="url(#gold)"/>
+  <circle cx="256" cy="226" r="131" fill="url(#orb)"/>
+
+  <!-- football -->
+  <g transform="rotate(-24 256 226)">
+    <ellipse cx="256" cy="226" rx="92" ry="56" fill="url(#gold)"/>
+    <g stroke="#0B1F14" stroke-width="11" stroke-linecap="round">
+      <path d="M210 226 H302"/>
+      <path d="M234 208 V244"/>
+      <path d="M258 204 V248"/>
+      <path d="M282 208 V244"/>
+    </g>
+  </g>
+
+  <!-- glass highlight -->
+  <path d="M152 180 a114 114 0 0 1 64 -64 a134 134 0 0 0 -64 64 z" fill="#F4F1E6" opacity="0.34"/>
+  <circle cx="256" cy="226" r="131" fill="none" stroke="#F4F1E6" stroke-opacity="0.09" stroke-width="10"/>
+
+  <!-- sparkle -->
+  <path d="M400 94 c4.5 28 8.5 32 36.5 36.5 c-28 4.5 -32 8.5 -36.5 36.5 c-4.5 -28 -8.5 -32 -36.5 -36.5 c28 -4.5 32 -8.5 36.5 -36.5 z" fill="#F4E3B4"/>
+</svg>
