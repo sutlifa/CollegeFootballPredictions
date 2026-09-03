@@ -17,6 +17,13 @@ export function getWeekLabel(week: number): string {
  * games (see lib/ingest.ts resolveWeek) -- split out here so a team playing
  * both isn't double-counted as one calendar week.
  */
+/**
+ * The Army-Navy game sits in its own week AFTER conference championship
+ * week, which is why it does not count toward conference standings even
+ * though both academies are in the American.
+ */
+export const ARMY_NAVY_WEEK = 15;
+
 export const VALID_WEEKS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16];
 
 export function isValidWeek(week: number): boolean {

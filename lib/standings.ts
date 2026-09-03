@@ -1,3 +1,4 @@
+import { ARMY_NAVY_WEEK } from "./format";
 import type { Game, StandingsRow, Team } from "./types";
 import { isDecided } from "./types";
 
@@ -44,8 +45,19 @@ export function computeStandings(
 
     const team1Row = team1.isFbs ? rows.get(team1.id) : undefined;
     const team2Row = team2.isFbs ? rows.get(team2.id) : undefined;
+    // Army-Navy counts in the overall record but never toward the
+    // conference table. It is played the week AFTER the championship games,
+    // so its result cannot bear on a race that has already been decided --
+    // and both academies being in the American made it look like a
+    // conference game and quietly move that league's standings after the
+    // fact. Week 15 is the Army-Navy week by definition here (see
+    // getWeekLabel), so the week alone identifies it.
+    const isAfterChampionshipWeek = game.week === ARMY_NAVY_WEEK;
     const sameConference =
-      team1.isFbs && team2.isFbs && team1.conference === team2.conference;
+      !isAfterChampionshipWeek &&
+      team1.isFbs &&
+      team2.isFbs &&
+      team1.conference === team2.conference;
 
     const score1 = game.predictedScoreTeam1;
     const score2 = game.predictedScoreTeam2;

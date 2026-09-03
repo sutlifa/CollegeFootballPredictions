@@ -5,12 +5,15 @@ import { auth } from "@/auth";
 import { finalizeConferenceStandingsIfReady } from "@/lib/conferenceTiebreakers";
 import { isMarginBucketId } from "@/lib/margin";
 import {
+  clearBracketField,
   clearPrediction,
   clearWeekPredictions,
   fillWeekDefaults,
+  getBracketField,
   savePrediction,
   syncWeekSubmission,
 } from "@/lib/queries";
+import { syncWeek16Games } from "@/lib/syncWeek16";
 
 function revalidateAllAffected(week: number) {
   revalidatePath(`/weeks/${week}`);
@@ -38,10 +41,48 @@ async function requireUserId(): Promise<number> {
  * remember, and editing one game in a finished week silently re-submits it
  * rather than dropping the whole week out of the rankings.
  */
+/**
+ * Everything downstream of a changed pick, in dependency order.
+ *
+ * A pick feeds the standings, the standings decide the championship
+ * matchups, and the champions decide who has an automatic playoff bid --
+ * so a change early in that chain has to be carried all the way down. It
+ * wasn't: editing week 5 left week 16 showing the two teams that used to
+ * top the conference, and the only way to get the right ones was to clear
+ * the championship week by hand.
+ *
+ * Order matters. The frozen standings are cleared and recomputed first,
+ * because deriveWeek16Matchups reads them; deriving before that would pair
+ * teams off the stale table.
+ *
+ * A changed matchup invalidates a confirmed playoff field, because the old
+ * matchup's pick is deleted with it and that conference no longer has a
+ * champion holding its automatic bid. Only cleared when a field actually
+ * exists and something actually moved -- an edit that leaves every
+ * conference's top two alone touches nothing.
+ */
 async function settleWeek(userId: number, week: number) {
   await syncWeekSubmission(userId, week);
   await finalizeConferenceStandingsIfReady(userId);
+
+  let bracketInvalidated = false;
+  if (week === 16) {
+    // The title games themselves decide the champions, so editing one can
+    // change who holds an automatic bid without any matchup moving.
+    if (await getBracketField(userId)) {
+      await clearBracketField(userId);
+      bracketInvalidated = true;
+    }
+  } else {
+    const { changedConferences } = await syncWeek16Games(userId);
+    if (changedConferences.length > 0 && (await getBracketField(userId))) {
+      await clearBracketField(userId);
+      bracketInvalidated = true;
+    }
+  }
+
   revalidateAllAffected(week);
+  if (bracketInvalidated) revalidatePath("/bracket");
 }
 
 export async function savePredictionAction(formData: FormData) {

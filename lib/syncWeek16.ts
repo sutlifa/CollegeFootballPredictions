@@ -19,7 +19,9 @@ import {
  * last visit, the stale matchup row is replaced (its old prediction doesn't
  * carry over -- it belonged to different teams).
  */
-export async function syncWeek16Games(userId: number): Promise<void> {
+export async function syncWeek16Games(
+  userId: number,
+): Promise<{ changedConferences: string[] }> {
   // Nothing to derive until the regular season is actually finished.
   //
   // This used to run against whatever had been picked so far, which meant a
@@ -35,8 +37,10 @@ export async function syncWeek16Games(userId: number): Promise<void> {
   // real work and their bracket with it. Only unpicked rows, which should
   // never have been generated, are cleared away.
   if (!(await isRegularSeasonComplete(userId))) {
-    await deleteUnpickedWeek16Games(userId);
-    return;
+    const removed = await deleteUnpickedWeek16Games(userId);
+    // Removing a matchup is a change too: a bracket built on a championship
+    // that no longer exists is stale.
+    return { changedConferences: removed > 0 ? ["*"] : [] };
   }
 
   const teams = await getAllTeams();
@@ -61,4 +65,8 @@ export async function syncWeek16Games(userId: number): Promise<void> {
       matchup.team2Id,
     );
   }
+
+  // Which conferences got a different matchup than they had. The caller
+  // needs this to decide whether a confirmed playoff field is still valid.
+  return { changedConferences: toUpsert.map((m) => m.conference) };
 }
