@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/auth";
+import { ComparePeoplePicker } from "@/components/ComparePeoplePicker";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
 import { getWeekLabel, isValidWeek, REGULAR_SEASON_WEEKS } from "@/lib/format";
@@ -13,6 +14,16 @@ import {
 import { displayTeamName } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * How many people can be compared at once.
+ *
+ * A layout constraint rather than a preference: past five columns the table
+ * stops fitting and falls back to a horizontal scrollbar that, on a page of
+ * ninety rows, sits at the very bottom where nobody finds it. Enforced here
+ * as well as in the picker, so a hand-edited URL cannot exceed it.
+ */
+const MAX_COMPARE = 5;
 
 /**
  * Short label for a pick, e.g. "RUTG 15-21" or "ND 8-14".
@@ -58,12 +69,13 @@ export default async function ComparePage({
   const requested = (Array.isArray(raw) ? raw : raw ? [raw] : [])
     .map(Number)
     .filter((n) => allUsers.some((u) => u.userId === n));
-  const selected =
+  const selected = (
     requested.length > 0
       ? requested
       : [userId, allUsers.find((u) => u.userId !== userId)?.userId].filter(
           (n): n is number => typeof n === "number",
-        );
+        )
+  ).slice(0, MAX_COMPARE);
 
   const shown = allUsers.filter((u) => selected.includes(u.userId));
   const pickFor = new Map<string, (typeof picks)[number]>();
@@ -179,37 +191,13 @@ export default async function ComparePage({
         ))}
       </div>
 
-      {/* Who to compare. A GET form so the whole thing stays server-rendered
-          and the selection lives in a shareable URL. */}
-      <form method="get" className="rounded-lg border border-line bg-surface p-3">
-        <input type="hidden" name="week" value={week} />
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Show these people
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {allUsers.map((u) => (
-            <label key={u.userId} className="flex items-center gap-1.5 text-sm text-ink">
-              <input
-                type="checkbox"
-                name="who"
-                value={u.userId}
-                defaultChecked={selected.includes(u.userId)}
-                className="h-4 w-4"
-              />
-              {u.displayName}
-              {u.userId === userId && (
-                <span className="text-xs text-ink-muted">(you)</span>
-              )}
-            </label>
-          ))}
-        </div>
-        <button
-          type="submit"
-          className="mt-3 rounded bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
-        >
-          Update
-        </button>
-      </form>
+      <ComparePeoplePicker
+        users={allUsers}
+        selected={selected}
+        week={week}
+        you={userId}
+        max={MAX_COMPARE}
+      />
 
       {agreement && (
         <p className="rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink-soft">
@@ -298,16 +286,20 @@ export default async function ComparePage({
           </div>
 
           {/* Wider screens: the grid, where columns genuinely read better. */}
-          <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
-            <table className="w-full text-sm">
+          <div className="hidden rounded-lg border border-line sm:block">
+            <table className="w-full table-fixed text-sm">
               <thead className="bg-surface-2 text-ink-muted">
                 <tr>
-                  <th className="px-3 py-2 text-left">Game</th>
-                  <th className="px-3 py-2 text-left">Consensus</th>
+                  <th className="w-[38%] px-3 py-2 text-left">Game</th>
                   {shown.map((u) => (
-                    <th key={u.userId} className="whitespace-nowrap px-3 py-2 text-left">
-                      {u.displayName}
-                      {u.userId === userId && " (you)"}
+                    <th
+                      key={u.userId}
+                      className="px-2 py-2 text-left text-xs font-semibold"
+                    >
+                      <span className="block truncate" title={u.displayName}>
+                        {u.displayName}
+                        {u.userId === userId && " (you)"}
+                      </span>
                     </th>
                   ))}
                 </tr>
@@ -315,36 +307,39 @@ export default async function ComparePage({
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.game.id} className="border-t border-line bg-surface">
-                    <td className="px-3 py-2">
-                      <span className="flex items-center gap-1.5 whitespace-nowrap text-ink">
+                    {/* Matchup and consensus share one cell. Two wide
+                        columns for what is really one piece of context was
+                        most of why this table did not fit. */}
+                    <td className="px-3 py-2 align-top">
+                      <span className="flex min-w-0 items-center gap-1.5 text-ink">
                         <TeamLogo logoUrl={row.t1?.logoUrl} name={row.name1} size={16} />
-                        <span className="text-xs">{row.name1}</span>
-                        <span className="text-[10px] text-ink-muted">vs</span>
+                        <span className="truncate text-xs">{row.name1}</span>
+                        <span className="shrink-0 text-[10px] text-ink-muted">vs</span>
                         <TeamLogo logoUrl={row.t2?.logoUrl} name={row.name2} size={16} />
-                        <span className="text-xs">{row.name2}</span>
+                        <span className="truncate text-xs">{row.name2}</span>
                       </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-soft">
-                      {row.total === 0 ? (
-                        <span className="text-ink-muted">nobody yet</span>
-                      ) : row.leaderId === null ? (
-                        <span className="text-ink-muted">
-                          split {row.c1}-{row.c2}
-                        </span>
-                      ) : (
-                        <>
-                          {row.lead} of {row.total} took{" "}
-                          <span className="font-semibold text-ink">
-                            {displayTeamName(row.leaderTeam ?? undefined)}
-                          </span>
-                        </>
-                      )}
+                      <span className="mt-0.5 block text-[11px] text-ink-muted">
+                        {row.total === 0 ? (
+                          "nobody has picked this"
+                        ) : row.leaderId === null ? (
+                          <>
+                            split {row.c1}-{row.c2}
+                          </>
+                        ) : (
+                          <>
+                            {row.lead}/{row.total} took{" "}
+                            <span className="font-semibold text-ink-soft">
+                              {displayTeamName(row.leaderTeam ?? undefined)}
+                            </span>
+                          </>
+                        )}
+                      </span>
                     </td>
                     {row.cells.map((cell) => (
                       <td
                         key={cell.userId}
                         title={cell.title}
-                        className={`whitespace-nowrap px-3 py-2 text-xs ${
+                        className={`px-2 py-2 align-top text-xs ${
                           !cell.label
                             ? "text-ink-muted"
                             : cell.withCrowd
@@ -352,7 +347,7 @@ export default async function ComparePage({
                               : "font-semibold text-accent-strong"
                         }`}
                       >
-                        {cell.label ?? "—"}
+                        <span className="block truncate">{cell.label ?? "—"}</span>
                       </td>
                     ))}
                   </tr>

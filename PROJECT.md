@@ -403,13 +403,22 @@ shareable.
   line up.
 - Team abbreviations: initials for multi-word names, first four letters for
   single-word ones. Pure initials turned "Rutgers" into "R".
+- **Capped at 5 people (`MAX_COMPARE`).** A layout constraint, not a
+  preference: past five columns the table stopped fitting and fell back to a
+  horizontal scrollbar which, on a page of 91 rows, sits at the very bottom
+  where nobody finds it. `ComparePeoplePicker` disables the remaining
+  checkboxes once the cap is reached, and the server slices to it as well, so
+  a hand-edited URL cannot exceed it.
+- **Matchup and consensus share one table cell.** Two wide columns for what
+  is really one piece of context was most of why the table did not fit. With
+  that merge plus `table-fixed`, five people fit in 990px with no overflow —
+  the desktop wrapper no longer needs `overflow-x-auto` at all.
 - **Two layouts, one row model.** Phones get a card per game (matchup,
   consensus, then each person's pick stacked); `sm:` and up get the table.
   A single `rows` array feeds both so the numbers cannot drift. The table
   alone was wrong on a phone: the Game column is wider than the screen, so
   the pick columns sat entirely offscreen and you lost the matchup while
-  scrolling to them. The table still scrolls in its own box on desktop,
-  never the page.
+  scrolling to them.
 
 ## Logo and favicon
 
