@@ -210,3 +210,31 @@ ALTER TABLE predictions ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEF
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS mascot TEXT;
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS color TEXT;
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS alt_color TEXT;
+
+-- Records that the automatic settled-games pass has run for a week, so it
+-- runs ONCE rather than on every page load. Without this, clearing a whole
+-- week could not work at all: the delete succeeded, the page re-rendered,
+-- and the auto-fill immediately put every settled pick back, so the week
+-- looked untouched and the confirm row stayed open. A row here means "this
+-- person has been offered the automatic fill for this week" -- deliberately
+-- NOT removed when the week is cleared, which is what makes the clear
+-- stick. Filling again is still available on demand via "Fill with
+-- favorites".
+CREATE TABLE IF NOT EXISTS week_default_fills (
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  season      INTEGER NOT NULL,
+  week        INTEGER NOT NULL,
+  applied_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, season, week)
+);
+
+-- Backfill for databases that predate the table. Any (user, week) that
+-- already holds a prediction has necessarily had the automatic pass run
+-- against it, because that pass used to run on every single page load --
+-- so recording it changes nothing except sparing one redundant no-op pass.
+-- Idempotent, so it is safe to leave in the schema file.
+INSERT INTO week_default_fills (user_id, season, week)
+SELECT DISTINCT p.user_id, g.season, g.week
+FROM predictions p
+JOIN games g ON g.id = p.game_id
+ON CONFLICT (user_id, season, week) DO NOTHING;

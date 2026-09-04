@@ -377,6 +377,29 @@ pool disagrees most.** G6-vs-G6 games were unanimous only 22% of the time
 against 60% for top-25 matchups, so filtering by apparent importance would
 remove the games that actually separate people on the leaderboard.
 
+## The automatic fill runs ONCE, and that is load-bearing
+
+`applyAutomaticWeekDefaults` claims a row in `week_default_fills` before
+filling, so the settled-games pass happens the first time a person opens a
+week and never again.
+
+It used to be a bare `fillWeekDefaults(settledOnly: true)` on every render
+of `/weeks/[week]`. The comment said "the first time a week is opened" and
+nothing enforced it, which made **clearing a whole week impossible**: the
+delete succeeded, the page re-rendered, the pass reinstated every settled
+pick, and the confirm row sat open over a week that looked untouched. The
+button was blamed; the page load was the cause.
+
+Clearing a week deliberately does NOT release the claim -- that is what
+makes a clear stick. "Fill with favorites" is how someone asks for them
+back, and still fills everything remaining.
+
+Regression test to re-run by hand if this area is touched (creates a
+throwaway user, deletes it in a `finally`): first open fills, reload fills
+0, clear-all removes every row, the next render refills 0, manual fill still
+works, and -- as a control -- deleting the claim row makes it refill exactly
+as it used to.
+
 ## Clearing picks
 
 `predictions.is_default` records where a pick came from. Without it a filled

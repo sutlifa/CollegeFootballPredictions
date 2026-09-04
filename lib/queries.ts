@@ -541,6 +541,32 @@ export async function fillWeekDefaults(
  * defaults present it can leave the formalities and take only the
  * decisions.
  */
+/**
+ * The automatic settled-games fill, run at most once per person per week.
+ *
+ * The claim is inserted BEFORE the fill and never rolled back, so this is
+ * safe against two tabs opening the same week at once and, more
+ * importantly, against the page simply being reloaded: the fill used to run
+ * on every render, which made "clear the whole week" impossible -- the rows
+ * were deleted and immediately reinstated. Clearing a week deliberately
+ * leaves the claim in place so the clear sticks; "Fill with favorites" is
+ * how someone asks for them back.
+ */
+export async function applyAutomaticWeekDefaults(
+  userId: number,
+  week: number,
+  season = SEASON,
+): Promise<number> {
+  const claimed = await sql`
+    INSERT INTO week_default_fills (user_id, season, week)
+    VALUES (${userId}, ${season}, ${week})
+    ON CONFLICT (user_id, season, week) DO NOTHING
+    RETURNING week
+  `;
+  if (claimed.length === 0) return 0;
+  return fillWeekDefaults(userId, week, { settledOnly: true }, season);
+}
+
 export async function getWeekPickBreakdown(
   userId: number,
   week: number,

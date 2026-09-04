@@ -8,7 +8,7 @@ type Props = {
   chosen: number;
   /** Picks that came from "Fill with favorites" and were never looked at. */
   defaults: number;
-  clearAction: (formData: FormData) => void;
+  clearAction: (formData: FormData) => void | Promise<void>;
 };
 
 /**
@@ -48,9 +48,17 @@ export function ClearWeekButton({ week, chosen, defaults, clearAction }: Props) 
     );
   }
 
+  // Await the action before dropping back out of the confirm row. The
+  // transition covers the server action AND the revalidation behind it, so
+  // by the time this resets, the counts this component renders from are the
+  // post-clear ones. Resetting synchronously instead left the row showing
+  // "Yes, clear" over picks that were already gone.
   const submit = (keepDefaults: boolean) => (formData: FormData) => {
     formData.set("keepDefaults", keepDefaults ? "1" : "0");
-    startTransition(() => clearAction(formData));
+    startTransition(async () => {
+      await clearAction(formData);
+      setConfirming(false);
+    });
   };
 
   return (
@@ -58,7 +66,9 @@ export function ClearWeekButton({ week, chosen, defaults, clearAction }: Props) 
       <span className="text-ink-soft">
         {defaults > 0 && chosen > 0
           ? `${chosen} you picked, ${defaults} filled. Clear which?`
-          : `Clear all ${total} pick${total === 1 ? "" : "s"}?`}
+          : defaults > 0
+            ? `All ${total} were filled in for you. Clear them?`
+            : `Clear all ${total} pick${total === 1 ? "" : "s"}?`}
       </span>
 
       {defaults > 0 && chosen > 0 && (

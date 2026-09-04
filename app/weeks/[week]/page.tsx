@@ -15,7 +15,7 @@ import { computeRankings } from "@/lib/rankingModel";
 import { defaultPickFor } from "@/lib/defaultPick";
 import { isMarginBucketId } from "@/lib/margin";
 import {
-  fillWeekDefaults,
+  applyAutomaticWeekDefaults,
   getAllGames,
   getAllTeams,
   getGamesForWeek,
@@ -65,9 +65,14 @@ export default async function WeekPage({
   // decisions left. Only games nobody has picked, only ones the rank gap
   // calls settled, and never in a locked week -- fillWeekDefaults refuses
   // those, so this is wrapped rather than allowed to blow up the page.
+  //
+  // "The first time" is enforced by applyAutomaticWeekDefaults, not by this
+  // comment: it used to run on every single render, which quietly made
+  // clearing a week impossible -- the delete worked and the very next
+  // render put all the settled picks straight back.
   if (!(await isWeekLocked(week))) {
     try {
-      await fillWeekDefaults(userId, week, { settledOnly: true });
+      await applyAutomaticWeekDefaults(userId, week);
     } catch {
       // A failure here must not stop someone reaching their picks.
     }

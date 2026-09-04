@@ -8,7 +8,7 @@ type Props = {
   remaining: number;
   /** How many of those the preseason gap calls settled. */
   settled: number;
-  fillAction: (formData: FormData) => void;
+  fillAction: (formData: FormData) => void | Promise<void>;
 };
 
 /**
@@ -52,7 +52,12 @@ export function FillWeekButton({ week, remaining, settled, fillAction }: Props) 
       </span>
       <form
         action={(formData) => {
-          startTransition(() => fillAction(formData));
+          // Reset only once the fill and its revalidation are done, so this
+          // cannot sit open over a week it has already filled.
+          startTransition(async () => {
+            await fillAction(formData);
+            setConfirming(false);
+          });
         }}
         className="contents"
       >
