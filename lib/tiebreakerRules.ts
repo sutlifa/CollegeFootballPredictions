@@ -439,6 +439,22 @@ const CONFERENCE_TIEBREAK_PROCEDURES: Partial<
     multiWay: [headToHeadAmongGroup, overallRecordPct, commonConferenceOpponentsWinPct],
     mergeToTwoWayWhenPairRemains: true,
   },
+  // The 2026 Pac 12's own published procedure is not something this repo
+  // can cite, so this stays deliberately shallow rather than inventing
+  // official-looking steps: head-to-head, which every one of the other nine
+  // conferences uses as step one, then overall record.
+  //
+  // Common-conference-opponents is pointedly NOT here. The eight teams play
+  // a complete round robin, so every conference opponent is a common
+  // opponent and that step just restates conference record -- which the
+  // baseline standings have already sorted by. Without a procedure at all,
+  // a tie would fall through to preseason rank and team name, which is a
+  // worse answer than head-to-head.
+  "Pac 12": {
+    twoWay: [headToHeadAmongGroup, overallRecordPct],
+    multiWay: [headToHeadAmongGroup, overallRecordPct],
+    mergeToTwoWayWhenPairRemains: true,
+  },
   "Sun Belt": {
     twoWay: [
       headToHeadAmongGroup,

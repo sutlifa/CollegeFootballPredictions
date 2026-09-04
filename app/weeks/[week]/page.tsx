@@ -25,6 +25,7 @@ import {
   isWeekLocked,
   isWeekSubmitted,
   missingRegularSeasonWeeks,
+  syncWeekSubmission,
 } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 import { displayTeamName, isDecided } from "@/lib/types";
@@ -56,8 +57,16 @@ export default async function WeekPage({
   // top two (an earlier week's prediction changing, or the tiebreaker-
   // resolved standings finalizing for the first time) would silently swap
   // out the games the user already predicted/submitted against.
-  if (week === 16 && !submitted) {
-    await syncWeek16Games(userId);
+  if (week === 16) {
+    // A submitted week 16 still gets championships it never had -- a
+    // conference can be added to CHAMPIONSHIP_CONFERENCES, as the Pac 12
+    // was -- but never has an existing matchup swapped underneath a pick.
+    await syncWeek16Games(userId, { additiveOnly: submitted });
+    if (submitted) {
+      // Gaining a tenth game means the week is no longer complete, so the
+      // submission has to be re-derived rather than left standing.
+      await syncWeekSubmission(userId, week);
+    }
   }
 
   // Settled games fill themselves the first time a week is opened, so the

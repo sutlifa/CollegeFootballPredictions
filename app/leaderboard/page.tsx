@@ -121,7 +121,7 @@ export default async function LeaderboardPage() {
           <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
             Season score
             <Tooltip
-              text={`One total from the four things you predict. A correct winner is ${SEASON_POINTS.correctWinner} point and the right margin bucket on top of it another ${SEASON_POINTS.correctMargin}. Naming a conference champion is worth ${SEASON_POINTS.conferenceChampion} and each of your 12 that actually makes the playoff field ${SEASON_POINTS.playoffFieldTeam}, because there are only nine and twelve of those to get -- without that weighting, hundreds of regular season games would drown the postseason out entirely. Calling the national champion is worth ${SEASON_POINTS.nationalChampion}.`}
+              text={`One total from the four things you predict. A correct winner is ${SEASON_POINTS.correctWinner} point and the right margin bucket on top of it another ${SEASON_POINTS.correctMargin}. Naming a conference champion is worth ${SEASON_POINTS.conferenceChampion} and each of your 12 that actually makes the playoff field ${SEASON_POINTS.playoffFieldTeam}, because there are only ten and twelve of those to get -- without that weighting, hundreds of regular season games would drown the postseason out entirely. Calling the national champion is worth ${SEASON_POINTS.nationalChampion}.`}
             />
           </h2>
           <p className="text-sm text-ink-muted">

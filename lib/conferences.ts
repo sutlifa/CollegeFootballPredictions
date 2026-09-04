@@ -1,5 +1,14 @@
-// The 9 conferences that hold a championship game (and drive Week 16).
-// Pac 12 and Independent don't.
+// The 10 conferences that hold a championship game (and drive Week 16).
+// Only Independent doesn't.
+//
+// The rebuilt 8-team Pac 12 plays a title game between its top two, and was
+// missing from this list. That was not merely a missing fixture: Pac 12 is
+// one of the GROUP_OF_SIX_CONFERENCES, and the playoff's fifth automatic
+// bid goes to the highest-ranked Group of Six CHAMPION -- so a conference
+// that can never produce a champion can never receive that bid. All eight
+// Pac 12 teams were structurally excluded from the playoff, Boise State
+// included, despite finishing as the second-highest Group of Six team on
+// one real board.
 export const CHAMPIONSHIP_CONFERENCES = [
   "ACC",
   "American",
@@ -8,6 +17,7 @@ export const CHAMPIONSHIP_CONFERENCES = [
   "CUSA",
   "MAC",
   "Mountain West",
+  "Pac 12",
   "SEC",
   "Sun Belt",
 ] as const;

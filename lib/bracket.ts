@@ -10,9 +10,12 @@ import { isDecided } from "./types";
  *    *regardless of their final ranking* -- 4 guaranteed bids, one per
  *    conference.
  *  - The Group of Six (American, CUSA, MAC, Mountain West, Pac 12, Sun Belt)
- *    gets exactly ONE automatic bid: the single highest-ranked team from any
- *    of those conferences, *whether or not it actually won its own
- *    conference championship*.
+ *    gets exactly ONE automatic bid: the highest-ranked CHAMPION among
+ *    those conferences. A team that lost its own title game cannot take
+ *    the bid from the team that just beat it, which is how the committee
+ *    has always treated it. This was originally written the other way --
+ *    highest-ranked G6 team, champion or not -- and handed the bid to a
+ *    losing finalist on real data.
  *  - Notre Dame (and any other independent) has no automatic-bid path at
  *    all -- as a non-conference team it can never win a "conference
  *    championship", so it competes purely as an at-large candidate on

@@ -21,11 +21,12 @@ import {
  */
 export async function syncWeek16Games(
   userId: number,
+  { additiveOnly = false }: { additiveOnly?: boolean } = {},
 ): Promise<{ changedConferences: string[] }> {
   // Nothing to derive until the regular season is actually finished.
   //
   // This used to run against whatever had been picked so far, which meant a
-  // user one week into the season was handed nine conference championship
+  // user one week into the season was handed ten conference championship
   // games built from a nearly empty table -- pickable, and showing up on
   // team pages, where a stray title-game pick put a team at 1-0 having
   // played nobody. A matchup derived from a part-finished season describes
@@ -51,7 +52,24 @@ export async function syncWeek16Games(
   const derived = deriveWeek16Matchups(teams, gamesWeeks1to15, finalStandings);
   const { toUpsert } = diffWeek16Matchups(derived, existingWeek16);
 
-  for (const matchup of toUpsert) {
+  // Additive mode creates championships for conferences that have no row at
+  // all and touches nothing else.
+  //
+  // It exists because the caller skips a full sync once week 16 is
+  // submitted -- deliberately, so a late shift in some conference's top two
+  // cannot swap a matchup out from under a pick already made. That guard
+  // also blocked a conference being ADDED, which is a different thing
+  // entirely: when the Pac 12 gained a title game, everyone who had already
+  // completed week 16 would simply never have seen it, because being
+  // finished was exactly what stopped the sync from running.
+  const existingConferences = new Set(
+    existingWeek16.map((g) => g.conference).filter(Boolean),
+  );
+  const applicable = additiveOnly
+    ? toUpsert.filter((m) => !existingConferences.has(m.conference))
+    : toUpsert;
+
+  for (const matchup of applicable) {
     await deleteStaleWeek16Game(
       userId,
       matchup.conference,
@@ -68,5 +86,5 @@ export async function syncWeek16Games(
 
   // Which conferences got a different matchup than they had. The caller
   // needs this to decide whether a confirmed playoff field is still valid.
-  return { changedConferences: toUpsert.map((m) => m.conference) };
+  return { changedConferences: applicable.map((m) => m.conference) };
 }

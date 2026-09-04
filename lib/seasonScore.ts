@@ -12,9 +12,11 @@
  * answers "who is winning", which is a different question -- 900 games at
  * one point each would otherwise drown out the postseason entirely, so the
  * postseason pieces are worth far more per pick. A conference title is 25
- * because there are only nine to get, and a playoff team 15 because there
+ * because there are only ten to get, and a playoff team 15 because there
  * are only twelve; both are much harder calls than any single regular
- * season game.
+ * season game. (The count scored is always whatever real title games have
+ * actually finished -- see conferenceChampionsPossible -- so it follows
+ * CHAMPIONSHIP_CONFERENCES rather than being pinned to a number here.)
  *
  * All of it is pure: results in, points out, no database.
  */

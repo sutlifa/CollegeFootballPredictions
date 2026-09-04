@@ -480,6 +480,50 @@ shareable.
   the pick columns sat entirely offscreen and you lost the matchup while
   scrolling to them.
 
+## The Pac 12, and the week 13 flex slot
+
+The rebuilt 8-team Pac 12 holds a championship game between its top two, and
+is in `CHAMPIONSHIP_CONFERENCES` (10 conferences now, not 9 — only
+Independent has none). It was missing, and that was not just a missing
+fixture: Pac 12 is one of the `GROUP_OF_SIX_CONFERENCES`, and the fifth
+automatic bid goes to the highest-ranked G6 **champion**, so a conference
+that can never produce a champion can never receive the bid. All eight Pac
+12 teams were structurally excluded from the playoff — Boise State finished
+as the second-highest G6 team on one real board.
+
+Its tiebreaker procedure is deliberately shallow (head-to-head, then overall
+record) because the conference's own published procedure is not something
+this repo can cite. Common-conference-opponents is pointedly absent: the
+eight teams play a full round robin, so every conference opponent is a
+common opponent and that step only restates conference record.
+
+**The week 13 flex slot is an upstream gap, not a bug here.** Every Pac 12
+team has 11 games, weeks 1-12, because the conference leaves the final week
+open and sets those matchups from the standings. Verified against CFBD
+directly: it returns 11 games per Pac 12 team and zero at week >= 13, so
+nothing is being filtered out. The daily `sync-results` cron calls
+`seedSeasonFromCfbd`, which INSERTs on an unseen `cfbd_game_id`, so the flex
+games appear on their own within a day of being published. The conference
+round robin is already complete (28 intra-conference games), so standings
+are meaningful now and the flex games refine them.
+
+`syncWeek16Games` only derives matchups once the whole regular season is
+submitted, so the Pac 12 pairing cannot be set before week 13 resolves.
+
+**`additiveOnly`**: the week 16 page skips a full sync once the week is
+submitted, so a late shift in some conference's top two cannot swap a
+matchup out from under a pick already made. That same guard would have
+hidden the Pac 12 game forever from anyone already finished — being done
+was exactly what stopped the sync. Additive mode creates championships for
+conferences with no row at all and touches nothing else, and the page
+re-derives the submission afterwards since a tenth game makes the week
+incomplete.
+
+Applied to the three users with a finished regular season: one row added
+each, every existing matchup and pick intact, bracket fields untouched.
+Note that picking that new game runs `settleWeek`, which clears a confirmed
+bracket field on ANY week 16 edit by design.
+
 ## Champion banner (/bracket)
 
 Once every bracket slot has a pick, `components/ChampionBanner.tsx`

@@ -219,7 +219,7 @@ export default async function BracketPage({
         <TrophyIcon size={88} />
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
           Select the 12-Team Field
-          <Tooltip text="Nothing is auto-selected except the guaranteed automatic bids. Under the real 2026-27 CFP rules: the ACC, Big 12, Big Ten, and SEC champions each get an automatic bid no matter how they're ranked; the Group of Six (American, CUSA, MAC, Mountain West, Pac 12, Sun Belt) gets exactly one automatic bid, given to whichever G6 team is rated highest -- champion or not. Notre Dame and other independents have no automatic path; they're at-large candidates like anyone else." />
+          <Tooltip text="Nothing is auto-selected except the guaranteed automatic bids. Under the real 2026-27 CFP rules: the ACC, Big 12, Big Ten, and SEC champions each get an automatic bid no matter how they're ranked; the Group of Six (American, CUSA, MAC, Mountain West, Pac 12, Sun Belt) gets exactly one automatic bid, given to the highest-rated G6 conference champion -- a team that lost its own title game cannot take it. Notre Dame and other independents have no automatic path; they're at-large candidates like anyone else." />
         </h1>
         <p className="max-w-xl text-ink-muted">
           Automatic-bid teams are locked in below and can&apos;t be
@@ -245,7 +245,7 @@ export default async function BracketPage({
             {candidates.groupOfSixAutoBid.team}
           </span>{" "}
           ({candidates.groupOfSixAutoBid.conference}) -- the highest-ranked
-          Group of Six team so far, champion or not. This can change as more
+          Group of Six conference champion so far. This can change as more
           weeks are submitted.
         </p>
       )}
