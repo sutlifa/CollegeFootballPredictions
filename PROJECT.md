@@ -39,7 +39,7 @@ testable against real data from a script.
 | `tiebreakerRules.ts` | pure per-conference tiebreak procedures + `explainTiebreak` |
 | `conferenceTiebreakers.ts` | DB wrapper over the above; freezes final standings |
 | `deriveWeek16.ts` / `syncWeek16.ts` | derives conference championship matchups |
-| `bracket.ts` | CFP field candidates + seeding |
+| `bracket.ts` | CFP field candidates + seeding. The fifth auto-bid goes to the highest-ranked Group of Six **champion**, never merely the highest-ranked Group of Six team — it used to take whoever sat highest, handing the bid to teams that had just lost their title game |
 | `seasonScore.ts` | end-of-season points |
 | `leaderboard.ts` | in-season accuracy |
 | `margin.ts` | the four margin buckets |
@@ -112,12 +112,26 @@ Guarantees that must survive any change — verify, don't assume:
    any more. Teams keep the slots their conference already occupies and are
    reordered within them, so it settles who is third in the Big Ten without
    touching where the Big Ten sits relative to the SEC. Sorting is by
-   effective record (regular-season W−L, plus half a win for a title), so an
-   8-4 champion still stays behind an 11-1 rival. **Gated on
+   effective record — W−L **counting the conference championship game as a
+   real game** (champion +1, loser −1, plus a 0.01 tiebreak so a level
+   champion lands above the team it just beat). An 8-4 champion still stays
+   behind an 11-1 rival. **Gated on
    `preseasonWeight === 0`** — applied earlier it recreates the bug the
    prior exists to prevent, hoisting a 1-0 team above every 0-0 conference
    rival in week 0. Before the gate opens, early-season inversions are
    expected and correct.
+1b. **This pass runs LAST and silently overrides the rating.** If a change
+   to the rating produces no movement between two same-conference teams,
+   suspect this before touching a constant. A title-game loss was once free
+   here — the game was excluded from the record and only the champion got
+   anything (+0.5) — so an 11-1 team that lost the championship to a 10-2
+   team stayed a full game clear of it (+10 vs +8.5) and was pinned there.
+   Sweeping the title-loss penalty 5x moved nothing: 5/10 Group of Six
+   losers still outranked their own champion at every value, because the
+   rating never got the last word. Counting the game leaves both at +9 and
+   the tiebreak settles it. Fix: 0/10 G6 and 0/8 power inversions, with 8 of
+   138 teams moving on one board and 6 on another.
+
 2. **No badly-losing team above a much better record** (the 3-9 G6 vs 5-7 P4
    complaint). Structural: sub-.500 games count flat for everyone.
 3. **A bye week is neutral** — never advantage a team for having played

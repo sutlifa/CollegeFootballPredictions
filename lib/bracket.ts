@@ -75,10 +75,29 @@ export function getBracketCandidates(
   }
   const powerChampionTeamIds = new Set(powerChampions.map((c) => c.teamId));
 
-  // `rankings` is already sorted highest-rated first, so the first Group of
-  // Six team encountered is the highest-ranked one -- champion or not.
-  const highestG6 = rankings.find((r) =>
-    (GROUP_OF_SIX_CONFERENCES as readonly string[]).includes(r.conference),
+  // Every Group of Six champion, so the bid below can only go to one of
+  // them. Collected in the same pass shape as the power champions.
+  const groupOfSixChampionIds = new Set<number>();
+  for (const game of games) {
+    if (game.week !== 16 || !game.conference || !isDecided(game)) continue;
+    if (!(GROUP_OF_SIX_CONFERENCES as readonly string[]).includes(game.conference)) {
+      continue;
+    }
+    const team1Won = game.predictedScoreTeam1! > game.predictedScoreTeam2!;
+    groupOfSixChampionIds.add(team1Won ? game.team1Id : game.team2Id);
+  }
+
+  // The fifth automatic bid belongs to the highest-ranked Group of Six
+  // CHAMPION, not merely the highest-ranked Group of Six team. This used to
+  // take whoever sat highest regardless, which handed the bid to teams that
+  // had just lost their title game -- a side that did not win its own
+  // conference cannot be that conference tier's representative, and the
+  // real committee has never done it either. Rankings are already sorted
+  // best-first, so the first match is the right one.
+  const highestG6 = rankings.find(
+    (r) =>
+      (GROUP_OF_SIX_CONFERENCES as readonly string[]).includes(r.conference) &&
+      groupOfSixChampionIds.has(r.teamId),
   );
   const groupOfSixAutoBid = highestG6
     ? { teamId: highestG6.teamId, team: highestG6.team, conference: highestG6.conference }

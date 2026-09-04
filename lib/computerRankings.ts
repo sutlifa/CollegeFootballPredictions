@@ -546,6 +546,22 @@ export function lossToughness(winnerTier: number): number {
  * spelled out on NON_RECORD_HEADROOM_FRACTION.
  */
 const CONF_CHAMP_WIN_FRACTION = 0.5;
+
+/**
+ * Breaks an exact tie on effective record in the champion's favour, and
+ * does nothing else -- far smaller than the smallest real gap (a whole
+ * game is 2), so it can never carry a champion past a team actually ahead
+ * of it.
+ *
+ * Needed because counting the title game leaves the two participants level
+ * by construction (11-1 and 10-2 both become 11-2), and a level pair falls
+ * through to rating order -- which is the order that had the loser on top
+ * to begin with. Head-to-head cannot rescue it either: that pass runs
+ * before this one and refuses to drag a team past the better-record
+ * bystanders sitting in between. Inside a conference, though, a title game
+ * IS the head-to-head, so the tie has an obvious answer.
+ */
+const CONF_CHAMP_TIEBREAK = 0.01;
 const CONF_CHAMP_CLOSE_LOSS_FRACTION = 0.1;
 const CONF_CHAMP_BLOWOUT_LOSS_FRACTION = 0.35;
 export const BLOWOUT_MARGIN = 15;
@@ -696,16 +712,23 @@ export function applyHeadToHeadTiebreak<
  * Teams keep the SLOTS their conference already occupies and are reordered
  * within them, so this settles who is the third-best team in the Big Ten
  * without disturbing where the Big Ten's teams sit relative to the SEC's.
- * Sorting is by effective record -- regular-season wins minus losses, plus
- * half a win for a conference title, which is what a title is worth in the
- * rating too. So a champion passes a rival it is level with or half a win
- * behind, and does not pass one a full win ahead: an 8-4 champion stays
- * behind an 11-1 team, exactly as before. Ties fall through to the order
- * the rating produced, which is where quality of wins does its work.
+ * Sorting is by effective record -- wins minus losses, counting the
+ * conference championship game as the real game it is: the champion takes
+ * a win from it, the loser takes a loss. An 8-4 champion (+5) still stays
+ * behind an 11-1 rival (+9), so a title cannot manufacture a season. Ties
+ * fall through to the order the rating produced, which is where quality of
+ * wins does its work -- and since the title game is in the head-to-head
+ * map, a champion level on record with the team it just beat lands above
+ * it.
  *
- * Conference championship games are excluded from the record itself
- * (regular-season totals only), so beating a team in the title game does
- * not also count as passing them on record.
+ * The title game used to be excluded here, with the champion given half a
+ * win and the loser nothing at all. That quietly made a title defeat free:
+ * an 11-1 team that lost the championship to a 10-2 team still sat a full
+ * game clear of it (+10 against +8.5) and was PINNED there, because this
+ * pass runs last and overrides the rating. No penalty applied to the
+ * rating could move the pair, which is why the loser never flopped with a
+ * closely rated champion. Counting the game leaves them level at +9 and
+ * lets head-to-head decide.
  */
 export function enforceConferenceRecordOrder<T extends { team: Team }>(
   rows: T[],
@@ -755,6 +778,8 @@ export function computeComputerRankings(
   const confChampAdjustments = new Map<number, number>();
   /** Teams that won a conference title, for the record-order rule. */
   const conferenceChampions = new Set<number>();
+  /** Teams that lost one, so that game counts against them in that rule. */
+  const conferenceChampionshipLosers = new Set<number>();
   const wins = new Map<number, number>();
   const losses = new Map<number, number>();
   /** FBS teams each team beat, for the end-of-season quality-win bonus. */
@@ -805,6 +830,7 @@ export function computeComputerRankings(
 
     if (game.isConferenceChampionship) {
       conferenceChampions.add(winner.id);
+      conferenceChampionshipLosers.add(loser.id);
       confChampAdjustments.set(
         winner.id,
         (confChampAdjustments.get(winner.id) ?? 0) +
@@ -1003,7 +1029,8 @@ export function computeComputerRankings(
     (row) =>
       (regularSeasonWins.get(row.team.id) ?? 0) -
       (regularSeasonLosses.get(row.team.id) ?? 0) +
-      (conferenceChampions.has(row.team.id) ? CONF_CHAMP_WIN_FRACTION : 0),
+      (conferenceChampions.has(row.team.id) ? 1 + CONF_CHAMP_TIEBREAK : 0) -
+      (conferenceChampionshipLosers.has(row.team.id) ? 1 : 0),
   );
 
   return sorted.map((row, i) => ({
