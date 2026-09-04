@@ -529,61 +529,29 @@ export function lossToughness(winnerTier: number): number {
 }
 
 /**
- * Conference Championship week, expressed as fractions of one record step
- * in the champion's own conference (see recordStep) rather than as flat
- * point values.
+ * What winning a conference is worth BEYOND winning the game, as a
+ * fraction of one record step in the champion's own conference (see
+ * recordStep) rather than a flat point value. A flat bonus was worth
+ * almost nothing in the Group of Six, where a whole win is only 16.5
+ * points, so a MAC champion could finish below a same-record team that
+ * never reached the title game.
  *
- * A flat +8 was worth almost nothing in the Group of Six, where a whole
- * win is only 16.5 points and the non-record budget is smaller still, so a
- * MAC champion could finish BELOW a team with the same record that hadn't
- * even reached the title game. Scaling by conference keeps the title worth
- * the same *relative* amount everywhere.
- *
- * The win fraction is deliberately larger than the entire non-record
- * headroom below, so a champion always outranks a same-record team that
- * didn't win the title, and deliberately small enough that champion plus
- * best-case quality still can't bridge one extra win. See the invariants
- * spelled out on NON_RECORD_HEADROOM_FRACTION.
+ * It is small on purpose. The title game is now an ordinary game in the
+ * rating, so the champion has already been paid for it once -- in record,
+ * in quality credit against a good opponent, and in upset credit if it was
+ * one. This is only the extra worth of the trophy itself, and is
+ * deliberately far too small to lift a champion over a team that outplayed
+ * it across the season. A champion passes the team it beat by out-rating
+ * it, not by decree.
  */
-const CONF_CHAMP_WIN_FRACTION = 0.5;
+const CONF_CHAMP_WIN_FRACTION = 0.25;
 
-/**
- * Breaks an exact tie on effective record in the champion's favour, and
- * does nothing else -- far smaller than the smallest real gap (a whole
- * game is 2), so it can never carry a champion past a team actually ahead
- * of it.
- *
- * Needed because counting the title game leaves the two participants level
- * by construction (11-1 and 10-2 both become 11-2), and a level pair falls
- * through to rating order -- which is the order that had the loser on top
- * to begin with. Head-to-head cannot rescue it either: that pass runs
- * before this one and refuses to drag a team past the better-record
- * bystanders sitting in between. Inside a conference, though, a title game
- * IS the head-to-head, so the tie has an obvious answer.
+/*
+ * There is no title-LOSS constant any more, deliberately. The loss is now
+ * priced by the ordinary record and quality terms like any other, which is
+ * both more honest and far larger than the bespoke fraction ever was: it
+ * used to be worth about a thirteenth of a normal defeat.
  */
-const CONF_CHAMP_TIEBREAK = 0.01;
-/**
- * A title game is the only loss the rating does not price as a loss: the
- * game is kept out of the record component and skips the Elo update, so
- * these fractions are the ENTIRE cost of losing it. At 0.1 that came to
- * 5.5 points for an SEC team against roughly 70 for a regular-season
- * defeat -- about a thirteenth of a normal loss, which is not a rounding
- * choice but a missing penalty.
- *
- * Sized so a blowout title loss costs near a full record step (what any
- * other loss costs) and a close one about half. It stays under one step by
- * construction, so losing a championship is never worse than losing an
- * ordinary game -- you lost to the best team in your conference, on a
- * neutral field, in a game the teams below you never had to play.
- *
- * Expect this to move scores far more than ranks. Near the top the tanh
- * squash is saturated -- 34 rating points separate the #1 and #3 teams but
- * render as 0.29 on the 0-100 scale -- so the visible drop stays small
- * however this is set. Raising it is not the lever for rank movement; see
- * the note on enforceConferenceRecordOrder for what actually orders teams.
- */
-const CONF_CHAMP_CLOSE_LOSS_FRACTION = 0.45;
-const CONF_CHAMP_BLOWOUT_LOSS_FRACTION = 0.9;
 export const BLOWOUT_MARGIN = 15;
 
 /**
@@ -796,10 +764,8 @@ export function computeComputerRankings(
   const regularSeasonWins = new Map<number, number>();
   const regularSeasonLosses = new Map<number, number>();
   const confChampAdjustments = new Map<number, number>();
-  /** Teams that won a conference title, for the record-order rule. */
+  /** Teams that won a conference title, for the title bonus. */
   const conferenceChampions = new Set<number>();
-  /** Teams that lost one, so that game counts against them in that rule. */
-  const conferenceChampionshipLosers = new Set<number>();
   const wins = new Map<number, number>();
   const losses = new Map<number, number>();
   /** FBS teams each team beat, for the end-of-season quality-win bonus. */
@@ -848,23 +814,19 @@ export function computeComputerRankings(
       game.predictedScoreTeam1 - game.predictedScoreTeam2,
     );
 
+    // A conference championship is scored as the game it is -- no early
+    // exit, no bespoke point values. It runs the same record and quality
+    // path as every other game, so who you beat, by how much, on whose
+    // field, and how far above expectation all count exactly as they do in
+    // September. Winning one still earns the title bonus below; nothing
+    // else about it is special.
     if (game.isConferenceChampionship) {
       conferenceChampions.add(winner.id);
-      conferenceChampionshipLosers.add(loser.id);
       confChampAdjustments.set(
         winner.id,
         (confChampAdjustments.get(winner.id) ?? 0) +
           CONF_CHAMP_WIN_FRACTION * recordStep(winner),
       );
-      confChampAdjustments.set(
-        loser.id,
-        (confChampAdjustments.get(loser.id) ?? 0) -
-          (margin >= BLOWOUT_MARGIN
-            ? CONF_CHAMP_BLOWOUT_LOSS_FRACTION
-            : CONF_CHAMP_CLOSE_LOSS_FRACTION) *
-            recordStep(loser),
-      );
-      continue;
     }
 
     regularSeasonWins.set(winner.id, (regularSeasonWins.get(winner.id) ?? 0) + 1);
@@ -1039,19 +1001,20 @@ export function computeComputerRankings(
       return a.team.name.localeCompare(b.team.name);
     });
 
-  // Only once the preseason prior is spent. Applied earlier it recreates
-  // the exact bug the prior exists to prevent: in week 0 a 1-0 team has a
-  // better record than every 0-0 rival, so enforcement hoists it above the
-  // entire conference on one result.
-  const ranked = applyHeadToHeadTiebreak(byScore, headToHead);
-  const sorted = preseasonWeight > 0 ? ranked : enforceConferenceRecordOrder(
-    ranked,
-    (row) =>
-      (regularSeasonWins.get(row.team.id) ?? 0) -
-      (regularSeasonLosses.get(row.team.id) ?? 0) +
-      (conferenceChampions.has(row.team.id) ? 1 + CONF_CHAMP_TIEBREAK : 0) -
-      (conferenceChampionshipLosers.has(row.team.id) ? 1 : 0),
-  );
+  // The board is the rating, in order. Nothing reorders it afterwards.
+  //
+  // enforceConferenceRecordOrder used to run here and rewrite
+  // same-conference order by record, which meant the number shown next to a
+  // team no longer explained its position: Georgia sat 3rd on 97.77 above a
+  // 2nd-placed Indiana on 96.58, and 15 such pairs existed on one board, 27
+  // on another. It also decided championship order by fiat -- a champion was
+  // given a record credit and an epsilon so it always cleared the team it
+  // beat, whatever either had actually earned. A champion now passes its
+  // opponent only by out-rating it, which after a genuine upset it usually
+  // does, because the title game finally runs through the quality term.
+  //
+  // Still exported: lib/eloRankings.ts (the alternate model, off) uses it.
+  const sorted = applyHeadToHeadTiebreak(byScore, headToHead);
 
   return sorted.map((row, i) => ({
     rank: i + 1,

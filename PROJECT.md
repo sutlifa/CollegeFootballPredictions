@@ -106,31 +106,41 @@ rating = recordComponent + squashed(quality) + confChampAdjustment
 
 Guarantees that must survive any change — verify, don't assume:
 
-1. **Within a conference, a strictly better record always ranks higher —
-   at season's end only.** Enforced directly by
-   `enforceConferenceRecordOrder`, a post-sort pass, NOT by the arithmetic
-   any more. Teams keep the slots their conference already occupies and are
-   reordered within them, so it settles who is third in the Big Ten without
-   touching where the Big Ten sits relative to the SEC. Sorting is by
-   effective record — W−L **counting the conference championship game as a
-   real game** (champion +1, loser −1, plus a 0.01 tiebreak so a level
-   champion lands above the team it just beat). An 8-4 champion still stays
-   behind an 11-1 rival. **Gated on
-   `preseasonWeight === 0`** — applied earlier it recreates the bug the
-   prior exists to prevent, hoisting a 1-0 team above every 0-0 conference
-   rival in week 0. Before the gate opens, early-season inversions are
-   expected and correct.
-1b. **This pass runs LAST and silently overrides the rating.** If a change
-   to the rating produces no movement between two same-conference teams,
-   suspect this before touching a constant. A title-game loss was once free
-   here — the game was excluded from the record and only the champion got
-   anything (+0.5) — so an 11-1 team that lost the championship to a 10-2
-   team stayed a full game clear of it (+10 vs +8.5) and was pinned there.
-   Sweeping the title-loss penalty 5x moved nothing: 5/10 Group of Six
-   losers still outranked their own champion at every value, because the
-   rating never got the last word. Counting the game leaves both at +9 and
-   the tiebreak settles it. Fix: 0/10 G6 and 0/8 power inversions, with 8 of
-   138 teams moving on one board and 6 on another.
+1. **The board is the rating, in order. Nothing reorders it afterwards.**
+   The rank a team holds is explained by the number printed next to it, at
+   every week of the season. Verified: 0 rank/score disagreements on both
+   real boards at weeks 2, 5, 8, 11, 13, 15 and 16.
+
+   `enforceConferenceRecordOrder` used to run last and rewrite
+   same-conference order by record. It is no longer called by
+   `computeComputerRankings` (still exported — `lib/eloRankings.ts`, the
+   alternate model, uses it). It was removed because it broke the line
+   above: Georgia sat 3rd on 97.77 above a 2nd-placed Indiana on 96.58, with
+   15 such pairs on one board and 27 on the other. It had also become the
+   thing that decided championships by fiat.
+
+   **Within a conference, a better record still finishes higher — the
+   rating does it unaided.** Measured after removal: 0 same-conference
+   record inversions from week 11 onward on both boards. Early season is
+   full of them (75 and 84 at week 2, e.g. a 1-1 Ohio State above a 3-0
+   USC) and that is correct — the preseason prior is still alive and a
+   two-game record proves little. They fall to zero on their own as the
+   prior fades, which is exactly what the old `preseasonWeight === 0` gate
+   was hand-coding.
+
+1b. **A conference championship is an ordinary game.** It runs the same
+   record and quality path as a week-3 game: who you beat, by how much, on
+   whose field, and how far above expectation. There is no title-loss
+   constant — the loss is priced like any other loss, which is both more
+   honest and far larger than the bespoke fraction ever was (that was worth
+   about a thirteenth of a normal defeat). Winning still earns a small
+   `CONF_CHAMP_WIN_FRACTION` bonus for the trophy itself.
+
+   **A champion passes the team it beat by out-rating it, never by
+   decree.** Checked at bonus 0, 0.25 and 0.5: at every value, 0 of 18
+   title losers finish above their champion — the ordinary record and
+   quality terms already do it. Two earlier attempts to force this (a
+   record credit, then a 0.01 epsilon) are gone.
 
 2. **No badly-losing team above a much better record** (the 3-9 G6 vs 5-7 P4
    complaint). Structural: sub-.500 games count flat for everyone.
@@ -211,26 +221,19 @@ Guarantees that must survive any change — verify, don't assume:
 
   One number per conference drives everything conference-dependent: record
   value above .500 (`55 × tier`), record step (`55 × min(tier, 1)`),
-  headroom (`2 × step`), the conference-title bonus (`0.5 × step`) and
-  title-loss penalty (`0.45 × step` close, `0.9 × step` blowout), the
+  headroom (`2 × step`), the conference-title bonus (`0.25 × step`), the
   quality credit for beating that conference (`× tier`), and the penalty
   for losing to it (`1.55 − 0.55 × tier`, keyed to the OPPONENT's
   conference, never your own).
 
-  **The title-loss fractions are the entire cost of losing a championship
-  game.** That game is excluded from the record component and skips the Elo
-  update, so nothing else prices it. At the original 0.1 a close title loss
-  cost an SEC team 5.5 rating points against roughly 70 for a regular-season
-  defeat — a thirteenth of a normal loss. Now a blowout costs near a full
-  record step and a close one about half, still capped under one step so a
-  title loss is never worse than an ordinary one.
-
-  **Do not expect these to move ranks.** Sweeping them 6x changed the
-  average rank drop of a title loser from 3.1 to 4.1, because near the top
-  the tanh squash is saturated (the #1 and #3 teams differ by 34 rating
-  points and 0.29 display points) and because
-  `enforceConferenceRecordOrder` sets same-conference order anyway. They
-  move the score, which is what a user actually watches.
+  **`CONF_CHAMP_WIN_FRACTION` is only the trophy.** The championship game
+  is scored as an ordinary game, so the champion is already paid for it in
+  record and quality; this is the extra worth of winning the conference. It
+  barely matters — setting it to 0 leaves every champion above its own
+  title-game loser anyway. At 0.25 the single visible effect on the real
+  boards is a 13-0 Big 12 champion edging a 12-1 team that lost its title
+  game, which is what a trophy should be worth. At 0.5 it starts moving
+  teams that have no business moving.
 
   Everything below the SEC/Big Ten pair was moved 15% of its remaining
   distance to 1.28 at the user's request, then trimmed a flat 0.006.
