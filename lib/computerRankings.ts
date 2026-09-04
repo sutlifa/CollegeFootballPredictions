@@ -562,8 +562,28 @@ const CONF_CHAMP_WIN_FRACTION = 0.5;
  * IS the head-to-head, so the tie has an obvious answer.
  */
 const CONF_CHAMP_TIEBREAK = 0.01;
-const CONF_CHAMP_CLOSE_LOSS_FRACTION = 0.1;
-const CONF_CHAMP_BLOWOUT_LOSS_FRACTION = 0.35;
+/**
+ * A title game is the only loss the rating does not price as a loss: the
+ * game is kept out of the record component and skips the Elo update, so
+ * these fractions are the ENTIRE cost of losing it. At 0.1 that came to
+ * 5.5 points for an SEC team against roughly 70 for a regular-season
+ * defeat -- about a thirteenth of a normal loss, which is not a rounding
+ * choice but a missing penalty.
+ *
+ * Sized so a blowout title loss costs near a full record step (what any
+ * other loss costs) and a close one about half. It stays under one step by
+ * construction, so losing a championship is never worse than losing an
+ * ordinary game -- you lost to the best team in your conference, on a
+ * neutral field, in a game the teams below you never had to play.
+ *
+ * Expect this to move scores far more than ranks. Near the top the tanh
+ * squash is saturated -- 34 rating points separate the #1 and #3 teams but
+ * render as 0.29 on the 0-100 scale -- so the visible drop stays small
+ * however this is set. Raising it is not the lever for rank movement; see
+ * the note on enforceConferenceRecordOrder for what actually orders teams.
+ */
+const CONF_CHAMP_CLOSE_LOSS_FRACTION = 0.45;
+const CONF_CHAMP_BLOWOUT_LOSS_FRACTION = 0.9;
 export const BLOWOUT_MARGIN = 15;
 
 /**

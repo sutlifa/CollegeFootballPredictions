@@ -211,10 +211,26 @@ Guarantees that must survive any change — verify, don't assume:
 
   One number per conference drives everything conference-dependent: record
   value above .500 (`55 × tier`), record step (`55 × min(tier, 1)`),
-  headroom (`2 × step`), the conference-title bonus (`0.5 × step`), the
+  headroom (`2 × step`), the conference-title bonus (`0.5 × step`) and
+  title-loss penalty (`0.45 × step` close, `0.9 × step` blowout), the
   quality credit for beating that conference (`× tier`), and the penalty
   for losing to it (`1.55 − 0.55 × tier`, keyed to the OPPONENT's
   conference, never your own).
+
+  **The title-loss fractions are the entire cost of losing a championship
+  game.** That game is excluded from the record component and skips the Elo
+  update, so nothing else prices it. At the original 0.1 a close title loss
+  cost an SEC team 5.5 rating points against roughly 70 for a regular-season
+  defeat — a thirteenth of a normal loss. Now a blowout costs near a full
+  record step and a close one about half, still capped under one step so a
+  title loss is never worse than an ordinary one.
+
+  **Do not expect these to move ranks.** Sweeping them 6x changed the
+  average rank drop of a title loser from 3.1 to 4.1, because near the top
+  the tanh squash is saturated (the #1 and #3 teams differ by 34 rating
+  points and 0.29 display points) and because
+  `enforceConferenceRecordOrder` sets same-conference order anyway. They
+  move the score, which is what a user actually watches.
 
   Everything below the SEC/Big Ten pair was moved 15% of its remaining
   distance to 1.28 at the user's request, then trimmed a flat 0.006.
