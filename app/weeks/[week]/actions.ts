@@ -136,6 +136,13 @@ export async function clearWeekAction(formData: FormData) {
  * Fill the games this user hasn't picked with the favourite. Adds only --
  * an existing pick is never overwritten -- and refuses a locked week in
  * fillWeekDefaults rather than here.
+ *
+ * "settled" fills only the games the rank gap calls one-sided, which is the
+ * same pass that runs automatically the first time a week is opened. It
+ * needs to be reachable on demand too: once a week has been cleared that
+ * automatic pass is spent, and without this the only remaining offer was
+ * to fill every game including the close ones -- which is precisely the
+ * thing the settled/close split exists to avoid doing to someone.
  */
 export async function fillWeekDefaultsAction(formData: FormData) {
   const userId = await requireUserId();
@@ -143,6 +150,7 @@ export async function fillWeekDefaultsAction(formData: FormData) {
   if (!Number.isInteger(week)) {
     throw new Error("Invalid week");
   }
-  await fillWeekDefaults(userId, week, { settledOnly: false });
+  const settledOnly = formData.get("settledOnly") === "1";
+  await fillWeekDefaults(userId, week, { settledOnly });
   await settleWeek(userId, week);
 }

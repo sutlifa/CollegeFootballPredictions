@@ -392,7 +392,11 @@ button was blamed; the page load was the cause.
 
 Clearing a week deliberately does NOT release the claim -- that is what
 makes a clear stick. "Fill with favorites" is how someone asks for them
-back, and still fills everything remaining.
+back, and offers BOTH passes: "Just the N settled" (the same settled-only
+pass that runs automatically) and "All N". The settled-only option exists
+precisely because the automatic pass is spent after a clear; without it the
+only route back was to have every close call decided too, which is the thing
+the settled/close split exists to prevent.
 
 Regression test to re-run by hand if this area is touched (creates a
 throwaway user, deletes it in a `finally`): first open fills, reload fills
