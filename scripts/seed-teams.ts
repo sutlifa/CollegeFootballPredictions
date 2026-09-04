@@ -34,13 +34,16 @@ async function main() {
   for (const team of fbsTeams) {
     currentFbsIds.push(team.id);
     await sql`
-      INSERT INTO teams (cfbd_team_id, name, conference, preseason_rank, logo_url, is_fbs)
+      INSERT INTO teams (cfbd_team_id, name, conference, preseason_rank, logo_url, mascot, color, alt_color, is_fbs)
       VALUES (
         ${team.id},
         ${team.school},
         ${normalizeCfbdConference(team.conference)},
         ${preseasonRankByCfbdId.get(team.id) ?? null},
         ${pickLogoUrl(team.logos)},
+        ${team.mascot ?? null},
+        ${team.color ?? null},
+        ${team.alternateColor ?? null},
         TRUE
       )
       ON CONFLICT (cfbd_team_id) DO UPDATE SET
@@ -48,6 +51,9 @@ async function main() {
         conference = EXCLUDED.conference,
         preseason_rank = EXCLUDED.preseason_rank,
         logo_url = EXCLUDED.logo_url,
+        mascot = EXCLUDED.mascot,
+        color = EXCLUDED.color,
+        alt_color = EXCLUDED.alt_color,
         is_fbs = TRUE
     `;
     upserted++;

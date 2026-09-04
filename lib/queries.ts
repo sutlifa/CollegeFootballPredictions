@@ -22,6 +22,9 @@ type TeamRow = {
   conference: string;
   preseason_rank: number | null;
   logo_url: string | null;
+  mascot: string | null;
+  color: string | null;
+  alt_color: string | null;
   is_fbs: boolean;
 };
 
@@ -33,6 +36,9 @@ function mapTeam(row: TeamRow): Team {
     conference: row.conference,
     preseasonRank: row.preseason_rank,
     logoUrl: row.logo_url,
+    mascot: row.mascot,
+    color: row.color,
+    altColor: row.alt_color,
     isFbs: row.is_fbs,
   };
 }

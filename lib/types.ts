@@ -5,6 +5,10 @@ export type Team = {
   conference: string;
   preseasonRank: number | null;
   logoUrl: string | null;
+  /** All three are null for the non-FBS opponents created from a schedule. */
+  mascot: string | null;
+  color: string | null;
+  altColor: string | null;
   isFbs: boolean;
 };
 

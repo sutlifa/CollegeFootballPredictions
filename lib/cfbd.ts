@@ -61,9 +61,12 @@ export async function fetchSeasonGames(year: number): Promise<CfbdGame[]> {
 export type CfbdTeam = {
   id: number;
   school: string;
+  mascot: string | null;
   alternateNames: string[];
   conference: string | null;
   classification: string | null;
+  color: string | null;
+  alternateColor: string | null;
   logos: string[] | null;
 };
 

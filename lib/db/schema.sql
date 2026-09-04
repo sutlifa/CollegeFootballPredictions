@@ -200,3 +200,13 @@ CREATE TABLE IF NOT EXISTS email_sends (
 -- tell them apart -- which is what Clear week needs in order to leave the
 -- formalities behind and only remove the picks you actually made.
 ALTER TABLE predictions ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Mascot and team colours, for the champion banner on /bracket. CFBD
+-- returns all three on /teams/fbs; nothing before this needed them, so
+-- they are added rather than folded into the CREATE above (which only
+-- runs for a fresh database). Nullable on purpose: the ~100 non-FBS
+-- opponents that get auto-created from a schedule have no CFBD record to
+-- fill them from, and anything reading these must cope with null anyway.
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS mascot TEXT;
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS color TEXT;
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS alt_color TEXT;

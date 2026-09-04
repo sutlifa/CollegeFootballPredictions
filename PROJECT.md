@@ -453,6 +453,37 @@ shareable.
   the pick columns sat entirely offscreen and you lost the matchup while
   scrolling to them.
 
+## Champion banner (/bracket)
+
+Once every bracket slot has a pick, `components/ChampionBanner.tsx`
+replaces the page heading with the school, its mascot and its mark at full
+size, in that school's own colours. It doubles as the "you are finished"
+state — there is no other one.
+
+`teams.mascot`, `teams.color` and `teams.alt_color` come from CFBD
+(`scripts/backfill-team-details.mjs` fills them for an existing database;
+`seed:teams` keeps them current). All 136 FBS teams have all three. They
+are nullable because the ~100 non-FBS opponents auto-created from a
+schedule have no CFBD record — a champion always has them, but the
+component still falls back to gold.
+
+Two things that are easy to get wrong here, both verified in a browser
+against real teams rather than reasoned about:
+
+- **The logo plate must stay dark.** `pickLogoUrl` stores the
+  "logos-dark" variant, which is the artwork drawn FOR dark backgrounds
+  (Ohio State's sets the wordmark in white). Side by side against a cream
+  plate, every mark still read on dark while the white wordmarks all but
+  vanished on cream.
+- **Team colours cannot be trusted as a text background.** Primaries run
+  from \#231f20 to \#ffc72c. The banner computes WCAG luminance and flips
+  the ink to near-black above 0.45, so Southern Miss and Arizona State are
+  readable rather than white-on-gold.
+
+The logo loads eagerly (`TeamLogo eager`). It is the largest element on
+the page, and the default lazy behaviour left it blank on arrival — which
+looked exactly like a broken image and cost a wrong diagnosis once already.
+
 ## Logo and favicon
 
 - `app/icon.svg` — the tab icon. Next generates the `<link rel="icon">` from

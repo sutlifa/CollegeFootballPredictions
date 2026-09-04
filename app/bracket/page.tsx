@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { BracketFieldSelector } from "@/components/BracketFieldSelector";
+import { ChampionBanner } from "@/components/ChampionBanner";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
 import { TrophyIcon } from "@/components/TrophyIcon";
@@ -36,6 +37,9 @@ const ROUND_LABEL: Record<BracketRound, string> = {
   semifinal: "Semifinal",
   championship: "Championship",
 };
+
+/** Display only -- the season the bracket belongs to, for the champion banner. */
+const BRACKET_SEASON = 2026;
 
 export default async function BracketPage({
   searchParams,
@@ -76,13 +80,21 @@ export default async function BracketPage({
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <TrophyIcon size={88} />
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
-            {champion ? `${champion.team} -- National Champion` : "Playoff Bracket"}
-            <Tooltip text="Pick the winner of every game, round by round -- Round 1, Quarterfinal, Semifinal, then the Championship. Matchups follow the real fixed CFP bracket (no reseeding): 1 vs winner of 8/9, 2 vs winner of 7/10, 3 vs winner of 6/11, 4 vs winner of 5/12, then the semifinal and championship follow from there. Changing an earlier round's pick clears anything you picked after it, since those matchups depended on it." />
-          </h1>
-        </div>
+        {champion ? (
+          <ChampionBanner
+            champion={champion}
+            team={teamById.get(champion.teamId)}
+            season={BRACKET_SEASON}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-2 text-center">
+            <TrophyIcon size={88} />
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+              Playoff Bracket
+              <Tooltip text="Pick the winner of every game, round by round -- Round 1, Quarterfinal, Semifinal, then the Championship. Matchups follow the real fixed CFP bracket (no reseeding): 1 vs winner of 8/9, 2 vs winner of 7/10, 3 vs winner of 6/11, 4 vs winner of 5/12; the semifinals then pair the 1 and 4 seeds' winners against each other and the 2 and 3 seeds' winners against each other. Changing an earlier round's pick clears anything you picked after it, since those matchups depended on it." />
+            </h1>
+          </div>
+        )}
         <div className="flex items-center justify-end">
           <form action={resetBracketFieldAction}>
             <button
