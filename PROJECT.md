@@ -39,7 +39,7 @@ testable against real data from a script.
 | `tiebreakerRules.ts` | pure per-conference tiebreak procedures + `explainTiebreak` |
 | `conferenceTiebreakers.ts` | DB wrapper over the above; freezes final standings |
 | `deriveWeek16.ts` / `syncWeek16.ts` | derives conference championship matchups |
-| `bracket.ts` | CFP field candidates + seeding. The fifth auto-bid goes to the highest-ranked Group of Six **champion**, never merely the highest-ranked Group of Six team — it used to take whoever sat highest, handing the bid to teams that had just lost their title game |
+| `bracket.ts` | CFP field candidates + seeding. Semifinals pair 1/4 and 2/3, never 1/2 and 3/4 — the latter puts the top two seeds on the same side of the draw. A stored pick is honoured only if that team is actually in that matchup, so reseeding or a shape change drops it instead of rendering a team that lost earlier. The fifth auto-bid goes to the highest-ranked Group of Six **champion**, never merely the highest-ranked Group of Six team — it used to take whoever sat highest, handing the bid to teams that had just lost their title game |
 | `seasonScore.ts` | end-of-season points |
 | `leaderboard.ts` | in-season accuracy |
 | `margin.ts` | the four margin buckets |

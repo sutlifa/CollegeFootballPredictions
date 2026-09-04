@@ -155,8 +155,16 @@ export function seedBracketField(
  *   Round 1:        5v12, 6v11, 7v10, 8v9 (seeds 1-4 bye straight to QF)
  *   Quarterfinal:   1 vs winner(8v9), 2 vs winner(7v10),
  *                   3 vs winner(6v11), 4 vs winner(5v12)
- *   Semifinal:      winner(QF1) vs winner(QF2), winner(QF3) vs winner(QF4)
+ *   Semifinal:      winner(QF1) vs winner(QF4), winner(QF2) vs winner(QF3)
  *   Championship:   winner(SF1) vs winner(SF2)
+ *
+ * The semifinal pairing is 1/4 and 2/3, NOT 1/2 and 3/4. Getting that
+ * backwards puts the top two seeds on the same side of the draw, so they
+ * meet in a semifinal and the 1 seed's reward for finishing first is the
+ * hardest possible path. Confirmed against the 2024-25 bracket: the Cotton
+ * Bowl was Ohio State (out of the 1 seed's Rose Bowl) against Texas (out of
+ * the 4 seed's Peach Bowl), and the Orange Bowl took the 2 and 3 seeds'
+ * quarterfinals.
  */
 export type BracketSlot =
   | "r1_5v12"
@@ -188,14 +196,14 @@ export const SLOTS_BY_ROUND: Record<BracketRound, BracketSlot[]> = {
 
 /** Which slot's stored pick becomes invalid (and must be cleared) if this slot's pick changes. */
 export const DOWNSTREAM_SLOTS: Record<BracketSlot, BracketSlot[]> = {
-  r1_5v12: ["qf_4", "sf_2", "championship"],
+  r1_5v12: ["qf_4", "sf_1", "championship"],
   r1_6v11: ["qf_3", "sf_2", "championship"],
-  r1_7v10: ["qf_2", "sf_1", "championship"],
+  r1_7v10: ["qf_2", "sf_2", "championship"],
   r1_8v9: ["qf_1", "sf_1", "championship"],
   qf_1: ["sf_1", "championship"],
-  qf_2: ["sf_1", "championship"],
+  qf_2: ["sf_2", "championship"],
   qf_3: ["sf_2", "championship"],
-  qf_4: ["sf_2", "championship"],
+  qf_4: ["sf_1", "championship"],
   sf_1: ["championship"],
   sf_2: ["championship"],
   championship: [],
@@ -223,16 +231,45 @@ export function buildBracketState(
 ): BracketSlotGame[] {
   const bySeed = new Map(seeds.map((s) => [s.seed, s]));
   const byTeamId = new Map(seeds.map((s) => [s.teamId, s]));
-  const winnerOf = (slot: BracketSlot): Seed | null => {
-    const teamId = picks[slot];
-    return teamId !== undefined ? (byTeamId.get(teamId) ?? null) : null;
-  };
-  const pickedFor = (slot: BracketSlot): Seed | null => {
-    const teamId = picks[slot];
-    return teamId !== undefined ? (byTeamId.get(teamId) ?? null) : null;
-  };
 
   const games: BracketSlotGame[] = [];
+  const bySlot = new Map<BracketSlot, BracketSlotGame>();
+
+  /**
+   * A stored pick only counts if that team is actually one of the two
+   * playing in this slot. It used to be honoured on team id alone, which
+   * let a pick outlive the matchup it belonged to: change a quarterfinal
+   * and the semifinal pick riding on it still rendered, showing a team in
+   * the final that had lost in the quarters. saveBracketRoundPicks clears
+   * downstream slots to prevent that, but only for picks saved through it
+   * -- rows already in the table, or any later change to the bracket's
+   * shape, went unchecked. Validating here makes the tree authoritative and
+   * a pick advisory: anything that no longer fits is ignored and the slot
+   * simply reads as unpicked, ready to be made again.
+   */
+  const add = (
+    slot: BracketSlot,
+    round: BracketRound,
+    team1: Seed | null,
+    team2: Seed | null,
+  ) => {
+    const picked = picks[slot];
+    const isInThisGame =
+      picked !== undefined &&
+      (team1?.teamId === picked || team2?.teamId === picked);
+    const game: BracketSlotGame = {
+      slot,
+      round,
+      team1,
+      team2,
+      pickedWinner: isInThisGame ? (byTeamId.get(picked) ?? null) : null,
+    };
+    games.push(game);
+    bySlot.set(slot, game);
+  };
+
+  const winnerOf = (slot: BracketSlot): Seed | null =>
+    bySlot.get(slot)?.pickedWinner ?? null;
 
   const round1: [BracketSlot, number, number][] = [
     ["r1_5v12", 5, 12],
@@ -241,13 +278,7 @@ export function buildBracketState(
     ["r1_8v9", 8, 9],
   ];
   for (const [slot, seedA, seedB] of round1) {
-    games.push({
-      slot,
-      round: "round1",
-      team1: bySeed.get(seedA) ?? null,
-      team2: bySeed.get(seedB) ?? null,
-      pickedWinner: pickedFor(slot),
-    });
+    add(slot, "round1", bySeed.get(seedA) ?? null, bySeed.get(seedB) ?? null);
   }
 
   const quarterfinal: [BracketSlot, number, BracketSlot][] = [
@@ -257,37 +288,14 @@ export function buildBracketState(
     ["qf_4", 4, "r1_5v12"],
   ];
   for (const [slot, byeSeed, feederSlot] of quarterfinal) {
-    games.push({
-      slot,
-      round: "quarterfinal",
-      team1: bySeed.get(byeSeed) ?? null,
-      team2: winnerOf(feederSlot),
-      pickedWinner: pickedFor(slot),
-    });
+    add(slot, "quarterfinal", bySeed.get(byeSeed) ?? null, winnerOf(feederSlot));
   }
 
-  games.push({
-    slot: "sf_1",
-    round: "semifinal",
-    team1: winnerOf("qf_1"),
-    team2: winnerOf("qf_2"),
-    pickedWinner: pickedFor("sf_1"),
-  });
-  games.push({
-    slot: "sf_2",
-    round: "semifinal",
-    team1: winnerOf("qf_3"),
-    team2: winnerOf("qf_4"),
-    pickedWinner: pickedFor("sf_2"),
-  });
+  // 1/4 and 2/3 -- see the bracket tree comment above.
+  add("sf_1", "semifinal", winnerOf("qf_1"), winnerOf("qf_4"));
+  add("sf_2", "semifinal", winnerOf("qf_2"), winnerOf("qf_3"));
 
-  games.push({
-    slot: "championship",
-    round: "championship",
-    team1: winnerOf("sf_1"),
-    team2: winnerOf("sf_2"),
-    pickedWinner: pickedFor("championship"),
-  });
+  add("championship", "championship", winnerOf("sf_1"), winnerOf("sf_2"));
 
   return games;
 }
