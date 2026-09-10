@@ -814,13 +814,27 @@ export async function saveBracketRoundPicks(
   const { DOWNSTREAM_SLOTS } = await import("./bracket");
   await sql.begin(async (tx) => {
     for (const { slot, teamId } of picks) {
+      // Only a pick that actually CHANGED invalidates what was built on it.
+      //
+      // This used to clear downstream for every slot in the round on every
+      // save, whether or not the winner moved -- so re-submitting a round
+      // with the same picks still destroyed the entire rest of the bracket.
+      // Editing one quarterfinal wiped both semifinals and the
+      // championship, including the three games the edit had no bearing on.
+      const [existing] = await tx<{ team_id: number }[]>`
+        SELECT team_id FROM bracket_picks
+        WHERE season = ${season} AND user_id = ${userId} AND slot = ${slot}
+      `;
+      const changed = !existing || existing.team_id !== teamId;
+
       await tx`
         INSERT INTO bracket_picks (season, user_id, slot, team_id, updated_at)
         VALUES (${season}, ${userId}, ${slot}, ${teamId}, now())
         ON CONFLICT (season, user_id, slot) DO UPDATE SET team_id = EXCLUDED.team_id, updated_at = now()
       `;
+
       const downstream = DOWNSTREAM_SLOTS[slot];
-      if (downstream.length > 0) {
+      if (changed && downstream.length > 0) {
         await tx`
           DELETE FROM bracket_picks
           WHERE season = ${season} AND user_id = ${userId} AND slot = ANY(${downstream})

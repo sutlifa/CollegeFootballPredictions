@@ -553,6 +553,39 @@ each, every existing matchup and pick intact, bracket fields untouched.
 Note that picking that new game runs `settleWeek`, which clears a confirmed
 bracket field on ANY week 16 edit by design.
 
+## Editing a bracket round: three bugs that compounded
+
+Re-picking a round after finishing a bracket failed in three ways at once,
+and each one hid the next.
+
+1. **`required` on an `sr-only` radio silently kills the form.** The radios
+   are visually hidden so the label is the hit target. A required control
+   the browser cannot focus cannot be reported on, so Chrome refuses the
+   submit and shows nothing — a dead button on any round with a game still
+   unpicked. Reproduced with the original markup: the submit handler never
+   ran and `form.checkValidity()` was false against a 1x1 input.
+   `components/BracketRoundForm.tsx` now counts picks and labels the button
+   "Pick N more games" instead; the server action still rejects an
+   incomplete round. **Do not put `required` back on those inputs.**
+
+2. **`?editRound=` survived the save.** The page renders only up to the
+   round that param names, so submitting an edit landed back on the same
+   round with the next one still hidden — picks saved, nothing visibly
+   advanced. `saveRoundPicksAction` now `redirect`s to the bare `/bracket`
+   so the page recomputes the active round.
+
+3. **Saving a round wiped everything downstream even when nothing
+   changed.** `saveBracketRoundPicks` cleared dependants for every slot in
+   the round on every save, so re-submitting the quarterfinals with
+   identical winners destroyed both semifinals and the championship. It now
+   compares against the stored pick and only clears when the winner actually
+   moved: changing `qf_1` clears `sf_1` and the championship and leaves
+   `sf_2` and all of round 1 alone.
+
+Together these produced "I edited the semis and it is stuck, still showing
+my old champion": the edit had already wiped the later rounds, and the
+button that would have re-entered them did nothing.
+
 ## Champion banner (/bracket)
 
 Once every bracket slot has a pick, `components/ChampionBanner.tsx`

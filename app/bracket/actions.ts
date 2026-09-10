@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import type { BracketSlot } from "@/lib/bracket";
 import { SLOTS_BY_ROUND } from "@/lib/bracket";
@@ -66,4 +67,11 @@ export async function saveRoundPicksAction(formData: FormData) {
 
   await saveBracketRoundPicks(userId, picks);
   revalidatePath("/bracket");
+  // Drop ?editRound= on the way out. The page shows whichever round that
+  // param names, so submitting an edit used to land back on the same round
+  // with the URL unchanged -- the picks saved, nothing visibly advanced,
+  // and the next round stayed hidden because the page only renders up to
+  // the requested one. Going back to the bare path lets the page work out
+  // the active round again, which is the round this save just unlocked.
+  redirect("/bracket");
 }

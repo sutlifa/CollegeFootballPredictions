@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { BracketFieldSelector } from "@/components/BracketFieldSelector";
+import { BracketRoundForm } from "@/components/BracketRoundForm";
 import { ChampionBanner } from "@/components/ChampionBanner";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
@@ -11,6 +12,7 @@ import {
   getBracketCandidates,
   POWER_CONFERENCES,
   seedBracketField,
+  SLOTS_BY_ROUND,
   type BracketRound,
   type BracketSlotGame,
   type Seed,
@@ -146,33 +148,21 @@ export default async function BracketPage({
           if (i === activeIndex) {
             return (
               <div key={round} className="space-y-3 rounded-lg border border-accent/50 bg-accent/5 p-4">
-                <form action={saveRoundPicksAction} className="space-y-4">
-                  <input type="hidden" name="round" value={round} />
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-ink">
-                      {ROUND_LABEL[round]} -- pick a winner for every game
-                    </h2>
-                    <button
-                      type="submit"
-                      className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
-                    >
-                      Submit {ROUND_LABEL[round]} Picks
-                    </button>
-                  </div>
+                <BracketRoundForm
+                  round={round}
+                  roundLabel={ROUND_LABEL[round]}
+                  slots={[...SLOTS_BY_ROUND[round]]}
+                  initialPicked={
+                    roundGames.filter((g) => g.pickedWinner !== null).length
+                  }
+                  action={saveRoundPicksAction}
+                >
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {roundGames.map((g) => (
                       <BracketGameCard key={g.slot} game={g} teamById={teamById} />
                     ))}
                   </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      className="rounded bg-accent px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-strong"
-                    >
-                      Submit {ROUND_LABEL[round]} Picks
-                    </button>
-                  </div>
-                </form>
+                </BracketRoundForm>
               </div>
             );
           }
@@ -307,7 +297,12 @@ function BracketGameCard({
             name={`pick_${slot}`}
             value={team.teamId}
             defaultChecked={pickedWinner?.teamId === team.teamId}
-            required
+            // NOT `required`. These are sr-only, and a required control the
+            // browser cannot focus cannot be reported on -- Chrome just
+            // refuses the submit and says nothing, leaving a dead button on
+            // any round with a game still unpicked. BracketRoundForm counts
+            // the picks and explains itself instead; saveRoundPicksAction
+            // still rejects an incomplete round on the server.
             className="sr-only"
           />
           <span className="w-6 text-right text-xs">#{team.seed}</span>
