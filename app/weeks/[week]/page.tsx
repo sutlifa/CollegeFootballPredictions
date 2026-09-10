@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { ClearWeekButton } from "@/components/ClearWeekButton";
 import { FillWeekButton } from "@/components/FillWeekButton";
 import { GamePicker } from "@/components/GamePicker";
+import { WeekGameList } from "@/components/WeekGameList";
 import { Tooltip } from "@/components/Tooltip";
 import {
   formatKickoff,
@@ -128,6 +129,12 @@ export default async function WeekPage({
   // Picks freeze when the week's first game kicks off, the way a fantasy
   // lineup locks once the week starts.
   const weekLocked = weekLocksAt !== null && weekLocksAt.getTime() <= Date.now();
+  // Games still needing a decision go first, each half staying in kickoff
+  // order (getGamesForWeek sorts by kickoff). A locked week has nothing to
+  // decide, so it just reads chronologically.
+  const displayGames = weekLocked
+    ? games
+    : [...unpicked, ...games.filter((g) => g.predictedWinnerTeamId !== null)];
 
   const weekIndex = VALID_WEEKS.indexOf(week);
   const prevWeek = weekIndex > 0 ? VALID_WEEKS[weekIndex - 1] : null;
@@ -285,13 +292,18 @@ export default async function WeekPage({
            itself. Replaced two number inputs per game -- entering exact
            scores for a whole season was the single biggest reason people
            bounced off the app. */
-        <div className="space-y-2">
-          {games.map((game) => {
+        <WeekGameList
+          // Remount on every week, so each one computes its own order
+          // rather than inheriting the previous week's frozen one.
+          key={week}
+          unpickedCount={weekLocked ? 0 : unpicked.length}
+          items={displayGames.map((game) => {
             const team1 = teamById.get(game.team1Id);
             const team2 = teamById.get(game.team2Id);
-            return (
+            return {
+              id: game.id,
+              node: (
               <GamePicker
-                key={game.id}
                 gameId={game.id}
                 week={week}
                 kickoffLabel={formatKickoff(game.kickoffAt, game.kickoffTbd)}
@@ -321,9 +333,10 @@ export default async function WeekPage({
                 saveAction={savePredictionAction}
                 clearAction={clearPredictionAction}
               />
-            );
+              ),
+            };
           })}
-        </div>
+        />
       )}
 
       <div className="flex items-center justify-between gap-3">

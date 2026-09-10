@@ -122,6 +122,12 @@ export async function getAllGames(
   return rows.map(mapGame);
 }
 
+/**
+ * Ordered by kickoff, earliest first, rather than by row id -- a week reads
+ * as the weekend it actually is. Ties break on id so the order is total and
+ * stable across renders. Week 16 is derived and carries no kickoff at all,
+ * so those fall to the end together and order by id among themselves.
+ */
 export async function getGamesForWeek(
   week: number,
   userId: number,
@@ -133,7 +139,7 @@ export async function getGamesForWeek(
     LEFT JOIN predictions p ON p.game_id = g.id AND p.user_id = ${userId}
     WHERE g.season = ${season} AND g.week = ${week}
       AND (g.user_id = ${userId} OR (g.user_id IS NULL AND g.week <> 16))
-    ORDER BY g.id
+    ORDER BY g.kickoff_at ASC NULLS LAST, g.id ASC
   `;
   return rows.map(mapGame);
 }

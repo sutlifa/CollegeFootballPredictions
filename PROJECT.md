@@ -377,6 +377,35 @@ pool disagrees most.** G6-vs-G6 games were unanimous only 22% of the time
 against 60% for top-25 matchups, so filtering by apparent importance would
 remove the games that actually separate people on the leaderboard.
 
+## Unpicked games sort to the top, and the order then FREEZES
+
+`getGamesForWeek` orders by kickoff (nulls last, id as the tiebreak), and
+`/weeks/[week]` puts everything still unpicked ahead of everything picked,
+each half staying chronological. Landing on a week — including a new one
+where the settled games have just filled themselves, since
+`applyAutomaticWeekDefaults` runs before the read — puts the games you
+actually have to decide at the top.
+
+**`components/WeekGameList.tsx` freezes that order at mount, and that is the
+whole point of the component.** Saving a pick calls `revalidatePath` for the
+route, so the server re-renders with that game no longer unpicked. Ordering
+straight from each render would yank the card you just tapped down the page
+and slide the next one up under your finger, on every pick. The id order is
+captured once in a `useState` initialiser; later renders lay out against it,
+so a pick changes the card and never its position. The component is keyed by
+week so navigating remounts it, and a reload starts fresh — which is exactly
+the "refresh brings the stragglers back to the top" behaviour asked for.
+
+Games absent from the frozen order (schedule ingest adding a fixture, a
+derived championship arriving) are appended, never dropped.
+
+Verified in a browser with a harness that simulates the revalidation: with
+the server asking for `1,2,3,4,5` the list stayed at `1,3,5,2,4`; remounting
+recomputed to `1,2,3,4,5`; the "Already picked" divider renders exactly once
+and sits between the two halves. Note it is styled `uppercase`, so
+`innerText` reports "ALREADY PICKED" — a case-sensitive search for the
+source text will report it missing when it is on screen.
+
 ## The automatic fill runs ONCE, and that is load-bearing
 
 `applyAutomaticWeekDefaults` claims a row in `week_default_fills` before
