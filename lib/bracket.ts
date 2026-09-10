@@ -303,6 +303,17 @@ export function buildBracketState(
   return games;
 }
 
+/**
+ * Every slot in this round and in all rounds after it -- what "Edit this
+ * round" throws away, so the bracket is re-picked forward from that point.
+ * Editing round 1 clears all eleven games; editing the championship clears
+ * only that one.
+ */
+export function slotsFromRoundOnward(round: BracketRound): BracketSlot[] {
+  const from = BRACKET_ROUNDS.indexOf(round);
+  return BRACKET_ROUNDS.slice(from).flatMap((r) => SLOTS_BY_ROUND[r]);
+}
+
 /** The first round (in order) that isn't fully picked yet -- null once the championship has a winner. */
 export function currentBracketRound(
   games: BracketSlotGame[],

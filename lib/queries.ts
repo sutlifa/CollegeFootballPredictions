@@ -806,6 +806,29 @@ export async function getBracketPicks(
  * depended on what's being changed) so a stale, now-impossible matchup
  * can't linger.
  */
+/**
+ * Wipes the picks for a set of slots -- used by "Edit" on a round, which
+ * clears that round AND every round after it so the bracket is re-picked
+ * forward from there.
+ *
+ * Clearing at Edit time rather than at save time is what makes the page
+ * need no "which round am I editing" state: with the round emptied,
+ * currentBracketRound lands on it by itself.
+ */
+export async function clearBracketPicksForSlots(
+  userId: number,
+  slots: readonly string[],
+  season = SEASON,
+): Promise<number> {
+  if (slots.length === 0) return 0;
+  const rows = await sql`
+    DELETE FROM bracket_picks
+    WHERE season = ${season} AND user_id = ${userId} AND slot = ANY(${slots as string[]})
+    RETURNING slot
+  `;
+  return rows.length;
+}
+
 export async function saveBracketRoundPicks(
   userId: number,
   picks: { slot: import("./bracket").BracketSlot; teamId: number }[],

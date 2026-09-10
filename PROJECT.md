@@ -568,32 +568,30 @@ and each one hid the next.
    "Pick N more games" instead; the server action still rejects an
    incomplete round. **Do not put `required` back on those inputs.**
 
-2. **`?editRound=` survived the save.** The page renders only up to the
-   round that param names, so submitting an edit landed back on the same
-   round with the next one still hidden — picks saved, nothing visibly
-   advanced. `saveRoundPicksAction` now `redirect`s to the bare `/bracket`
-   so the page recomputes the active round.
+2. **Edit clears the round it opens AND every round after it, at click
+   time.** `editRoundAction` deletes `slotsFromRoundOnward(round)` and sends
+   you back to `/bracket`. Editing round 1 throws away all eleven games;
+   editing the championship throws away exactly one. You then re-pick
+   forward.
 
-3. **Re-picking a round clears every round after it — on purpose.**
-   Submitting a round always wipes its dependants, whether or not any
-   winner moved. Re-opening a round means the bracket past that point is
-   being reconsidered, and a later pick that merely happens to still be
-   legal is not the same as one chosen under the current bracket. This was
-   briefly made conditional on the pick having changed, which spared
-   untouched branches but let stale picks ride through an edit; the user
-   asked for it back. **Do not make it conditional again without asking.**
+   This is why there is no `?editRound=` parameter any more, and no
+   "editing" state anywhere: with the round emptied, `currentBracketRound`
+   lands on it unaided. The old param-driven version rendered only up to the
+   round it named, so submitting an edit came back to the same round with
+   the next one still hidden — picks saved, nothing visibly advanced.
 
-4. **The champion banner hides while any round is open for editing.**
-   `champion` is gated on `requestedEditRound === null`, not just on the
-   bracket being complete. Clicking Edit is about to invalidate everything
-   downstream, so the old winner's fanfare is stale from that moment — it
-   used to sit there through the entire re-pick, still crowning a team the
-   bracket no longer claimed. It returns when a championship is decided
-   again.
+   Because Edit is destructive, `EditRoundButton` confirms in place and
+   names the count ("clear 11 picks from here on?"), the same bargain
+   ClearWeekButton strikes.
 
-Together these produced "I edited the semis and it is stuck, still showing
-my old champion": the edit had already wiped the later rounds, and the
-button that would have re-entered them did nothing.
+3. **The champion banner needs no special case.** Clearing the
+   championship makes the bracket incomplete, so `isComplete` is false and
+   the fanfare is gone the moment an Edit is confirmed. It returns only when
+   a championship is decided again.
+
+Together the first two produced "I edited the semis and it is stuck, still
+showing my old champion": the edit had already wiped the later rounds, and
+the button that would have re-entered them did nothing.
 
 ## Champion banner (/bracket)
 

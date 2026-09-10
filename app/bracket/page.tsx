@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { BracketFieldSelector } from "@/components/BracketFieldSelector";
 import { BracketRoundForm } from "@/components/BracketRoundForm";
+import { EditRoundButton } from "@/components/EditRoundButton";
 import { ChampionBanner } from "@/components/ChampionBanner";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Tooltip } from "@/components/Tooltip";
@@ -13,6 +14,7 @@ import {
   POWER_CONFERENCES,
   seedBracketField,
   SLOTS_BY_ROUND,
+  slotsFromRoundOnward,
   type BracketRound,
   type BracketSlotGame,
   type Seed,
@@ -26,6 +28,7 @@ import {
   getSubmittedWeeks,
 } from "@/lib/queries";
 import {
+  editRoundAction,
   resetBracketFieldAction,
   saveRoundPicksAction,
   setBracketFieldAction,
@@ -43,10 +46,7 @@ const ROUND_LABEL: Record<BracketRound, string> = {
 /** Display only -- the season the bracket belongs to, for the champion banner. */
 const BRACKET_SEASON = 2026;
 
-export default async function BracketPage({
-  searchParams,
-}: PageProps<"/bracket">) {
-  const { editRound } = await searchParams;
+export default async function BracketPage() {
   const session = await auth();
   const userId = session!.user.id;
   const [teams, games, selectedTeamIds, submittedWeeks] = await Promise.all([
@@ -68,21 +68,17 @@ export default async function BracketPage({
     const picks = await getBracketPicks(userId);
     const slotGames = buildBracketState(seeds, picks);
     const autoActiveRound = currentBracketRound(slotGames);
-    const requestedEditRound = BRACKET_ROUNDS.includes(editRound as BracketRound)
-      ? (editRound as BracketRound)
-      : null;
-    const displayRound = requestedEditRound ?? autoActiveRound;
+    // There is no "editing" mode to track. Edit CLEARS the round it opens
+    // and every round after it, so the first unfinished round -- which is
+    // what currentBracketRound returns -- is always the one to show. That
+    // also means the champion banner needs no special case: with the
+    // championship cleared the bracket is not complete, so the fanfare is
+    // gone the moment Edit is confirmed, and returns only when a
+    // championship is decided again.
     const isComplete = autoActiveRound === null;
-    // No fanfare while the bracket is being revised. Opening any round for
-    // editing is about to invalidate everything after it, so a banner
-    // crowning the old winner is stale the moment Edit is clicked -- it sat
-    // there through the whole re-pick, still naming a champion the bracket
-    // no longer claimed. It comes back when the championship is decided
-    // again, which is the only thing it should ever be reporting.
-    const champion =
-      isComplete && requestedEditRound === null
-        ? slotGames.find((g) => g.slot === "championship")?.pickedWinner
-        : null;
+    const champion = isComplete
+      ? slotGames.find((g) => g.slot === "championship")?.pickedWinner
+      : null;
 
     const gamesBySlotRound = (round: BracketRound) =>
       slotGames.filter((g) => g.round === round);
@@ -142,9 +138,8 @@ export default async function BracketPage({
         </ol>
 
         {(() => {
-          const activeIndex = requestedEditRound
-            ? BRACKET_ROUNDS.indexOf(requestedEditRound)
-            : autoActiveRound !== null
+          const activeIndex =
+            autoActiveRound !== null
               ? BRACKET_ROUNDS.indexOf(autoActiveRound)
               : BRACKET_ROUNDS.length;
 
@@ -179,12 +174,12 @@ export default async function BracketPage({
             <div key={round} className="space-y-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-ink">{ROUND_LABEL[round]}</h2>
-                <a
-                  href={`/bracket?editRound=${round}`}
-                  className="rounded border border-line-strong px-2.5 py-1 text-xs text-ink-soft hover:border-accent hover:text-accent-strong"
-                >
-                  Edit
-                </a>
+                <EditRoundButton
+                  round={round}
+                  roundLabel={ROUND_LABEL[round]}
+                  clears={slotsFromRoundOnward(round).length}
+                  editAction={editRoundAction}
+                />
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {roundGames.map((g) => (
