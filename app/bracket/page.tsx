@@ -73,9 +73,16 @@ export default async function BracketPage({
       : null;
     const displayRound = requestedEditRound ?? autoActiveRound;
     const isComplete = autoActiveRound === null;
-    const champion = isComplete
-      ? slotGames.find((g) => g.slot === "championship")?.pickedWinner
-      : null;
+    // No fanfare while the bracket is being revised. Opening any round for
+    // editing is about to invalidate everything after it, so a banner
+    // crowning the old winner is stale the moment Edit is clicked -- it sat
+    // there through the whole re-pick, still naming a champion the bracket
+    // no longer claimed. It comes back when the championship is decided
+    // again, which is the only thing it should ever be reporting.
+    const champion =
+      isComplete && requestedEditRound === null
+        ? slotGames.find((g) => g.slot === "championship")?.pickedWinner
+        : null;
 
     const gamesBySlotRound = (round: BracketRound) =>
       slotGames.filter((g) => g.round === round);

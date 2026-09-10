@@ -574,13 +574,22 @@ and each one hid the next.
    advanced. `saveRoundPicksAction` now `redirect`s to the bare `/bracket`
    so the page recomputes the active round.
 
-3. **Saving a round wiped everything downstream even when nothing
-   changed.** `saveBracketRoundPicks` cleared dependants for every slot in
-   the round on every save, so re-submitting the quarterfinals with
-   identical winners destroyed both semifinals and the championship. It now
-   compares against the stored pick and only clears when the winner actually
-   moved: changing `qf_1` clears `sf_1` and the championship and leaves
-   `sf_2` and all of round 1 alone.
+3. **Re-picking a round clears every round after it — on purpose.**
+   Submitting a round always wipes its dependants, whether or not any
+   winner moved. Re-opening a round means the bracket past that point is
+   being reconsidered, and a later pick that merely happens to still be
+   legal is not the same as one chosen under the current bracket. This was
+   briefly made conditional on the pick having changed, which spared
+   untouched branches but let stale picks ride through an edit; the user
+   asked for it back. **Do not make it conditional again without asking.**
+
+4. **The champion banner hides while any round is open for editing.**
+   `champion` is gated on `requestedEditRound === null`, not just on the
+   bracket being complete. Clicking Edit is about to invalidate everything
+   downstream, so the old winner's fanfare is stale from that moment — it
+   used to sit there through the entire re-pick, still crowning a team the
+   bracket no longer claimed. It returns when a championship is decided
+   again.
 
 Together these produced "I edited the semis and it is stuck, still showing
 my old champion": the edit had already wiped the later rounds, and the
