@@ -656,6 +656,18 @@ worse than none, because it is a confident statement that happens to be false.
 Reports email `REPORT_TO` (falling back to `EMAIL_FROM`) through the same
 provider layer as reminders, with reply-to set to the reporter.
 
+## The NFL Predictions link
+
+The footer links to the sister app at
+`https://nfl-season-predictions.vercel.app/` (repo `sutlifa/NFLSeasonPredictions`,
+Vercel project `nfl-season-predictions`). A plain `<a>`, not `<Link>` —
+different origin, so there is no route for Next to prefetch — and same tab
+on purpose, since it is one of ours rather than an outbound citation.
+
+The URL is hardcoded. **If the NFL app moves to a custom domain, this is one
+of the places that has to move with it**, alongside that app's own
+`AUTH_URL` and Google OAuth callback.
+
 ## Security rules that must not regress
 
 - **Service-route guards fail CLOSED.** `if (!process.env.SECRET || mismatch)`,

@@ -127,6 +127,21 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/report" className="hover:text-ink-soft">
               Report a problem
             </Link>
+            <span aria-hidden>&middot;</span>
+            {/* The sister app. A plain <a>, not <Link>: it is a different
+                origin, so there is no route for Next to prefetch. Same tab
+                on purpose -- it is one of ours, not an outbound citation,
+                and back returns you here.
+
+                The URL is hardcoded because it is the NFL app's production
+                origin. If that ever moves to a custom domain, this is one
+                of the places that has to move with it. */}
+            <a
+              href="https://nfl-season-predictions.vercel.app/"
+              className="hover:text-ink-soft"
+            >
+              NFL Predictions
+            </a>
           </p>
           <p>&copy; {new Date().getFullYear()} Sutlifa. All rights reserved.</p>
           <p className="text-[11px] leading-relaxed">
