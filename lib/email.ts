@@ -236,15 +236,22 @@ export async function sendReport(options: {
   subject: string;
   body: string;
 }): Promise<SendOutcome> {
+  // Sending switched off wins over a missing address. A deployment with
+  // no provider (local dev, a preview) usually has no EMAIL_FROM either, and
+  // checking the address first turned the honest "sending isn't switched on
+  // here" into a missing-config error about variables the reporter has never
+  // heard of. With sending off, where it would have gone is moot.
+  if (!emailEnabled()) {
+    return { email: "", ok: true, dryRun: true };
+  }
   const to =
     process.env.REPORT_TO ??
     parseFrom(process.env.EMAIL_FROM ?? "").email ??
     "";
   if (!to) {
+    // For the server log only -- app/report/actions.ts never shows `error`
+    // to the reporter.
     return { email: "", ok: false, dryRun: false, error: "No REPORT_TO or EMAIL_FROM configured" };
-  }
-  if (!emailEnabled()) {
-    return { email: to, ok: true, dryRun: true };
   }
 
   const provider = activeProvider();

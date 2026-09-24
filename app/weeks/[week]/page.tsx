@@ -21,7 +21,7 @@ import {
   getAllTeams,
   getGamesForWeek,
   getSubmittedWeeks,
-  getWeekLocksAt,
+  getWeekLock,
   getWeekPickBreakdown,
   isWeekLocked,
   isWeekSubmitted,
@@ -29,7 +29,7 @@ import {
   syncWeekSubmission,
 } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
-import { displayTeamName, isDecided } from "@/lib/types";
+import { displayTeamName } from "@/lib/types";
 import {
   clearPredictionAction,
   clearWeekAction,
@@ -88,11 +88,11 @@ export default async function WeekPage({
     }
   }
 
-  const [teams, games, weekLocksAt, missingWeeks, allGames, submittedWeeks] =
+  const [teams, games, weekLock, missingWeeks, allGames, submittedWeeks] =
     await Promise.all([
       getAllTeams(),
       getGamesForWeek(week, userId),
-      getWeekLocksAt(week),
+      getWeekLock(week),
       week === 16 ? missingRegularSeasonWeeks(userId) : Promise.resolve([]),
       getAllGames(userId),
       getSubmittedWeeks(userId),
@@ -127,8 +127,10 @@ export default async function WeekPage({
       ).settled,
   ).length;
   // Picks freeze when the week's first game kicks off, the way a fantasy
-  // lineup locks once the week starts.
-  const weekLocked = weekLocksAt !== null && weekLocksAt.getTime() <= Date.now();
+  // lineup locks once the week starts. Whether that moment has passed is
+  // resolved by getWeekLock, not here: reading the clock during render is
+  // impure (react-hooks/purity), so the query layer owns the comparison.
+  const { locksAt: weekLocksAt, locked: weekLocked } = weekLock;
   // Games still needing a decision go first, each half staying in kickoff
   // order (getGamesForWeek sorts by kickoff). A locked week has nothing to
   // decide, so it just reads chronologically.
@@ -302,6 +304,7 @@ export default async function WeekPage({
             const team2 = teamById.get(game.team2Id);
             return {
               id: game.id,
+              picked: game.predictedWinnerTeamId !== null,
               node: (
               <GamePicker
                 gameId={game.id}

@@ -348,12 +348,50 @@ export async function getWeekLocksAt(
   return locksAt ? new Date(locksAt) : null;
 }
 
+/**
+ * Thrown by every write that a locked week refuses. A class rather than a
+ * bare Error so the server actions can tell "the week kicked off while this
+ * page was open" -- which the person needs to be told, in these words --
+ * apart from a genuine fault, which they get a generic message for. In
+ * production Next replaces a thrown error's message with a digest before it
+ * reaches the browser, so a lock that was only ever THROWN never reached
+ * anyone as anything but "something went wrong".
+ */
+export class WeekLockedError extends Error {
+  constructor() {
+    super(
+      "This week is locked -- its first game has already kicked off, so picks can no longer be changed.",
+    );
+    this.name = "WeekLockedError";
+  }
+}
+
+/**
+ * A week's lock time together with whether it has already passed.
+ *
+ * The page needs both, and the "has it passed" half reads the clock. That
+ * comparison lives here rather than in the page for the same reason
+ * getAllWeekLocks resolves `locked` itself: calling Date.now() during a
+ * component's render is impure, React's lint rules reject it, and a server
+ * component doing time maths is exactly the kind of logic that belongs in
+ * the query layer anyway.
+ */
+export async function getWeekLock(
+  week: number,
+  season = SEASON,
+): Promise<{ locksAt: Date | null; locked: boolean }> {
+  const locksAt = await getWeekLocksAt(week, season);
+  return {
+    locksAt,
+    locked: locksAt !== null && locksAt.getTime() <= Date.now(),
+  };
+}
+
 export async function isWeekLocked(
   week: number,
   season = SEASON,
 ): Promise<boolean> {
-  const locksAt = await getWeekLocksAt(week, season);
-  return locksAt !== null && locksAt.getTime() <= Date.now();
+  return (await getWeekLock(week, season)).locked;
 }
 
 /** Throws if this game's week has already kicked off. */
@@ -363,9 +401,7 @@ async function assertWeekOpen(gameId: number): Promise<void> {
   `;
   if (!row) throw new Error("Unknown game");
   if (await isWeekLocked(row.week, row.season)) {
-    throw new Error(
-      "This week is locked -- its first game has already kicked off, so picks can no longer be changed.",
-    );
+    throw new WeekLockedError();
   }
 }
 
@@ -433,9 +469,7 @@ export async function clearWeekPredictions(
   season = SEASON,
 ): Promise<number> {
   if (await isWeekLocked(week, season)) {
-    throw new Error(
-      "This week is locked -- its first game has already kicked off, so picks can no longer be changed.",
-    );
+    throw new WeekLockedError();
   }
   const rows = await sql<{ game_id: number }[]>`
     DELETE FROM predictions p
@@ -471,9 +505,7 @@ export async function fillWeekDefaults(
   season = SEASON,
 ): Promise<number> {
   if (await isWeekLocked(week, season)) {
-    throw new Error(
-      "This week is locked -- its first game has already kicked off, so picks can no longer be changed.",
-    );
+    throw new WeekLockedError();
   }
   const rows = await sql<
     { id: number; team1_id: number; team2_id: number }[]
@@ -542,12 +574,6 @@ export async function fillWeekDefaults(
 }
 
 /**
- * How many of this user's picks in a week were filled by "Fill with
- * favorites" versus chosen by hand. Drives what Clear week offers: with
- * defaults present it can leave the formalities and take only the
- * decisions.
- */
-/**
  * The automatic settled-games fill, run at most once per person per week.
  *
  * The claim is inserted BEFORE the fill and never rolled back, so this is
@@ -557,12 +583,30 @@ export async function fillWeekDefaults(
  * were deleted and immediately reinstated. Clearing a week deliberately
  * leaves the claim in place so the clear sticks; "Fill with favorites" is
  * how someone asks for them back.
+ *
+ * A week with NO games visible to this user is not claimed at all. Week 16
+ * is derived per user and stays empty until their whole regular season is
+ * in, so opening it early used to spend the one automatic pass on nothing:
+ * the claim row was written, zero games were filled, and when the title
+ * games finally appeared the settled ones never filled themselves. Checking
+ * first costs one EXISTS and does not weaken the race safety -- the claim
+ * below is still the only thing that decides who fills, so two tabs that
+ * both see games still produce exactly one fill.
  */
 export async function applyAutomaticWeekDefaults(
   userId: number,
   week: number,
   season = SEASON,
 ): Promise<number> {
+  const [visible] = await sql<{ any_game: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM games g
+      WHERE g.season = ${season} AND g.week = ${week}
+        AND (g.user_id = ${userId} OR (g.user_id IS NULL AND g.week <> 16))
+    ) AS any_game
+  `;
+  if (!visible?.any_game) return 0;
+
   const claimed = await sql`
     INSERT INTO week_default_fills (user_id, season, week)
     VALUES (${userId}, ${season}, ${week})
@@ -573,6 +617,12 @@ export async function applyAutomaticWeekDefaults(
   return fillWeekDefaults(userId, week, { settledOnly: true }, season);
 }
 
+/**
+ * How many of this user's picks in a week were filled by "Fill with
+ * favorites" versus chosen by hand. Drives what Clear week offers: with
+ * defaults present it can leave the formalities and take only the
+ * decisions.
+ */
 export async function getWeekPickBreakdown(
   userId: number,
   week: number,

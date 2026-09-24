@@ -1,59 +1,8 @@
 import { TeamLogo } from "./TeamLogo";
 import { TrophyIcon } from "./TrophyIcon";
+import { bannerPalette } from "@/lib/bannerPalette";
 import type { Seed } from "@/lib/bracket";
 import type { Team } from "@/lib/types";
-
-/**
- * Accepts "#BB0000", "BB0000" or "#b00" and returns "#bb0000". Returns null
- * for anything else -- CFBD fills these in for every FBS team, but the
- * non-FBS opponents created from a schedule have no colours at all, and a
- * half-parsed hex would render as a black box rather than fall back.
- */
-function normalizeHex(raw: string | null): string | null {
-  if (!raw) return null;
-  const hex = raw.trim().replace(/^#/, "").toLowerCase();
-  if (/^[0-9a-f]{3}$/.test(hex)) {
-    return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
-  }
-  return /^[0-9a-f]{6}$/.test(hex) ? `#${hex}` : null;
-}
-
-/** WCAG relative luminance, 0 (black) to 1 (white). */
-function luminance(hex: string): number {
-  const channel = (i: number) => {
-    const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
-    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
-}
-
-/**
- * The champion's colours are whatever the school actually uses, which
- * includes near-white (Penn State's white, Navy's gold) and near-black
- * (Army, Cincinnati). Neither can be trusted as a text background, so the
- * banner picks ink to match and never assumes the dark-theme default. Teams
- * whose primary is close to the page background get the gold accent
- * instead, so the banner still reads as a banner.
- */
-function bannerPalette(team: Team | undefined) {
-  const primary = normalizeHex(team?.color ?? null);
-  const secondary = normalizeHex(team?.altColor ?? null);
-  const base = primary ?? "#d8a53d";
-  const lum = luminance(base);
-  return {
-    base,
-    // Sits behind the name; on a very light primary the ink flips to near
-    // black so the school name does not disappear into its own colour.
-    ink: lum > 0.45 ? "#171310" : "#ffffff",
-    inkSoft: lum > 0.45 ? "rgba(23,19,16,0.72)" : "rgba(255,255,255,0.78)",
-    // Only used for the thin accent rule; falls back to gold when a school's
-    // secondary is so close to its primary that the rule would vanish.
-    accent:
-      secondary && Math.abs(luminance(secondary) - lum) > 0.12
-        ? secondary
-        : "#eec25f",
-  };
-}
 
 type Props = {
   champion: Seed;
@@ -71,7 +20,15 @@ type Props = {
  * "you're done" state.
  */
 export function ChampionBanner({ champion, team, season }: Props) {
-  const { base, ink, inkSoft, accent } = bannerPalette(team);
+  // Every colour decision (ink, softened ink, accent, the lift for dark
+  // primaries, the gradient's depth, the rays) is made in
+  // lib/bannerPalette.ts by WCAG contrast, and was checked against the real
+  // colours of all 138 FBS schools, on and off a ray -- read that file
+  // before changing any colour here.
+  const { base, shade, ink, inkSoft, accent, rays } = bannerPalette(
+    team?.color ?? null,
+    team?.altColor ?? null,
+  );
   const mascot = team?.mascot ?? null;
 
   return (
@@ -80,18 +37,28 @@ export function ChampionBanner({ champion, team, season }: Props) {
       className="champion-banner relative overflow-hidden rounded-2xl border-2 px-5 py-8 text-center sm:px-10 sm:py-10"
       style={{
         borderColor: accent,
-        // Team colour, lifted at the top so the logo plate has something to
-        // sit against and darkened at the base so the seed line stays legible.
-        backgroundImage: `radial-gradient(120% 140% at 50% -20%, ${base} 0%, ${base} 45%, rgba(0,0,0,0.55) 100%)`,
+        // Solid team colour under the gradient, and a gradient between two
+        // OPAQUE colours. It used to fade to rgba(0,0,0,0.55), which let the
+        // page show through at the bottom and made the seed line's real
+        // contrast depend on what was behind the banner. `shade` moves away
+        // from the ink (darker under white ink, lighter under dark ink), and
+        // only as far as keeps the bottom of the banner clear of the page.
+        backgroundColor: base,
+        backgroundImage: `radial-gradient(120% 140% at 50% -20%, ${base} 0%, ${base} 45%, ${shade} 100%)`,
         color: ink,
       }}
     >
-      {/* Rays, purely decorative, kept faint so the name always wins. */}
+      {/* Rays, purely decorative. Their colour AND opacity come from
+          bannerPalette, never a fixed class: they rotate, so every line of
+          text crosses one, and at a flat 25% of the accent they dropped the
+          seed line and mascot below WCAG for most schools. The palette picks
+          the strongest ray that keeps all the text passing on top of it. */}
       <div
         aria-hidden
-        className="champion-rays pointer-events-none absolute inset-0 opacity-25"
+        className="champion-rays pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: `repeating-conic-gradient(from 0deg at 50% 0%, ${accent} 0deg 4deg, transparent 4deg 16deg)`,
+          opacity: rays.opacity,
+          backgroundImage: `repeating-conic-gradient(from 0deg at 50% 0%, ${rays.color} 0deg 4deg, transparent 4deg 16deg)`,
         }}
       />
 

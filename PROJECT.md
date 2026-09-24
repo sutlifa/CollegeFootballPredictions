@@ -399,6 +399,11 @@ the "refresh brings the stragglers back to the top" behaviour asked for.
 Games absent from the frozen order (schedule ingest adding a fixture, a
 derived championship arriving) are appended, never dropped.
 
+The ORDER is frozen; the "Already picked" divider's truth is not. It is
+re-checked each render against the server's picks and turns `invisible`
+(keeping its space, so nothing moves) once the split no longer holds --
+after Clear week it used to sit above games that had just been emptied.
+
 Verified in a browser with a harness that simulates the revalidation: with
 the server asking for `1,2,3,4,5` the list stayed at `1,3,5,2,4`; remounting
 recomputed to `1,2,3,4,5`; the "Already picked" divider renders exactly once
@@ -407,6 +412,10 @@ and sits between the two halves. Note it is styled `uppercase`, so
 source text will report it missing when it is on screen.
 
 ## The automatic fill runs ONCE, and that is load-bearing
+
+(Only once there is something to fill: a week with no games visible to
+the user -- week 16 before the regular season is in -- is not claimed, or
+the one pass was spent on nothing and the title games never auto-filled.)
 
 `applyAutomaticWeekDefaults` claims a row in `week_default_fills` before
 filling, so the settled-games pass happens the first time a person opens a
@@ -449,10 +458,6 @@ default and a decision are identical rows and nothing can tell them apart.
   otherwise read as finished while most of it was never considered.
 - Existing picks all backfilled to `FALSE`, so nobody's real work is
   mislabelled as a formality.
-
-One game: the Clear button on `GamePicker`. A whole week:
-`ClearWeekButton`, behind a confirm naming how many picks are at risk (it
-can destroy 91, and there is no cheap way back).
 
 One game: the Clear button on `GamePicker`. A whole week:
 `ClearWeekButton` in the week header, behind a confirm step naming how many
@@ -616,9 +621,33 @@ against real teams rather than reasoned about:
   plate, every mark still read on dark while the white wordmarks all but
   vanished on cream.
 - **Team colours cannot be trusted as a text background.** Primaries run
-  from \#231f20 to \#ffc72c. The banner computes WCAG luminance and flips
-  the ink to near-black above 0.45, so Southern Miss and Arizona State are
-  readable rather than white-on-gold.
+  from \#231f20 to \#ffc72c. `lib/bannerPalette.ts` makes every colour
+  choice by WCAG contrast ratio, not a luminance cutoff: the ink is
+  whichever of near-black or white contrasts more with the body (true black
+  when neither clears 4.5:1 -- Oregon State's orange), the small text is an
+  opaque softened ink that must still clear 4.5:1, and the mascot/accent
+  colour must clear 3:1 (secondary, then gold, then the ink). The old
+  "flip above luminance 0.45" rule put white text at 2.35-2.87:1 on North
+  Carolina, Tennessee, UTEP, Georgia Tech, Miami and Marshall; the real
+  crossover is about 0.18.
+- **Dark primaries are lifted, not replaced.** 44 schools' primaries sat
+  within 1.5:1 of the page (Penn State's navy at 1.04:1), so the banner
+  body vanished and only its border showed. They are mixed towards white
+  until they clear 1.5:1 against `#0b1f14`, which keeps them recognisably
+  the school's colour. The body gradient ends in an opaque `shade` that
+  moves away from the ink, only as deep as keeps it on the same 1.5:1
+  floor -- a full-depth shade took 113 banners back under it at the
+  bottom.
+- **The rays are chosen, not fixed.** They rotate, so every line of text
+  crosses one; a flat 25% accent stripe dropped the small text below 4.5:1
+  for 97 teams. `bannerPalette` searches gradient depth, softened vs full
+  ink, and ray colour/opacity (accent first, then a stripe away from the
+  ink, 25% down to 6%) for the strongest combination where ink and small
+  text clear 4.5:1, the mascot/accent 3:1 and the body 1.5:1 against the
+  page on EVERY surface: base, shade, and both under a ray. Verified across
+  all 138 FBS teams, sampling the gradient too: 0 failures (worst ink
+  4.52, small text 4.50, accent 3.00, separation 1.50), and every team
+  keeps its rays.
 
 The logo loads eagerly (`TeamLogo eager`). It is the largest element on
 the page, and the default lazy behaviour left it blank on arrival — which
@@ -656,6 +685,22 @@ worse than none, because it is a confident statement that happens to be false.
 Reports email `REPORT_TO` (falling back to `EMAIL_FROM`) through the same
 provider layer as reminders, with reply-to set to the reporter.
 
+- The form has BOTH `action={action}` and an `onSubmit` that calls
+  `preventDefault` and dispatches in a transition. The action makes a
+  pre-hydration submit a real POST (without it the browser fell back to a
+  GET with the report text in the URL); the prevented default makes React
+  skip its own action run and the form reset that follows it, which used to
+  wipe the report when sending failed.
+- The user only ever sees plain messages; provider responses and missing
+  config go to the server log as `SEND REPORT ERROR`. With sending switched
+  off, the "isn't switched on" message wins over a missing address.
+- Field rules (`kind` from a fixed list, `where` <= 200 chars, body
+  10-5000) live in `lib/report.ts` and are enforced on both sides.
+
+`/api/unsubscribe` is exempt from the proxy's session gate (it is in the
+`isServiceRoute` list): it authenticates by the token in the link, and
+gating it bounced readers to sign-in and dropped the token.
+
 ## The NFL Predictions link
 
 The footer links to the sister app at
@@ -682,6 +727,19 @@ of the places that has to move with it**, alongside that app's own
 - **`callbackUrl` needs more than `startsWith("/")`.** `//evil.com` starts
   with a slash and browsers read it as protocol-relative, so that check alone
   is an open redirect straight off the sign-in page.
+
+## Actions return reasons; error.tsx is for the page
+
+Week actions (`app/weeks/[week]/actions.ts`) resolve to
+`{ error?: string }` instead of throwing. Production replaces a thrown
+error's message with a digest, so "This week is locked" and "signed out"
+never reached anyone. `WeekLockedError` (lib/queries.ts) marks the lock;
+anything unexpected is logged under an UPPERCASE label and reported as
+"try again". GamePicker shows the reason on the card, Clear/Fill in their
+confirm row. `app/weeks/[week]/error.tsx` and `app/bracket/error.tsx`
+cover render failures and requests that got no answer, show the digest,
+and never show `error.message`. Bracket actions still throw: they are
+plain form actions whose refusals the UI already prevents.
 
 ## Landmines
 

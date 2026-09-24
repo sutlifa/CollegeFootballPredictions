@@ -4,6 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import { TeamLogo } from "./TeamLogo";
 import { bucketForMargin, MARGIN_BUCKETS, type MarginBucketId } from "@/lib/margin";
 
+/** What the week's server actions resolve to (app/weeks/[week]/actions.ts). */
+type WriteResult = { error?: string };
+
 /** Ranks are only worth showing this deep; below it they are just noise. */
 const RANKED_CUTOFF = 25;
 
@@ -34,8 +37,8 @@ type Props = {
   /** Real result, once it exists. Both null until the game is played. */
   actualScoreTeam1: number | null;
   actualScoreTeam2: number | null;
-  saveAction: (formData: FormData) => void;
-  clearAction: (formData: FormData) => void;
+  saveAction: (formData: FormData) => Promise<WriteResult>;
+  clearAction: (formData: FormData) => Promise<WriteResult>;
 };
 
 /**
@@ -75,6 +78,11 @@ export function GamePicker({
   const [winnerTeamId, setWinnerTeamId] = useState<number | null>(initialWinnerTeamId);
   const [marginBucket, setMarginBucket] = useState<MarginBucketId | null>(initialMarginBucket);
   const [isPending, startTransition] = useTransition();
+  // Why the last write failed, shown on the card. Before this a failed save
+  // was swallowed outright (the catch below claimed the route's error
+  // boundary would surface it, but a caught error reaches no boundary), so
+  // a pick could look "Saved" while the database never heard of it.
+  const [writeError, setWriteError] = useState<string | null>(null);
 
   /**
    * Re-sync when the SERVER's idea of this pick changes underneath us.
@@ -149,7 +157,7 @@ export function GamePicker({
   const queue = useRef<Promise<unknown>>(Promise.resolve());
 
   function send(
-    action: (formData: FormData) => void,
+    action: (formData: FormData) => Promise<WriteResult>,
     selection: { teamId: number; bucket: MarginBucketId } | null,
   ) {
     const data = new FormData();
@@ -169,11 +177,18 @@ export function GamePicker({
       () => undefined,
     );
     startTransition(async () => {
+      // Writes are serialized, so results land in click order and the last
+      // one to land is the one describing the current state of the card.
       try {
-        await run;
+        const result = await run;
+        setWriteError(result?.error ?? null);
       } catch {
-        // Surfaced by the route's error boundary; nothing to do here beyond
-        // letting the row stop looking busy.
+        // The action never answered with a result: the network dropped, or
+        // (the likely case on a long-open tab) the session lapsed and
+        // proxy.ts answered the request with a sign-in redirect instead.
+        setWriteError(
+          "That didn't reach the server. Check you're still signed in, then try again.",
+        );
       }
     });
   }
@@ -289,7 +304,11 @@ export function GamePicker({
        markup, but nothing submits it any more -- every write is dispatched
        directly by send() above, in click order. */
     <form
-      action={saveAction}
+      // Never submitted (see send()); the wrapper only adapts the action's
+      // result type to what a form's `action` prop accepts.
+      action={async (formData) => {
+        await saveAction(formData);
+      }}
       className={`rounded-lg border bg-surface px-3 py-3 transition-opacity ${
         isPending ? "opacity-60" : ""
       } ${
@@ -352,7 +371,7 @@ export function GamePicker({
           <span className="ml-auto text-[11px] text-ink-muted">No pick</span>
         )}
 
-        {!frozen && complete && (
+        {!frozen && complete && !writeError && (
           <>
             <span className="ml-auto text-[11px] font-medium text-win">Saved</span>
             <button
@@ -393,6 +412,12 @@ export function GamePicker({
           {marginRow(team2, "right")}
         </div>
       </div>
+
+      {writeError && (
+        <p role="alert" className="mt-2 text-xs font-medium text-loss">
+          {writeError}
+        </p>
+      )}
     </form>
   );
 }

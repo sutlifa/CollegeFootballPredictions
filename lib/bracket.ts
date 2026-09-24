@@ -47,7 +47,7 @@ export type AutoBidReason = "power-champion" | "group-of-six" | null;
 export type BracketCandidates = {
   /** ACC/Big 12/Big Ten/SEC champions decided so far -- each is guaranteed an automatic bid no matter how they're ranked. */
   powerChampions: ConferenceChampion[];
-  /** The single highest-ranked Group of Six team (not necessarily a conference champion) -- gets the one automatic Group of Six bid. Null if no Group of Six team has a rating yet. */
+  /** The highest-ranked Group of Six conference CHAMPION -- gets the one automatic Group of Six bid (a losing finalist never does; see the header comment). Null until at least one Group of Six title game has a pick. */
   groupOfSixAutoBid: { teamId: number; team: string; conference: string } | null;
   /** Full computer rankings, annotated with why (if any) a team currently has an automatic bid. */
   rankings: (RankingRow & { autoBidReason: AutoBidReason })[];
@@ -124,9 +124,19 @@ export type Seed = RankingRow & { seed: number };
 
 /**
  * Takes the user-confirmed 12 team IDs and seeds them 1-12 by Computer
- * Ranking score (highest ranked = 1 seed). Seeds 1-4 get byes -- per the
+ * Ranking RANK (#1 ranked = 1 seed). Seeds 1-4 get byes -- per the
  * 2026-27 rules this is purely by rank, not reserved for conference
  * champions (that was the 2024/25 rule).
+ *
+ * Rank, not `score`. The score is a rounded display number, and the
+ * rankings already break every tie beneath it (exact rating, then record,
+ * then the head-to-head pass, which clamps scores so equal numbers are
+ * common near the top). Sorting on score threw that ordering away: two teams
+ * showing 97.288 fell back to the stable sort's input order -- the order
+ * they were TICKED in the field selector -- and on a real board seeded the
+ * #4 team 3rd and the #3 team 4th, which hands them different quarterfinal
+ * opponents. `rank` is a total order, so there is nothing left to fall back
+ * on.
  */
 export function seedBracketField(
   selectedTeamIds: number[],
@@ -148,7 +158,7 @@ export function seedBracketField(
   });
 
   return [...selected]
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => a.rank - b.rank)
     .map((row, i) => ({ ...row, seed: i + 1 }));
 }
 

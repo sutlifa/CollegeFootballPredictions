@@ -17,9 +17,19 @@ export default auth((req) => {
   // Google's OAuth consent screen wants a reachable link to it.
   const isPublicPage =
     req.nextUrl.pathname === "/about" || req.nextUrl.pathname === "/privacy";
+  // The unsubscribe link in every reminder email authenticates by the token
+  // in its own query string, exactly like the cron/admin routes authenticate
+  // by their secret -- there is no session to check, and demanding one broke
+  // it twice over: the reader was bounced to /signin, and the callbackUrl
+  // kept only the pathname, so the token was gone by the time they came back
+  // and even a signed-in retry landed on "Something's missing". Someone who
+  // wants the emails to stop must not have to log in to say so (the route's
+  // own comment and /privacy both promise this). Exact match, not a prefix,
+  // so nothing added under it later is silently public.
   const isServiceRoute =
     req.nextUrl.pathname.startsWith("/api/cron/") ||
-    req.nextUrl.pathname.startsWith("/api/admin/");
+    req.nextUrl.pathname.startsWith("/api/admin/") ||
+    req.nextUrl.pathname === "/api/unsubscribe";
 
   if (
     !isSignedIn &&
@@ -29,7 +39,17 @@ export default auth((req) => {
     !isPublicPage
   ) {
     const signInUrl = new URL("/signin", req.nextUrl.origin);
-    signInUrl.searchParams.set("callbackUrl", req.nextUrl.pathname);
+    // Pathname AND search: a shared /compare?week=3&who=1&who=27 link is the
+    // whole point of that page, and signing in used to drop everything after
+    // the "?", landing the reader on a blank comparison. Both parts come from
+    // the parsed request URL, never the raw Host or a header, so the value is
+    // always a same-origin path. It still passes through app/signin/page.tsx's
+    // "//" and "/\" rejection before anything redirects to it -- that check,
+    // not this line, is the open-redirect guard, and it must stay.
+    signInUrl.searchParams.set(
+      "callbackUrl",
+      req.nextUrl.pathname + req.nextUrl.search,
+    );
     return NextResponse.redirect(signInUrl);
   }
 

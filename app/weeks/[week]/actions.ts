@@ -12,6 +12,7 @@ import {
   getBracketField,
   savePrediction,
   syncWeekSubmission,
+  WeekLockedError,
 } from "@/lib/queries";
 import { syncWeek16Games } from "@/lib/syncWeek16";
 
@@ -27,12 +28,45 @@ function revalidateAllAffected(week: number) {
   revalidatePath("/");
 }
 
-async function requireUserId(): Promise<number> {
+/**
+ * What every write on this page resolves to. `error` is read by the person
+ * holding the phone, so it is always a sentence they can act on.
+ *
+ * These actions RETURN failures instead of throwing them. A thrown error
+ * reaches the browser with its message swapped for a digest in production,
+ * so "This week is locked" and "you've been signed out" -- the two things
+ * a person actually needs to be told -- arrived as the generic error
+ * screen, headed "Couldn't save that prediction" whatever had happened.
+ * Anything unexpected is logged here under an UPPERCASE label and reported
+ * as a plain "try again"; the route's error.tsx is left for failures of
+ * the page itself.
+ */
+export type WeekActionResult = { error?: string };
+
+const SIGNED_OUT: WeekActionResult = {
+  error: "You've been signed out. Sign in again, then retry.",
+};
+
+/**
+ * Runs one write for the signed-in user and turns every failure into a
+ * WeekActionResult. `label` is the server-log prefix; `fallback` is what
+ * the person sees when the cause is not one they can do anything about.
+ */
+async function runWeekAction(
+  label: string,
+  fallback: string,
+  write: (userId: number) => Promise<string | void>,
+): Promise<WeekActionResult> {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Not signed in");
+  if (!session?.user?.id) return SIGNED_OUT;
+  try {
+    const invalid = await write(session.user.id);
+    return invalid ? { error: invalid } : {};
+  } catch (err) {
+    if (err instanceof WeekLockedError) return { error: err.message };
+    console.error(`${label}:`, err);
+    return { error: fallback };
   }
-  return session.user.id;
 }
 
 /**
@@ -85,51 +119,72 @@ async function settleWeek(userId: number, week: number) {
   if (bracketInvalidated) revalidatePath("/bracket");
 }
 
-export async function savePredictionAction(formData: FormData) {
-  const userId = await requireUserId();
-  const gameId = Number(formData.get("gameId"));
-  const winnerTeamId = Number(formData.get("winnerTeamId"));
-  const marginBucket = Number(formData.get("marginBucket"));
-  const week = Number(formData.get("week"));
+export async function savePredictionAction(
+  formData: FormData,
+): Promise<WeekActionResult> {
+  return runWeekAction(
+    "SAVE PREDICTION ERROR",
+    "That pick didn't save. Please try again.",
+    async (userId) => {
+      const gameId = Number(formData.get("gameId"));
+      const winnerTeamId = Number(formData.get("winnerTeamId"));
+      const marginBucket = Number(formData.get("marginBucket"));
+      const week = Number(formData.get("week"));
 
-  if (Number.isNaN(gameId) || Number.isNaN(winnerTeamId)) {
-    throw new Error("Invalid prediction");
-  }
-  if (!isMarginBucketId(marginBucket)) {
-    throw new Error("Pick how big the margin of victory will be.");
-  }
+      if (Number.isNaN(gameId) || Number.isNaN(winnerTeamId)) {
+        return "That pick didn't make sense. Reload the page and try again.";
+      }
+      if (!isMarginBucketId(marginBucket)) {
+        return "Pick how big the margin of victory will be.";
+      }
 
-  await savePrediction(userId, gameId, winnerTeamId, marginBucket);
-  await settleWeek(userId, week);
+      await savePrediction(userId, gameId, winnerTeamId, marginBucket);
+      await settleWeek(userId, week);
+    },
+  );
 }
 
-export async function clearPredictionAction(formData: FormData) {
-  const userId = await requireUserId();
-  const gameId = Number(formData.get("gameId"));
-  const week = Number(formData.get("week"));
-  if (Number.isNaN(gameId)) {
-    throw new Error("Invalid game");
-  }
+export async function clearPredictionAction(
+  formData: FormData,
+): Promise<WeekActionResult> {
+  return runWeekAction(
+    "CLEAR PREDICTION ERROR",
+    "That pick didn't clear. Please try again.",
+    async (userId) => {
+      const gameId = Number(formData.get("gameId"));
+      const week = Number(formData.get("week"));
+      if (Number.isNaN(gameId)) {
+        return "That game didn't make sense. Reload the page and try again.";
+      }
 
-  await clearPrediction(userId, gameId);
-  await settleWeek(userId, week);
+      await clearPrediction(userId, gameId);
+      await settleWeek(userId, week);
+    },
+  );
 }
 
 /**
  * Wipe a whole week. The lock is enforced in clearWeekPredictions, not
  * here, so a stale page or a hand-rolled post can't get round it either.
  */
-export async function clearWeekAction(formData: FormData) {
-  const userId = await requireUserId();
-  const week = Number(formData.get("week"));
-  if (!Number.isInteger(week)) {
-    throw new Error("Invalid week");
-  }
-  // "keep" leaves the filled defaults in place and removes only the picks
-  // this person actually made.
-  const keepDefaults = formData.get("keepDefaults") === "1";
-  await clearWeekPredictions(userId, week, { keepDefaults });
-  await settleWeek(userId, week);
+export async function clearWeekAction(
+  formData: FormData,
+): Promise<WeekActionResult> {
+  return runWeekAction(
+    "CLEAR WEEK ERROR",
+    "Couldn't clear this week. Please try again.",
+    async (userId) => {
+      const week = Number(formData.get("week"));
+      if (!Number.isInteger(week)) {
+        return "That week didn't make sense. Reload the page and try again.";
+      }
+      // "keep" leaves the filled defaults in place and removes only the
+      // picks this person actually made.
+      const keepDefaults = formData.get("keepDefaults") === "1";
+      await clearWeekPredictions(userId, week, { keepDefaults });
+      await settleWeek(userId, week);
+    },
+  );
 }
 
 /**
@@ -144,13 +199,20 @@ export async function clearWeekAction(formData: FormData) {
  * to fill every game including the close ones -- which is precisely the
  * thing the settled/close split exists to avoid doing to someone.
  */
-export async function fillWeekDefaultsAction(formData: FormData) {
-  const userId = await requireUserId();
-  const week = Number(formData.get("week"));
-  if (!Number.isInteger(week)) {
-    throw new Error("Invalid week");
-  }
-  const settledOnly = formData.get("settledOnly") === "1";
-  await fillWeekDefaults(userId, week, { settledOnly });
-  await settleWeek(userId, week);
+export async function fillWeekDefaultsAction(
+  formData: FormData,
+): Promise<WeekActionResult> {
+  return runWeekAction(
+    "FILL WEEK ERROR",
+    "Couldn't fill this week. Please try again.",
+    async (userId) => {
+      const week = Number(formData.get("week"));
+      if (!Number.isInteger(week)) {
+        return "That week didn't make sense. Reload the page and try again.";
+      }
+      const settledOnly = formData.get("settledOnly") === "1";
+      await fillWeekDefaults(userId, week, { settledOnly });
+      await settleWeek(userId, week);
+    },
+  );
 }

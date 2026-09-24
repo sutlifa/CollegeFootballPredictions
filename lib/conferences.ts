@@ -22,7 +22,7 @@ export const CHAMPIONSHIP_CONFERENCES = [
   "Sun Belt",
 ] as const;
 
-// The Sun Belt is the only one of the 9 championship conferences still
+// The Sun Belt is the only one of the 10 championship conferences still
 // split into divisions (as of the 2026 season) -- its championship game is
 // East champ vs. West champ, not the conference's top two teams overall.
 // Team names match this app's canonical `teams.name` values exactly.

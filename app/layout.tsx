@@ -30,6 +30,11 @@ const NAV_LINKS = [
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 
+// Shared by the four footer links; see the tap-target comment in the footer.
+const FOOTER_LINK = "inline-block py-3.5 hover:text-ink-soft sm:py-1";
+// The dots between them exist only from sm up; see the footer comment.
+const FOOTER_DOT = "hidden sm:inline";
+
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const session = await auth();
 
@@ -115,19 +120,42 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         </main>
         {/* No top border -- the footer sits flush against the page. */}
         <footer className="mx-auto w-full max-w-5xl space-y-1 px-4 py-4 text-center text-xs text-ink-muted">
-          <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-            <Link href="/about" className="hover:text-ink-soft">
+          {/* Each link carries its own vertical padding on phones, so the
+              tap target is ~44px tall rather than the 16px line of text it
+              used to be (measured at 375px: "About" was 33x16). Padding, not
+              a bigger font: the footer should stay quiet, only easier to
+              hit. gap-y is 0 because the padding already separates rows
+              when they wrap; from sm up a pointer does not need the room.
+
+              The middots are hidden below sm. A wrap can fall anywhere,
+              and a dot rendered as its own flex item is left dangling at
+              the end of a line when it does -- which it did at 375px, with
+              "NFL Predictions" alone on a second row. CSS cannot tell an
+              item it starts a line, so the only separator that can never
+              be orphaned is one that is not there: on phones the links are
+              set apart by a wider gap instead. From sm up the row is a
+              fraction of the container's width and never wraps, so the
+              dots come back there. No horizontal padding on the links for
+              the same reason -- it was what pushed the row past 375px. */}
+          <p className="flex flex-wrap items-center justify-center gap-x-5 gap-y-0 sm:gap-x-3">
+            <Link href="/about" className={FOOTER_LINK}>
               About
             </Link>
-            <span aria-hidden>&middot;</span>
-            <Link href="/privacy" className="hover:text-ink-soft">
+            <span aria-hidden className={FOOTER_DOT}>
+              &middot;
+            </span>
+            <Link href="/privacy" className={FOOTER_LINK}>
               Privacy
             </Link>
-            <span aria-hidden>&middot;</span>
-            <Link href="/report" className="hover:text-ink-soft">
+            <span aria-hidden className={FOOTER_DOT}>
+              &middot;
+            </span>
+            <Link href="/report" className={FOOTER_LINK}>
               Report a problem
             </Link>
-            <span aria-hidden>&middot;</span>
+            <span aria-hidden className={FOOTER_DOT}>
+              &middot;
+            </span>
             {/* The sister app. A plain <a>, not <Link>: it is a different
                 origin, so there is no route for Next to prefetch. Same tab
                 on purpose -- it is one of ours, not an outbound citation,
@@ -138,7 +166,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 of the places that has to move with it. */}
             <a
               href="https://nfl-season-predictions.vercel.app/"
-              className="hover:text-ink-soft"
+              className={FOOTER_LINK}
             >
               NFL Predictions
             </a>

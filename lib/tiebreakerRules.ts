@@ -4,10 +4,12 @@ import type { Game, StandingsRow, Team } from "./types";
 import { isDecided } from "./types";
 
 /**
- * Each of the 9 championship conferences breaks a conference-standings tie
- * with its own real, specific written procedure -- not a shared generic
- * chain. These were pulled from each conference's current official
- * tiebreaker policy (conference websites / football operations manuals).
+ * Each of the 10 championship conferences breaks a conference-standings tie
+ * with its own specific procedure -- not a shared generic chain. Nine were
+ * pulled from that conference's current official tiebreaker policy
+ * (conference websites / football operations manuals); the Pac 12's is a
+ * deliberately shallow stand-in, because its published procedure is not
+ * something this repo can cite (see its entry below).
  * Two things every one of them relies on that this app can't reproduce and
  * are deliberately SKIPPED, falling straight through to the next
  * real/computable step: (1) proprietary computer-ranking services

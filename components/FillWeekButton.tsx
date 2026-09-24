@@ -8,7 +8,8 @@ type Props = {
   remaining: number;
   /** How many of those the rank gap calls settled. */
   settled: number;
-  fillAction: (formData: FormData) => void | Promise<void>;
+  /** Resolves to { error } when the week refused (locked, signed out, a fault). */
+  fillAction: (formData: FormData) => Promise<{ error?: string }>;
 };
 
 /**
@@ -29,6 +30,11 @@ type Props = {
 export function FillWeekButton({ week, remaining, settled, fillAction }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // Why the last attempt failed. Shown in the confirm row, which stays open
+  // so the reason sits next to the buttons it is about; the action returns
+  // it rather than throwing, because a thrown message never reaches the
+  // browser in production (see WeekActionResult in the week's actions.ts).
+  const [error, setError] = useState<string | null>(null);
 
   if (remaining === 0) return null;
   const close = remaining - settled;
@@ -51,7 +57,12 @@ export function FillWeekButton({ week, remaining, settled, fillAction }: Props) 
     // Reset only once the fill and its revalidation are done, so this
     // cannot sit open over a week it has already filled.
     startTransition(async () => {
-      await fillAction(formData);
+      const result = await fillAction(formData);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setError(null);
       setConfirming(false);
     });
   };
@@ -108,12 +119,21 @@ export function FillWeekButton({ week, remaining, settled, fillAction }: Props) 
 
       <button
         type="button"
-        onClick={() => setConfirming(false)}
+        onClick={() => {
+          setError(null);
+          setConfirming(false);
+        }}
         disabled={isPending}
         className="rounded border border-line-strong px-2.5 py-1.5 text-ink-soft hover:text-ink disabled:opacity-50"
       >
         Cancel
       </button>
+
+      {error && (
+        <span role="alert" className="basis-full font-medium text-loss">
+          {error}
+        </span>
+      )}
     </span>
   );
 }

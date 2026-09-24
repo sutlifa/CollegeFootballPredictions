@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type NavLink = { href: string; label: string };
 
@@ -27,9 +27,18 @@ export function MobileNav({ links, userLabel, signOutAction }: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  useEffect(() => {
+  // Close on navigation. This is React's adjust-state-during-render pattern
+  // (the same one GamePicker uses), NOT an effect: setState inside an effect
+  // that exists only to mirror a prop paints the stale open menu for one
+  // frame over the new page and then re-renders, which is why React 19's
+  // lint rules reject it. Comparing against the pathname we last saw and
+  // resetting during render closes the menu in the same pass that renders
+  // the new route.
+  const [seenPathname, setSeenPathname] = useState(pathname);
+  if (seenPathname !== pathname) {
+    setSeenPathname(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <div className="sm:hidden">

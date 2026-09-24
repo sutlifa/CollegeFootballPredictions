@@ -8,7 +8,8 @@ type Props = {
   chosen: number;
   /** Picks that came from "Fill with favorites" and were never looked at. */
   defaults: number;
-  clearAction: (formData: FormData) => void | Promise<void>;
+  /** Resolves to { error } when the week refused (locked, signed out, a fault). */
+  clearAction: (formData: FormData) => Promise<{ error?: string }>;
 };
 
 /**
@@ -32,6 +33,11 @@ type Props = {
 export function ClearWeekButton({ week, chosen, defaults, clearAction }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // Why the last attempt failed. Shown in the confirm row, which stays open
+  // so the reason sits next to the buttons it is about; the action returns
+  // it rather than throwing, because a thrown message never reaches the
+  // browser in production (see WeekActionResult in the week's actions.ts).
+  const [error, setError] = useState<string | null>(null);
 
   const total = chosen + defaults;
   if (total === 0) return null;
@@ -56,7 +62,12 @@ export function ClearWeekButton({ week, chosen, defaults, clearAction }: Props) 
   const submit = (keepDefaults: boolean) => (formData: FormData) => {
     formData.set("keepDefaults", keepDefaults ? "1" : "0");
     startTransition(async () => {
-      await clearAction(formData);
+      const result = await clearAction(formData);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setError(null);
       setConfirming(false);
     });
   };
@@ -97,12 +108,21 @@ export function ClearWeekButton({ week, chosen, defaults, clearAction }: Props) 
 
       <button
         type="button"
-        onClick={() => setConfirming(false)}
+        onClick={() => {
+          setError(null);
+          setConfirming(false);
+        }}
         disabled={isPending}
         className="rounded border border-line-strong px-2.5 py-1.5 text-ink-soft hover:text-ink disabled:opacity-50"
       >
         Cancel
       </button>
+
+      {error && (
+        <span role="alert" className="basis-full font-medium text-loss">
+          {error}
+        </span>
+      )}
     </span>
   );
 }
