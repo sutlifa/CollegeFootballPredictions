@@ -263,7 +263,7 @@ git push origin <default-branch>
 Commit messages end with:
 
 ```
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ```
 
 **Deploy** — pushing to the default branch triggers Vercel automatically, and
